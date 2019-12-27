@@ -200,7 +200,7 @@ numpy==1.18.0
 git+https://github.com/joestump/python-oauth2.git@b94f69b1ad195513547924e380d9265133e995fa#egg=oauth2
 oauthlib==2.1.0
 git+https://github.com/edx/edx-ora2.git@2.5.3#egg=ora2==2.5.3
-packaging==19.2           # via caniusepython3, tox
+packaging==19.2           # via tox
 pandas==0.24.2
 path.py==8.2.1
 pathlib2==2.3.5           # via pytest
