@@ -232,8 +232,8 @@ class CourseOutlineTest(UniqueCourseTest):
         """
         self.course_home_page.visit()
         due_date = self.course_home_page.outline.get_subsection_due_date()
-        self.assertIn(str(datetime.now().year), due_date)
+        self.assertIsNotNone(due_date)
         self.change_course_pacing_to_self_paced()
         self.course_home_page.visit()
         due_date = self.course_home_page.outline.get_subsection_due_date()
-        self.assertNotIn(str(datetime.now().year), due_date)
+        self.assertIsNone(due_date)
