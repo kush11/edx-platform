@@ -196,7 +196,7 @@ class CourseOutlineTest(UniqueCourseTest):
         self.course_fix.add_children(
             XBlockFixtureDesc('chapter', 'Test Section').add_children(
                 XBlockFixtureDesc('sequential', 'Test Subsection', metadata={
-                    'due': (datetime.now() + timedelta(days=-20)).isoformat(),
+                    'due': (datetime.now()).isoformat(),
                     'format': 'Homework'
                 }).add_children(
                     XBlockFixtureDesc('problem', 'Test Problem', data=load_data_str('multiple_choice.xml')),
@@ -232,8 +232,8 @@ class CourseOutlineTest(UniqueCourseTest):
         """
         self.course_home_page.visit()
         due_date = self.course_home_page.outline.get_subsection_due_date()
-        self.assertIsNotNone(due_date)
+        self.assertIn(str(datetime.now().year), due_date)
         self.change_course_pacing_to_self_paced()
         self.course_home_page.visit()
         due_date = self.course_home_page.outline.get_subsection_due_date()
-        self.assertIsNone(due_date)
+        self.assertNotIn(str(datetime.now().year), due_date)
