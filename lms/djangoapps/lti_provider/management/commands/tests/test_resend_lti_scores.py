@@ -3,7 +3,6 @@ Test lti_provider management commands.
 """
 
 
-import six
 from django.test import TestCase
 from mock import patch
 from opaque_keys.edx.keys import CourseKey, UsageKey
@@ -20,6 +19,7 @@ class CommandArgsTestCase(TestCase):
     """
     Test management command parses arguments properly.
     """
+    shard = 4
 
     def _get_arg_parser(self):
         """
@@ -34,7 +34,7 @@ class CommandArgsTestCase(TestCase):
         self.assertEqual(len(args.course_keys), 2)
         key = args.course_keys[0]
         self.assertIsInstance(key, CourseKey)
-        self.assertEqual(six.text_type(key), 'course-v1:edX+test_course+2525_fall')
+        self.assertEqual(unicode(key), 'course-v1:edX+test_course+2525_fall')
 
     def test_no_course_keys(self):
         parser = self._get_arg_parser()
@@ -46,6 +46,7 @@ class CommandExecutionTestCase(SharedModuleStoreTestCase):
     """
     Test `manage.py resend_lti_scores` command.
     """
+    shard = 4
 
     @classmethod
     def setUpClass(cls):

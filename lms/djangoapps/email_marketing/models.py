@@ -1,21 +1,13 @@
 """
 Email-marketing-related models.
 """
-
-
 from config_models.models import ConfigurationModel
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 
-@python_2_unicode_compatible
 class EmailMarketingConfiguration(ConfigurationModel):
-    """
-    Email marketing configuration
-
-    .. no_pii:
-    """
+    """ Email marketing configuration """
 
     class Meta(object):
         app_label = "email_marketing"
@@ -168,6 +160,6 @@ class EmailMarketingConfiguration(ConfigurationModel):
         )
     )
 
-    def __str__(self):
+    def __unicode__(self):
         return u"Email marketing configuration: New user list %s, Welcome template: %s" % \
                (self.sailthru_new_user_list, self.sailthru_welcome_template)

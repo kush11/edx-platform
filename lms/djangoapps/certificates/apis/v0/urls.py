@@ -1,8 +1,6 @@
 """
 Certificates API v0 URLs.
 """
-
-
 from django.conf import settings
 from django.conf.urls import include, url
 
@@ -15,12 +13,6 @@ CERTIFICATES_URLS = ([
             course_id=settings.COURSE_ID_PATTERN
         ),
         views.CertificatesDetailView.as_view(), name='detail'
-    ),
-    url(
-        r'^{username}/$'.format(
-            username=settings.USERNAME_PATTERN
-        ),
-        views.CertificatesListView.as_view(), name='list'
     ),
 ], 'certificates')
 

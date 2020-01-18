@@ -1,16 +1,14 @@
 # encoding: utf-8
 """Tests of Branding API views. """
-
-
 import json
+import urllib
 
 import ddt
 import mock
-import six
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.test import TestCase
 from django.urls import reverse
+from django.test import TestCase
 
 from branding.models import BrandingApiConfig
 from openedx.core.djangoapps.dark_lang.models import DarkLangConfig
@@ -24,6 +22,7 @@ from student.tests.factories import UserFactory
 @ddt.ddt
 class TestFooter(CacheIsolationTestCase):
     """Test API end-point for retrieving the footer. """
+    shard = 4
 
     @ddt.data("*/*", "text/html", "application/json")
     def test_feature_flag(self, accepts):
@@ -48,8 +47,9 @@ class TestFooter(CacheIsolationTestCase):
         with with_comprehensive_theme_context(theme):
             resp = self._get_footer(accepts=accepts)
 
+        self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Type"], content_type)
-        self.assertContains(resp, content)
+        self.assertIn(content, resp.content)
 
     @mock.patch.dict(settings.FEATURES, {'ENABLE_FOOTER_MOBILE_APP_LINKS': True})
     @ddt.data("edx.org", None)
@@ -59,7 +59,7 @@ class TestFooter(CacheIsolationTestCase):
             resp = self._get_footer()
 
         self.assertEqual(resp.status_code, 200)
-        json_data = json.loads(resp.content.decode('utf-8'))
+        json_data = json.loads(resp.content)
         self.assertTrue(isinstance(json_data, dict))
 
         # Logo
@@ -118,7 +118,7 @@ class TestFooter(CacheIsolationTestCase):
             resp = self._get_footer()
 
         self.assertEqual(resp.status_code, 200)
-        json_data = json.loads(resp.content.decode('utf-8'))
+        json_data = json.loads(resp.content)
 
         self.assertEqual(json_data["logo_image"], cdn_url)
 
@@ -137,7 +137,7 @@ class TestFooter(CacheIsolationTestCase):
         # Load the footer with the specified language
         resp = self._get_footer(params={'language': language})
         self.assertEqual(resp.status_code, 200)
-        json_data = json.loads(resp.content.decode('utf-8'))
+        json_data = json.loads(resp.content)
 
         # Verify that the translation occurred
         self.assertIn(expected_copyright, json_data['copyright'])
@@ -158,7 +158,8 @@ class TestFooter(CacheIsolationTestCase):
         with with_comprehensive_theme_context(theme):
             resp = self._get_footer(accepts="text/html", params={'language': language})
 
-        self.assertContains(resp, static_path)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(static_path, resp.content)
 
     @ddt.data(
         # OpenEdX
@@ -177,10 +178,12 @@ class TestFooter(CacheIsolationTestCase):
             params = {'show-openedx-logo': 1} if show_logo else {}
             resp = self._get_footer(accepts="text/html", params=params)
 
+        self.assertEqual(resp.status_code, 200)
+
         if show_logo:
-            self.assertContains(resp, 'alt="Powered by Open edX"')
+            self.assertIn('alt="Powered by Open edX"', resp.content)
         else:
-            self.assertNotContains(resp, 'alt="Powered by Open edX"')
+            self.assertNotIn('alt="Powered by Open edX"', resp.content)
 
     @ddt.data(
         # OpenEdX
@@ -198,10 +201,12 @@ class TestFooter(CacheIsolationTestCase):
             params = {'include-dependencies': 1} if include_dependencies else {}
             resp = self._get_footer(accepts="text/html", params=params)
 
+        self.assertEqual(resp.status_code, 200)
+
         if include_dependencies:
-            self.assertContains(resp, "vendor",)
+            self.assertIn("vendor", resp.content)
         else:
-            self.assertNotContains(resp, "vendor")
+            self.assertNotIn("vendor", resp.content)
 
     @ddt.data(
         # OpenEdX
@@ -231,9 +236,9 @@ class TestFooter(CacheIsolationTestCase):
 
         if include_language_selector:
             selected_language = language if language else 'en'
-            self._verify_language_selector(resp, selected_language)
+            self._verify_language_selector(resp.content, selected_language)
         else:
-            self.assertNotContains(resp, 'footer-language-selector')
+            self.assertNotIn('footer-language-selector', resp.content)
 
     def test_no_supported_accept_type(self):
         self._set_feature_flag(True)
@@ -252,29 +257,29 @@ class TestFooter(CacheIsolationTestCase):
         if params is not None:
             url = u"{url}?{params}".format(
                 url=url,
-                params=six.moves.urllib.parse.urlencode(params)
+                params=urllib.urlencode(params)
             )
 
         return self.client.get(url, HTTP_ACCEPT=accepts)
 
-    def _verify_language_selector(self, response, selected_language):
+    def _verify_language_selector(self, content, selected_language):
         """ Verify that the language selector is present and correctly configured."""
         # Verify the selector is included
-        content = response.content.decode(response.charset)
         self.assertIn('footer-language-selector', content)
 
         # Verify the correct language is selected
-        self.assertIn(u'<option value="{}" selected="selected">'.format(selected_language), content)
+        self.assertIn('<option value="{}" selected="selected">'.format(selected_language), content)
 
         # Verify the language choices
         for language in released_languages():
             if language.code == selected_language:
                 continue
-            self.assertIn(u'<option value="{}">'.format(language.code), content)
+            self.assertIn('<option value="{}">'.format(language.code), content)
 
 
 class TestIndex(SiteMixin, TestCase):
     """ Test the index view """
+    shard = 4
 
     def setUp(self):
         """ Set up a user """
@@ -309,4 +314,4 @@ class TestIndex(SiteMixin, TestCase):
         self.use_site(self.site_other)
         self.client.login(username=self.user.username, password="password")
         response = self.client.get(reverse("dashboard"))
-        self.assertIn(self.site_configuration_other.values["MKTG_URLS"]["ROOT"], response.content.decode('utf-8'))
+        self.assertIn(self.site_configuration_other.values["MKTG_URLS"]["ROOT"], response.content)

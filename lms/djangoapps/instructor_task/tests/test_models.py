@@ -1,11 +1,9 @@
 """
 Tests for instructor_task/models.py.
 """
-
-
 import copy
 import time
-from six import StringIO
+from cStringIO import StringIO
 
 import boto
 from django.conf import settings
@@ -14,33 +12,15 @@ from mock import patch
 from opaque_keys.edx.locator import CourseLocator
 
 from common.test.utils import MockS3Mixin
-from lms.djangoapps.instructor_task.models import InstructorTask, ReportStore, TASK_INPUT_LENGTH
+from lms.djangoapps.instructor_task.models import ReportStore
 from lms.djangoapps.instructor_task.tests.test_base import TestReportMixin
-
-
-class TestInstructorTasksModel(TestCase):
-    """
-    Test validations in instructor task model
-    """
-    def test_task_input_valid_length(self):
-        """
-        Test allowed length of task_input field
-        """
-        task_input = 's' * TASK_INPUT_LENGTH
-        with self.assertRaises(AttributeError):
-            InstructorTask.create(
-                course_id='dummy_course_id',
-                task_type='dummy type',
-                task_key='dummy key',
-                task_input=task_input,
-                requester='dummy requester',
-            )
 
 
 class ReportStoreTestMixin(object):
     """
     Mixin for report store tests.
     """
+    shard = 4
 
     def setUp(self):
         super(ReportStoreTestMixin, self).setUp()
@@ -141,6 +121,7 @@ class TestS3ReportStorage(MockS3Mixin, TestCase):
     Test the S3ReportStorage to make sure that configuration overrides from settings.FINANCIAL_REPORTS
     are used instead of default ones.
     """
+    shard = 4
 
     def test_financial_report_overrides(self):
         """

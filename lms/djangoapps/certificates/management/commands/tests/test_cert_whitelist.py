@@ -1,9 +1,8 @@
 """
 Extremely basic tests for the cert_whitelist command
 """
-
-
 import pytest
+
 from django.core.management import call_command
 
 

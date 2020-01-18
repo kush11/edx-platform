@@ -1,23 +1,27 @@
 """
 Tools for the instructor dashboard
 """
-
-
 import json
-import operator
 
 import dateutil
-import six
 from django.contrib.auth.models import User
 from django.http import HttpResponseBadRequest
-from django.utils.translation import ugettext as _
-from edx_when import api
-from opaque_keys.edx.keys import UsageKey
 from pytz import UTC
-from six import string_types, text_type
-from six.moves import zip
+from django.utils.translation import ugettext as _
+from opaque_keys.edx.keys import UsageKey
+from six import text_type, string_types
 
+from courseware.models import StudentFieldOverride
+from lms.djangoapps.courseware.field_overrides import disable_overrides
+from lms.djangoapps.courseware.student_field_overrides import (
+    clear_override_for_user,
+    get_override_for_user,
+    override_field_for_user,
+)
 from student.models import get_user_by_username_or_email
+from xmodule.fields import Date
+
+DATE_FIELD = Date()
 
 
 class DashboardError(Exception):
@@ -28,7 +32,7 @@ class DashboardError(Exception):
         """
         Generate an instance of HttpResponseBadRequest for this error.
         """
-        error = six.text_type(self)
+        error = unicode(self)
         return HttpResponseBadRequest(json.dumps({'error': error}))
 
 
@@ -44,7 +48,7 @@ def handle_dashboard_error(view):
         """
         try:
             return view(request, course_id=course_id)
-        except DashboardError as error:
+        except DashboardError, error:
             return error.response()
 
     return wrapper
@@ -79,7 +83,7 @@ def require_student_from_identifier(unique_student_identifier):
         return get_student_from_identifier(unique_student_identifier)
     except User.DoesNotExist:
         raise DashboardError(
-            _(u"Could not find student matching identifier: {student_identifier}").format(
+            _("Could not find student matching identifier: {student_identifier}").format(
                 student_identifier=unique_student_identifier
             )
         )
@@ -116,7 +120,7 @@ def find_unit(course, url):
 
     unit = find(course, url)
     if unit is None:
-        raise DashboardError(_(u"Couldn't find module for url: {0}").format(url))
+        raise DashboardError(_("Couldn't find module for url: {0}").format(url))
     return unit
 
 
@@ -154,20 +158,29 @@ def title_or_url(node):
     return title
 
 
-def set_due_date_extension(course, unit, student, due_date, actor=None, reason=''):
+def set_due_date_extension(course, unit, student, due_date):
     """
     Sets a due date extension. Raises DashboardError if the unit or extended
     due date is invalid.
     """
     if due_date:
-        try:
-            api.set_date_for_block(course.id, unit.location, 'due', due_date, user=student, reason=reason, actor=actor)
-        except api.MissingDateError:
-            raise DashboardError(_(u"Unit {0} has no due date to extend.").format(unit.location))
-        except api.InvalidDateError:
+        # Check that the new due date is valid:
+        with disable_overrides():
+            original_due_date = getattr(unit, 'due', None)
+
+        if not original_due_date:
+            raise DashboardError(_("Unit {0} has no due date to extend.").format(unit.location))
+        if due_date < original_due_date:
             raise DashboardError(_("An extended due date must be later than the original due date."))
+
+        override_field_for_user(student, unit, 'due', due_date)
+
     else:
-        api.set_date_for_block(course.id, unit.location, 'due', None, user=student, reason=reason, actor=actor)
+        # We are deleting a due date extension. Check that it exists:
+        if not get_override_for_user(student, unit, 'due'):
+            raise DashboardError(_("No due date extension is set for that student and unit."))
+
+        clear_override_for_user(student, unit, 'due')
 
 
 def dump_module_extensions(course, unit):
@@ -175,15 +188,23 @@ def dump_module_extensions(course, unit):
     Dumps data about students with due date extensions for a particular module,
     specified by 'url', in a particular course.
     """
-    header = [_("Username"), _("Full Name"), _("Extended Due Date")]
     data = []
-    for username, fullname, due_date in api.get_overrides_for_block(course.id, unit.location):
-        due_date = due_date.strftime(u'%Y-%m-%d %H:%M')
-        data.append(dict(list(zip(header, (username, fullname, due_date)))))
-    data.sort(key=operator.itemgetter(_("Username")))
+    header = [_("Username"), _("Full Name"), _("Extended Due Date")]
+    query = StudentFieldOverride.objects.filter(
+        course_id=course.id,
+        location=unit.location,
+        field='due')
+    for override in query:
+        due = DATE_FIELD.from_json(json.loads(override.value))
+        due = due.strftime("%Y-%m-%d %H:%M")
+        fullname = override.student.profile.name
+        data.append(dict(zip(
+            header,
+            (override.student.username, fullname, due))))
+    data.sort(key=lambda x: x[header[0]])
     return {
         "header": header,
-        "title": _(u"Users with due date extensions for {0}").format(
+        "title": _("Users with due date extensions for {0}").format(
             title_or_url(unit)),
         "data": data
     }
@@ -198,19 +219,21 @@ def dump_student_extensions(course, student):
     header = [_("Unit"), _("Extended Due Date")]
     units = get_units_with_due_date(course)
     units = {u.location: u for u in units}
-    query = api.get_overrides_for_user(course.id, student)
+    query = StudentFieldOverride.objects.filter(
+        course_id=course.id,
+        student=student,
+        field='due')
     for override in query:
-        location = override['location'].replace(course_key=course.id)
+        location = override.location.replace(course_key=course.id)
         if location not in units:
             continue
-        due = override['actual_date']
-        due = due.strftime(u"%Y-%m-%d %H:%M")
+        due = DATE_FIELD.from_json(json.loads(override.value))
+        due = due.strftime("%Y-%m-%d %H:%M")
         title = title_or_url(units[location])
-        data.append(dict(list(zip(header, (title, due)))))
-    data.sort(key=operator.itemgetter(_("Unit")))
+        data.append(dict(zip(header, (title, due))))
     return {
         "header": header,
-        "title": _(u"Due date extensions for {0} {1} ({2})").format(
+        "title": _("Due date extensions for {0} {1} ({2})").format(
             student.first_name, student.last_name, student.username),
         "data": data}
 

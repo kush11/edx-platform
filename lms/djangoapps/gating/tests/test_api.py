@@ -1,14 +1,12 @@
 """
 Unit tests for gating.signals module
 """
-
-
 from ddt import data, ddt, unpack
 from milestones import api as milestones_api
 from milestones.tests.utils import MilestonesTestCaseMixin
 from mock import Mock, patch
 
-from lms.djangoapps.courseware.tests.helpers import LoginEnrollmentTestCase
+from courseware.tests.helpers import LoginEnrollmentTestCase
 from gating.api import evaluate_prerequisite
 from openedx.core.lib.gating import api as gating_api
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
@@ -63,6 +61,7 @@ class TestEvaluatePrerequisite(GatingTestCase, MilestonesTestCaseMixin):
     """
     Tests for the evaluate_prerequisite function
     """
+    shard = 3
 
     def setUp(self):
         super(TestEvaluatePrerequisite, self).setUp()

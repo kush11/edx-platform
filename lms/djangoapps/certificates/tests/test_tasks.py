@@ -1,8 +1,3 @@
-"""
-Test module for user certificate generation.
-"""
-
-
 import ddt
 from django.test import TestCase
 from mock import call, patch
@@ -15,6 +10,7 @@ from student.tests.factories import UserFactory
 
 @ddt.ddt
 class GenerateUserCertificateTest(TestCase):
+    shard = 4
 
     @patch('lms.djangoapps.certificates.tasks.generate_user_certificates')
     @patch('lms.djangoapps.certificates.tasks.User.objects.get')
@@ -43,7 +39,7 @@ class GenerateUserCertificateTest(TestCase):
         del kwargs[missing_arg]
 
         with patch('lms.djangoapps.certificates.tasks.User.objects.get'):
-            with self.assertRaisesRegex(KeyError, missing_arg):
+            with self.assertRaisesRegexp(KeyError, missing_arg):
                 generate_certificate.apply_async(kwargs=kwargs).get()
 
     @patch('lms.djangoapps.certificates.tasks.generate_user_certificates')

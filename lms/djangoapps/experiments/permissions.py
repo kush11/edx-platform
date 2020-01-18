@@ -1,8 +1,3 @@
-"""
-Experimentation permissions
-"""
-
-
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from openedx.core.lib.api import permissions

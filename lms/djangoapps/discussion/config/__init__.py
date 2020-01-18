@@ -2,7 +2,6 @@
 Discussion settings and flags.
 """
 
-
 from openedx.core.djangoapps.waffle_utils import WaffleFlag, WaffleFlagNamespace
 
 # Namespace for course experience waffle flags.

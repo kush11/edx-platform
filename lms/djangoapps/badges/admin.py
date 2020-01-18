@@ -1,8 +1,6 @@
 """
 Admin registration for Badge Models
 """
-
-
 from config_models.admin import ConfigurationModelAdmin
 from django.contrib import admin
 

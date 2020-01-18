@@ -2,7 +2,6 @@
 Common mixins for Course API Tests
 """
 
-
 from datetime import datetime
 
 from student.tests.factories import UserFactory

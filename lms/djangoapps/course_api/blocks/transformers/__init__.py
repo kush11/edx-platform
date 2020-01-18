@@ -2,14 +2,12 @@
 Course API Block Transformers
 """
 
-
 from lms.djangoapps.course_blocks.transformers.visibility import VisibilityTransformer
-
+from .student_view import StudentViewTransformer
 from .block_completion import BlockCompletionTransformer
 from .block_counts import BlockCountsTransformer
-from .milestones import MilestonesAndSpecialExamsTransformer
 from .navigation import BlockNavigationTransformer
-from .student_view import StudentViewTransformer
+from .milestones import MilestonesAndSpecialExamsTransformer
 
 
 class SupportedFieldType(object):
@@ -43,8 +41,6 @@ SUPPORTED_FIELDS = [
     SupportedFieldType('graded'),
     SupportedFieldType('format'),
     SupportedFieldType('due'),
-    SupportedFieldType('has_score'),
-    SupportedFieldType('weight'),
     SupportedFieldType('show_correctness'),
     # 'student_view_data'
     SupportedFieldType(StudentViewTransformer.STUDENT_VIEW_DATA, StudentViewTransformer),

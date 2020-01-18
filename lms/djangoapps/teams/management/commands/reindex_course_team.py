@@ -1,15 +1,13 @@
 """
 Management command to update course_teams' search index.
 """
-
+from __future__ import print_function, unicode_literals
 
 from textwrap import dedent
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import BaseCommand, CommandError
-from six.moves import map
-
 from lms.djangoapps.teams.models import CourseTeam
 
 
@@ -52,10 +50,10 @@ class Command(BaseCommand):
         from ...search_indexes import CourseTeamIndexer
 
         if options['all']:
-            if options['course_team_ids']:
+            if len(options['course_team_ids']) > 0:
                 raise CommandError('Course teams cannot be specified when --all is also specified')
         else:
-            if not options['course_team_ids']:
+            if len(options['course_team_ids']) == 0:
                 raise CommandError('At least one course_team_id or --all needs to be specified')
 
         if not settings.FEATURES.get('ENABLE_TEAMS', False):
@@ -64,7 +62,7 @@ class Command(BaseCommand):
         if options['all']:
             course_teams = CourseTeam.objects.all()
         else:
-            course_teams = list(map(self._get_course_team, options['course_team_ids']))
+            course_teams = map(self._get_course_team, options['course_team_ids'])
 
         for course_team in course_teams:
             print('Indexing {}'.format(course_team.team_id))

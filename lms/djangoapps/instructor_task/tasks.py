@@ -19,8 +19,6 @@ a problem URL and optionally a student.  These are used to set up the initial va
 of the query for traversing StudentModule objects.
 
 """
-
-
 import logging
 from functools import partial
 
@@ -46,8 +44,8 @@ from lms.djangoapps.instructor_task.tasks_helper.misc import (
 )
 from lms.djangoapps.instructor_task.tasks_helper.module_state import (
     delete_problem_module_state,
-    override_score_module_state,
     perform_module_state_update,
+    override_score_module_state,
     rescore_problem_module_state,
     reset_attempts_module_state
 )

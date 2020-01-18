@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 
-
-import provider.utils
 from django.db import migrations, models
+import provider.utils
 
 
 class Migration(migrations.Migration):

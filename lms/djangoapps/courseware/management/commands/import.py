@@ -1,16 +1,13 @@
 """
 Script for importing courseware from XML format
 """
-
-
 from django.core.management.base import BaseCommand
-
-from openedx.core.djangoapps.django_comment_common.utils import are_permissions_roles_seeded, seed_permissions_roles
+from django_comment_common.utils import are_permissions_roles_seeded, seed_permissions_roles
 from xmodule.contentstore.django import contentstore
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.django import modulestore
-from xmodule.modulestore.xml_importer import import_course_from_xml
 from xmodule.util.sandboxing import DEFAULT_PYTHON_LIB_FILENAME
+from xmodule.modulestore.xml_importer import import_course_from_xml
 
 
 class Command(BaseCommand):
@@ -41,7 +38,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         data_dir = options['data_directory']
         source_dirs = options['course_dirs']
-        if not source_dirs:
+        if len(source_dirs) == 0:
             source_dirs = None
         do_import_static = not options.get('nostatic', False)
         # If the static content is not skipped, the python lib should be imported regardless
@@ -50,10 +47,10 @@ class Command(BaseCommand):
         python_lib_filename = options.get('python_lib_filename')
 
         output = (
-            u"Importing...\n"
-            u"    data_dir={data}, source_dirs={courses}\n"
-            u"    Importing static content? {import_static}\n"
-            u"    Importing python lib? {import_python_lib}"
+            "Importing...\n"
+            "    data_dir={data}, source_dirs={courses}\n"
+            "    Importing static content? {import_static}\n"
+            "    Importing python lib? {import_python_lib}"
         ).format(
             data=data_dir,
             courses=source_dirs,
@@ -74,5 +71,5 @@ class Command(BaseCommand):
         for course in course_items:
             course_id = course.id
             if not are_permissions_roles_seeded(course_id):
-                self.stdout.write(u'Seeding forum roles for course {0}\n'.format(course_id))
+                self.stdout.write('Seeding forum roles for course {0}\n'.format(course_id))
                 seed_permissions_roles(course_id)

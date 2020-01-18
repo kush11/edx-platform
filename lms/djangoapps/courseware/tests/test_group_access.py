@@ -3,12 +3,11 @@ This module defines tests for courseware.access that are specific to group
 access control rules.
 """
 
-
 import ddt
 from stevedore.extension import Extension, ExtensionManager
 
-import lms.djangoapps.courseware.access as access
-from lms.djangoapps.courseware.tests.factories import StaffFactory, UserFactory
+import courseware.access as access
+from courseware.tests.factories import StaffFactory, UserFactory
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
@@ -56,6 +55,7 @@ class GroupAccessTestCase(ModuleStoreTestCase):
     Tests to ensure that has_access() correctly enforces the visibility
     restrictions specified in the `group_access` field of XBlocks.
     """
+    shard = 7
 
     def set_user_group(self, user, partition, group):
         """

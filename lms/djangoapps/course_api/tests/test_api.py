@@ -1,8 +1,6 @@
 """
 Test for course API
 """
-
-
 from hashlib import md5
 
 from django.contrib.auth.models import AnonymousUser
@@ -24,6 +22,7 @@ class CourseApiTestMixin(CourseApiFactoryMixin):
     """
     Establish basic functionality for Course API tests
     """
+    shard = 4
 
     @classmethod
     def setUpClass(cls):
@@ -59,6 +58,7 @@ class TestGetCourseDetail(CourseDetailTestMixin, SharedModuleStoreTestCase):
     """
     Test course_detail api function
     """
+    shard = 4
 
     @classmethod
     def setUpClass(cls):
@@ -94,6 +94,7 @@ class CourseListTestMixin(CourseApiTestMixin):
     """
     Common behavior for list_courses tests
     """
+    shard = 4
 
     def _make_api_call(self, requesting_user, specified_user, org=None, filter_=None):
         """
@@ -117,6 +118,7 @@ class TestGetCourseList(CourseListTestMixin, SharedModuleStoreTestCase):
     """
     Test the behavior of the `list_courses` api function.
     """
+    shard = 4
     ENABLED_SIGNALS = ['course_published']
 
     @classmethod
@@ -159,6 +161,7 @@ class TestGetCourseListMultipleCourses(CourseListTestMixin, ModuleStoreTestCase)
     Test the behavior of the `list_courses` api function (with tests that
     modify the courseware).
     """
+    shard = 4
     ENABLED_SIGNALS = ['course_published']
 
     def setUp(self):
@@ -176,7 +179,7 @@ class TestGetCourseListMultipleCourses(CourseListTestMixin, ModuleStoreTestCase)
         """Verify that courses are filtered by the provided org key."""
         # Create a second course to be filtered out of queries.
         alternate_course = self.create_course(
-            org=md5(self.course.org.encode('utf-8')).hexdigest()
+            org=md5(self.course.org).hexdigest()
         )
 
         self.assertNotEqual(alternate_course.org, self.course.org)
@@ -205,10 +208,10 @@ class TestGetCourseListMultipleCourses(CourseListTestMixin, ModuleStoreTestCase)
         ]
         for filter_, expected_courses in test_cases:
             filtered_courses = self._make_api_call(self.staff_user, self.staff_user, filter_=filter_)
-            self.assertEqual(
+            self.assertEquals(
                 {course.id for course in filtered_courses},
                 {course.id for course in expected_courses},
-                u"testing course_api.api.list_courses with filter_={}".format(filter_),
+                "testing course_api.api.list_courses with filter_={}".format(filter_),
             )
 
 
@@ -217,6 +220,7 @@ class TestGetCourseListExtras(CourseListTestMixin, ModuleStoreTestCase):
     Tests of course_list api function that require alternative configurations
     of created courses.
     """
+    shard = 4
     ENABLED_SIGNALS = ['course_published']
 
     @classmethod
@@ -227,12 +231,12 @@ class TestGetCourseListExtras(CourseListTestMixin, ModuleStoreTestCase):
 
     def test_no_courses(self):
         courses = self._make_api_call(self.honor_user, self.honor_user)
-        self.assertEqual(len(list(courses)), 0)
+        self.assertEqual(len(courses), 0)
 
     def test_hidden_course_for_honor(self):
         self.create_course(visible_to_staff_only=True)
         courses = self._make_api_call(self.honor_user, self.honor_user)
-        self.assertEqual(len(list(courses)), 0)
+        self.assertEqual(len(courses), 0)
 
     def test_hidden_course_for_staff(self):
         self.create_course(visible_to_staff_only=True)

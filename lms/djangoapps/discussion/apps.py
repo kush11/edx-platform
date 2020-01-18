@@ -4,16 +4,15 @@ Discussion Application Configuration
 Signal handlers are connected here.
 """
 
-
 from django.apps import AppConfig
 
 from openedx.core.constants import COURSE_ID_PATTERN
-from openedx.core.djangoapps.plugins.constants import PluginSettings, PluginURLs, ProjectType, SettingsType
+from openedx.core.djangoapps.plugins.constants import ProjectType, SettingsType, PluginURLs, PluginSettings
 
 
 class DiscussionConfig(AppConfig):
     """
-    Application Configuration for Discussion.
+    Application Configuration for Grades.
     """
 
     name = u'lms.djangoapps.discussion'

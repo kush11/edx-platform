@@ -2,16 +2,14 @@
 Course API forms
 """
 
-
 from collections import namedtuple
 
-import six
 from django.core.exceptions import ValidationError
 from django.forms import CharField, Form
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 
-from openedx.core.djangoapps.util.forms import ExtendedNullBooleanField, MultiValueField
+from openedx.core.djangoapps.util.forms import ExtendedNullBooleanField
 
 
 class UsernameValidatorMixin(object):
@@ -43,7 +41,7 @@ class CourseDetailGetForm(UsernameValidatorMixin, Form):
         try:
             return CourseKey.from_string(course_key_string)
         except InvalidKeyError:
-            raise ValidationError(u"'{}' is not a valid course key.".format(six.text_type(course_key_string)))
+            raise ValidationError("'{}' is not a valid course key.".format(unicode(course_key_string)))
 
 
 class CourseListGetForm(UsernameValidatorMixin, Form):
@@ -53,7 +51,6 @@ class CourseListGetForm(UsernameValidatorMixin, Form):
     search_term = CharField(required=False)
     username = CharField(required=False)
     org = CharField(required=False)
-    role = MultiValueField(required=False)
 
     # white list of all supported filter fields
     filter_type = namedtuple('filter_type', ['param_name', 'field_name'])

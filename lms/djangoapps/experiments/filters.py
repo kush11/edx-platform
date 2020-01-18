@@ -1,8 +1,3 @@
-"""
-Experimentation filters
-"""
-
-
 import django_filters
 
 from experiments.models import ExperimentData, ExperimentKeyValue

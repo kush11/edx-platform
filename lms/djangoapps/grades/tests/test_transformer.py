@@ -2,15 +2,12 @@
 Test the behavior of the GradesTransformer
 """
 
-
 import datetime
 import random
 from copy import deepcopy
 
 import ddt
 import pytz
-import six
-from six.moves import range
 
 from lms.djangoapps.course_blocks.api import get_course_blocks
 from lms.djangoapps.course_blocks.transformers.tests.helpers import CourseStructureTestCase
@@ -29,6 +26,7 @@ class GradesTransformerTestCase(CourseStructureTestCase):
     """
     Verify behavior of the GradesTransformer
     """
+    shard = 4
 
     TRANSFORMER_CLASS_TO_TEST = GradesTransformer
 
@@ -217,7 +215,7 @@ class GradesTransformerTestCase(CourseStructureTestCase):
         }
         blocks = self.build_complicated_hypothetical_course()
         block_structure = get_course_blocks(self.student, blocks[u'course'].location, self.transformers)
-        for block_ref, expected_subsections in six.iteritems(expected_subsections):
+        for block_ref, expected_subsections in expected_subsections.iteritems():
             actual_subsections = block_structure.get_transformer_block_field(
                 blocks[block_ref].location,
                 self.TRANSFORMER_CLASS_TO_TEST,
@@ -400,6 +398,7 @@ class MultiProblemModulestoreAccessTestCase(CourseStructureTestCase, SharedModul
     """
     Test mongo usage in GradesTransformer.
     """
+    shard = 4
 
     TRANSFORMER_CLASS_TO_TEST = GradesTransformer
 
@@ -430,7 +429,7 @@ class MultiProblemModulestoreAccessTestCase(CourseStructureTestCase, SharedModul
                 u'#children': [],
             },
         ]
-        for problem_number in range(random.randrange(10, 20)):
+        for problem_number in xrange(random.randrange(10, 20)):
             course[0][u'#children'].append(
                 {
                     u'metadata': {

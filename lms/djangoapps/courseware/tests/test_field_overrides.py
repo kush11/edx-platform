@@ -2,13 +2,12 @@
 Tests for `field_overrides` module.
 """
 # pylint: disable=missing-docstring
-
-
 import unittest
 
 from django.test.utils import override_settings
 from xblock.field_data import DictFieldData
 
+from openedx.core.lib.tests import attr
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 
@@ -61,6 +60,7 @@ class OverrideFieldBase(SharedModuleStoreTestCase):
         cls.course = CourseFactory.create(enable_ccx=True)
 
 
+@attr(shard=1)
 @override_settings(FIELD_OVERRIDE_PROVIDERS=(
     'courseware.tests.test_field_overrides.TestOverrideProvider',))
 class OverrideFieldDataTests(OverrideFieldBase):
@@ -132,8 +132,9 @@ class OverrideFieldDataTests(OverrideFieldBase):
         self.assertIsInstance(data, DictFieldData)
 
 
+@attr(shard=1)
 @override_settings(
-    MODULESTORE_FIELD_OVERRIDE_PROVIDERS=['lms.djangoapps.courseware.tests.test_field_overrides.TestOverrideProvider']
+    MODULESTORE_FIELD_OVERRIDE_PROVIDERS=['courseware.tests.test_field_overrides.TestOverrideProvider']
 )
 class OverrideModulestoreFieldDataTests(FieldOverrideTestMixin, OverrideFieldDataTests):
     def make_one(self):
@@ -148,6 +149,7 @@ class OverrideModulestoreFieldDataTests(FieldOverrideTestMixin, OverrideFieldDat
         self.assertIsInstance(data, DictFieldData)
 
 
+@attr(shard=1)
 class ResolveDottedTests(unittest.TestCase):
     """
     Tests for `resolve_dotted`.

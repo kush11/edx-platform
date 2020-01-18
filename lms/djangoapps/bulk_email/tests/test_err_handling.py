@@ -2,8 +2,6 @@
 """
 Unit tests for handling email sending errors
 """
-
-
 import json
 from itertools import cycle
 from smtplib import SMTPConnectError, SMTPDataError, SMTPServerDisconnected
@@ -12,12 +10,11 @@ import ddt
 from celery.states import RETRY, SUCCESS
 from django.conf import settings
 from django.core.management import call_command
-from django.db import DatabaseError
 from django.urls import reverse
+from django.db import DatabaseError
 from mock import Mock, patch
 from opaque_keys.edx.locator import CourseLocator
 from six import text_type
-from six.moves import range
 
 from bulk_email.models import SEND_TO_MYSELF, BulkEmailFlag, CourseEmail
 from bulk_email.tasks import perform_delegate_email_batches, send_course_email
@@ -46,6 +43,7 @@ class TestEmailErrors(ModuleStoreTestCase):
     """
     Test that errors from sending email are handled properly.
     """
+    shard = 1
 
     ENABLED_CACHES = ['default', 'mongo_metadata_inheritance', 'loc_cache']
 
@@ -89,7 +87,7 @@ class TestEmailErrors(ModuleStoreTestCase):
             'message': 'test message for myself'
         }
         response = self.client.post(self.send_mail_url, test_email)
-        self.assertEqual(json.loads(response.content.decode('utf-8')), self.success_content)
+        self.assertEquals(json.loads(response.content), self.success_content)
 
         # Test that we retry upon hitting a 4xx error
         self.assertTrue(retry.called)
@@ -108,7 +106,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         get_conn.return_value.send_messages.side_effect = cycle([SMTPDataError(554, "Email address is blacklisted"),
                                                                  None, None, None])
         # Don't forget to account for the "myself" instructor user
-        students = [UserFactory() for _ in range(settings.BULK_EMAIL_EMAILS_PER_TASK - 1)]
+        students = [UserFactory() for _ in xrange(settings.BULK_EMAIL_EMAILS_PER_TASK - 1)]
         for student in students:
             CourseEnrollmentFactory.create(user=student, course_id=self.course.id)
 
@@ -119,16 +117,16 @@ class TestEmailErrors(ModuleStoreTestCase):
             'message': 'test message for all'
         }
         response = self.client.post(self.send_mail_url, test_email)
-        self.assertEqual(json.loads(response.content.decode('utf-8')), self.success_content)
+        self.assertEquals(json.loads(response.content), self.success_content)
 
         # We shouldn't retry when hitting a 5xx error
         self.assertFalse(retry.called)
         # Test that after the rejected email, the rest still successfully send
         ((_entry_id, _current_task_id, subtask_status), _kwargs) = result.call_args
-        self.assertEqual(subtask_status.skipped, 0)
+        self.assertEquals(subtask_status.skipped, 0)
         expected_fails = int((settings.BULK_EMAIL_EMAILS_PER_TASK + 3) / 4.0)
-        self.assertEqual(subtask_status.failed, expected_fails)
-        self.assertEqual(subtask_status.succeeded, settings.BULK_EMAIL_EMAILS_PER_TASK - expected_fails)
+        self.assertEquals(subtask_status.failed, expected_fails)
+        self.assertEquals(subtask_status.succeeded, settings.BULK_EMAIL_EMAILS_PER_TASK - expected_fails)
 
     @patch('bulk_email.tasks.get_connection', autospec=True)
     @patch('bulk_email.tasks.send_course_email.retry')
@@ -144,7 +142,7 @@ class TestEmailErrors(ModuleStoreTestCase):
             'message': 'test message for myself'
         }
         response = self.client.post(self.send_mail_url, test_email)
-        self.assertEqual(json.loads(response.content.decode('utf-8')), self.success_content)
+        self.assertEquals(json.loads(response.content), self.success_content)
 
         self.assertTrue(retry.called)
         (__, kwargs) = retry.call_args
@@ -166,7 +164,7 @@ class TestEmailErrors(ModuleStoreTestCase):
             'message': 'test message for myself'
         }
         response = self.client.post(self.send_mail_url, test_email)
-        self.assertEqual(json.loads(response.content.decode('utf-8')), self.success_content)
+        self.assertEquals(json.loads(response.content), self.success_content)
 
         self.assertTrue(retry.called)
         (__, kwargs) = retry.call_args
@@ -201,14 +199,14 @@ class TestEmailErrors(ModuleStoreTestCase):
         entry = InstructorTask.create(course_id, "task_type", "task_key", "task_input", self.instructor)
         task_input = {"email_id": email.id}
         # (?i) is a regex for ignore case
-        with self.assertRaisesRegex(ValueError, r"(?i)course not found"):
+        with self.assertRaisesRegexp(ValueError, r"(?i)course not found"):
             perform_delegate_email_batches(entry.id, course_id, task_input, "action_name")
 
     def test_nonexistent_to_option(self):
         """
         Tests exception when the to_option in the email doesn't exist
         """
-        with self.assertRaisesRegex(ValueError, 'Course email being sent to unrecognized target: "IDONTEXIST" *'):
+        with self.assertRaisesRegexp(ValueError, 'Course email being sent to unrecognized target: "IDONTEXIST" *'):
             email = CourseEmail.create(  # pylint: disable=unused-variable
                 self.course.id,
                 self.instructor,
@@ -222,11 +220,11 @@ class TestEmailErrors(ModuleStoreTestCase):
         """
         Tests exception when the cohort or course mode doesn't exist
         """
-        with self.assertRaisesRegex(ValueError, '.* IDONTEXIST does not exist .*'):
+        with self.assertRaisesRegexp(ValueError, '.* IDONTEXIST does not exist .*'):
             email = CourseEmail.create(  # pylint: disable=unused-variable
                 self.course.id,
                 self.instructor,
-                [u"{}:IDONTEXIST".format(target_type)],
+                ["{}:IDONTEXIST".format(target_type)],
                 "re: subject",
                 "dummy body goes here"
             )
@@ -244,7 +242,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         )
         entry = InstructorTask.create("bogus/task/id", "task_type", "task_key", "task_input", self.instructor)
         task_input = {"email_id": email.id}
-        with self.assertRaisesRegex(ValueError, 'does not match task value'):
+        with self.assertRaisesRegexp(ValueError, 'does not match task value'):
             perform_delegate_email_batches(entry.id, self.course.id, task_input, "action_name")
 
     def test_wrong_course_id_in_email(self):
@@ -260,7 +258,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         )
         entry = InstructorTask.create(self.course.id, "task_type", "task_key", "task_input", self.instructor)
         task_input = {"email_id": email.id}
-        with self.assertRaisesRegex(ValueError, 'does not match email value'):
+        with self.assertRaisesRegexp(ValueError, 'does not match email value'):
             perform_delegate_email_batches(entry.id, self.course.id, task_input, "action_name")
 
     def test_send_email_undefined_subtask(self):
@@ -272,7 +270,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         subtask_id = "subtask-id-value"
         subtask_status = SubtaskStatus.create(subtask_id)
         email_id = 1001
-        with self.assertRaisesRegex(DuplicateTaskException, 'unable to find subtasks of instructor task'):
+        with self.assertRaisesRegexp(DuplicateTaskException, 'unable to find subtasks of instructor task'):
             send_course_email(entry_id, email_id, to_list, global_email_context, subtask_status.to_dict())
 
     def test_send_email_missing_subtask(self):
@@ -286,7 +284,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         different_subtask_id = "bogus-subtask-id-value"
         subtask_status = SubtaskStatus.create(different_subtask_id)
         bogus_email_id = 1001
-        with self.assertRaisesRegex(DuplicateTaskException, 'unable to find status for subtask of instructor task'):
+        with self.assertRaisesRegexp(DuplicateTaskException, 'unable to find status for subtask of instructor task'):
             send_course_email(entry_id, bogus_email_id, to_list, global_email_context, subtask_status.to_dict())
 
     def test_send_email_completed_subtask(self):
@@ -301,7 +299,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         to_list = ['test@test.com']
         global_email_context = {'course_title': 'dummy course'}
         new_subtask_status = SubtaskStatus.create(subtask_id)
-        with self.assertRaisesRegex(DuplicateTaskException, 'already completed'):
+        with self.assertRaisesRegexp(DuplicateTaskException, 'already completed'):
             send_course_email(entry_id, bogus_email_id, to_list, global_email_context, new_subtask_status.to_dict())
 
     def test_send_email_running_subtask(self):
@@ -316,7 +314,7 @@ class TestEmailErrors(ModuleStoreTestCase):
         bogus_email_id = 1001
         to_list = ['test@test.com']
         global_email_context = {'course_title': 'dummy course'}
-        with self.assertRaisesRegex(DuplicateTaskException, 'already being executed'):
+        with self.assertRaisesRegexp(DuplicateTaskException, 'already being executed'):
             send_course_email(entry_id, bogus_email_id, to_list, global_email_context, subtask_status.to_dict())
 
     def test_send_email_retried_subtask(self):
@@ -332,11 +330,11 @@ class TestEmailErrors(ModuleStoreTestCase):
         global_email_context = {'course_title': 'dummy course'}
         # try running with a clean subtask:
         new_subtask_status = SubtaskStatus.create(subtask_id)
-        with self.assertRaisesRegex(DuplicateTaskException, 'already retried'):
+        with self.assertRaisesRegexp(DuplicateTaskException, 'already retried'):
             send_course_email(entry_id, bogus_email_id, to_list, global_email_context, new_subtask_status.to_dict())
         # try again, with a retried subtask with lower count:
         new_subtask_status = SubtaskStatus.create(subtask_id, state=RETRY, retried_nomax=1)
-        with self.assertRaisesRegex(DuplicateTaskException, 'already retried'):
+        with self.assertRaisesRegexp(DuplicateTaskException, 'already retried'):
             send_course_email(entry_id, bogus_email_id, to_list, global_email_context, new_subtask_status.to_dict())
 
     def test_send_email_with_locked_instructor_task(self):
@@ -353,7 +351,7 @@ class TestEmailErrors(ModuleStoreTestCase):
             mock_task_save.side_effect = DatabaseError
             with self.assertRaises(DatabaseError):
                 send_course_email(entry_id, bogus_email_id, to_list, global_email_context, subtask_status.to_dict())
-            self.assertEqual(mock_task_save.call_count, MAX_DATABASE_LOCK_RETRIES)
+            self.assertEquals(mock_task_save.call_count, MAX_DATABASE_LOCK_RETRIES)
 
     def test_send_email_undefined_email(self):
         # test at a lower level, to ensure that the course gets checked down below too.

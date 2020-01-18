@@ -2,12 +2,10 @@
 Tests for Course API forms.
 """
 
-
 from itertools import product
+from urllib import urlencode
 
 import ddt
-import six
-from six.moves.urllib.parse import urlencode  # pylint: disable=import-error
 from django.contrib.auth.models import AnonymousUser
 from django.http import QueryDict
 
@@ -23,6 +21,7 @@ class UsernameTestMixin(object):
     """
     Tests the username Form field.
     """
+    shard = 4
 
     def test_no_user_param_anonymous_access(self):
         self.set_up_data(AnonymousUser())
@@ -40,6 +39,7 @@ class TestCourseListGetForm(FormTestMixin, UsernameTestMixin, SharedModuleStoreT
     """
     Tests for CourseListGetForm
     """
+    shard = 4
     FORM_CLASS = CourseListGetForm
 
     @classmethod
@@ -68,7 +68,6 @@ class TestCourseListGetForm(FormTestMixin, UsernameTestMixin, SharedModuleStoreT
         self.cleaned_data = {
             'username': user.username,
             'org': '',
-            'role': set([]),
             'mobile': None,
             'search_term': '',
             'filter_': None,
@@ -106,6 +105,7 @@ class TestCourseDetailGetForm(FormTestMixin, UsernameTestMixin, SharedModuleStor
     """
     Tests for CourseDetailGetForm
     """
+    shard = 4
     FORM_CLASS = CourseDetailGetForm
 
     @classmethod
@@ -128,7 +128,7 @@ class TestCourseDetailGetForm(FormTestMixin, UsernameTestMixin, SharedModuleStor
         self.form_data = QueryDict(
             urlencode({
                 'username': user.username,
-                'course_key': six.text_type(self.course.id),
+                'course_key': unicode(self.course.id),
             }),
             mutable=True,
         )

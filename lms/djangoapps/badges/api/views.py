@@ -1,8 +1,6 @@
 """
 API views for badges
 """
-
-
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.django.models import CourseKeyField

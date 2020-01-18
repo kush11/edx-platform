@@ -1,6 +1,5 @@
 """Models for dashboard application"""
 
-
 import mongoengine
 
 from xmodule.modulestore.mongoengine_fields import CourseKeyField

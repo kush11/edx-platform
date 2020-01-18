@@ -11,15 +11,11 @@ support both generating static assets to a directory and also serving static
 from the same directory.
 """
 
-
-# Silence noisy logs
-import logging
 import os
+from path import Path as path
 from tempfile import mkdtemp
 
 from django.utils.translation import ugettext_lazy
-from path import Path as path
-
 from openedx.core.release import RELEASE_LINE
 
 CONFIG_ROOT = path(__file__).abspath().dirname()
@@ -33,9 +29,6 @@ TEST_ROOT = CONFIG_ROOT.dirname().dirname() / "test_root"
 # and (b) that the files are the same in Jenkins as in local dev.
 os.environ['SERVICE_VARIANT'] = 'bok_choy_docker' if 'BOK_CHOY_HOSTNAME' in os.environ else 'bok_choy'
 os.environ['CONFIG_ROOT'] = CONFIG_ROOT
-os.environ['LMS_CFG'] = str.format("{config_root}/{service_variant}.yml",
-                                   config_root=os.environ['CONFIG_ROOT'], service_variant=os.environ['SERVICE_VARIANT'])
-os.environ['REVISION_CFG'] = "{config_root}/revisions.yml".format(config_root=os.environ['CONFIG_ROOT'])
 
 from .production import *  # pylint: disable=wildcard-import, unused-wildcard-import, wrong-import-position
 
@@ -64,12 +57,6 @@ CAPTURE_CONSOLE_LOG = True
 PLATFORM_NAME = ugettext_lazy(u"édX")
 PLATFORM_DESCRIPTION = ugettext_lazy(u"Open édX Platform")
 
-# We need to test different scenarios, following setting effectively disbale rate limiting
-PASSWORD_RESET_EMAIL_RATE_LIMIT = {
-    'no_of_emails': 1,
-    'per_seconds': 1
-}
-
 ############################ STATIC FILES #############################
 
 # Enable debug so that static assets are served by Django
@@ -90,7 +77,7 @@ MEDIA_ROOT = TEST_ROOT / "uploads"
 WEBPACK_LOADER['DEFAULT']['STATS_FILE'] = TEST_ROOT / "staticfiles" / "lms" / "webpack-stats.json"
 
 # Don't use compression during tests
-PIPELINE['JS_COMPRESSOR'] = None
+PIPELINE_JS_COMPRESSOR = None
 
 ################################# CELERY ######################################
 
@@ -126,11 +113,15 @@ XQUEUE_INTERFACE['url'] = 'http://localhost:8040'
 EDXNOTES_PUBLIC_API = 'http://localhost:8042/api/v1'
 EDXNOTES_INTERNAL_API = 'http://localhost:8042/api/v1'
 
+
 EDXNOTES_CONNECT_TIMEOUT = 10  # time in seconds
 EDXNOTES_READ_TIMEOUT = 10  # time in seconds
 
+
 NOTES_DISABLED_TABS = []
 
+# Silence noisy logs
+import logging
 LOG_OVERRIDES = [
     ('track.middleware', logging.CRITICAL),
     ('edxmako.shortcuts', logging.ERROR),
@@ -144,7 +135,6 @@ FEATURES['MILESTONES_APP'] = True
 
 # Enable oauth authentication, which we test.
 FEATURES['ENABLE_OAUTH2_PROVIDER'] = True
-OAUTH_ENFORCE_SECURE = False
 
 # Enable pre-requisite course
 FEATURES['ENABLE_PREREQUISITE_COURSES'] = True
@@ -210,22 +200,6 @@ FEATURES['ENABLE_DISCUSSION_HOME_PANEL'] = True
 # Enable support for OpenBadges accomplishments
 FEATURES['ENABLE_OPENBADGES'] = True
 
-FEATURES['ENABLE_LTI_PROVIDER'] = True
-INSTALLED_APPS.append('lti_provider.apps.LtiProviderConfig')
-AUTHENTICATION_BACKENDS.append('lti_provider.users.LtiBackend')
-
-FEATURES['ENABLE_THIRD_PARTY_AUTH'] = True
-THIRD_PARTY_AUTH = {
-    "Google": {
-        "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY": "test",
-        "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET": "test"
-    },
-    "Facebook": {
-        "SOCIAL_AUTH_FACEBOOK_KEY": "test",
-        "SOCIAL_AUTH_FACEBOOK_SECRET": "test"
-    }
-}
-
 # Use MockSearchEngine as the search engine for test scenario
 SEARCH_ENGINE = "search.tests.mock_search_engine.MockSearchEngine"
 # Path at which to store the mock index
@@ -244,12 +218,16 @@ SECRET_KEY = "very_secret_bok_choy_key"
 
 # Set dummy values for profile image settings.
 PROFILE_IMAGE_BACKEND = {
-    'class': 'openedx.core.storage.OverwriteStorage',
+    'class': 'storages.backends.overwrite.OverwriteStorage',
     'options': {
         'location': os.path.join(MEDIA_ROOT, 'profile-images/'),
         'base_url': os.path.join(MEDIA_URL, 'profile-images/'),
     },
 }
+
+# Make sure we test with the extended history table
+FEATURES['ENABLE_CSMH_EXTENDED'] = True
+INSTALLED_APPS.append('coursewarehistoryextended')
 
 BADGING_BACKEND = 'lms.djangoapps.badges.backends.tests.dummy_backend.DummyBackend'
 
@@ -259,8 +237,6 @@ ECOMMERCE_API_URL = 'http://localhost:8043/api/v2/'
 LMS_ROOT_URL = "http://localhost:{}".format(os.environ.get('BOK_CHOY_LMS_PORT', 8003))
 CMS_BASE = "localhost:{}".format(os.environ.get('BOK_CHOY_CMS_PORT', 8031))
 LOGIN_REDIRECT_WHITELIST = [CMS_BASE]
-
-INSTALLED_APPS.append('openedx.testing.coverage_context_listener')
 
 if RELEASE_LINE == "master":
     # On master, acceptance tests use edX books, not the default Open edX books.

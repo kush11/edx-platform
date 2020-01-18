@@ -2,21 +2,20 @@
 Defines abstract class for the Enrollment Reports.
 """
 
-
 import abc
 import collections
 import json
 
-import six
 from django.contrib.auth.models import User
 
 from student.models import UserProfile
 
 
-class AbstractEnrollmentReportProvider(six.with_metaclass(abc.ABCMeta, object)):
+class AbstractEnrollmentReportProvider(object):
     """
     Abstract interface for Detailed Enrollment Report Provider
     """
+    __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def get_enrollment_info(self, user, course_id):

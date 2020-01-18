@@ -136,6 +136,7 @@ html.video-fullscreen {
     .xblock {
       overflow-wrap: break-word;
       word-wrap: break-word;
+      word-break: break-word;
       margin: 0 auto;
       font: -apple-system-body;
 
@@ -204,8 +205,8 @@ html.video-fullscreen {
         }
       }
 
-      .proctored-exam-code {
-        margin: 5px 0px;
+      span.proctored-exam-code {
+        margin-top: 5px;
         font-size: 1.3em;
       }
 
@@ -227,12 +228,8 @@ html.video-fullscreen {
         }
       }
 
-      .copy-exam-code-button {
-        margin: 5px 0px;
-        padding: 7.5px 20px;
-        margin-left: -5px;
-        border-top-left-radius: 0px;
-        border-bottom-left-radius: 0px;
+      .proctored-exam-select-code {
+        @include margin-left(30px);
       }
 
       .exam-action-button {
@@ -323,24 +320,6 @@ html.video-fullscreen {
         }
       }
 
-      &.instructions {
-        p {
-          margin: 0;
-        }
-
-        h4 {
-          margin-top: ($baseline * 3/2);
-        }
-
-        ul {
-          margin: 0;
-        }
-
-        .exam-action-button {
-          margin-top: $baseline / 2;
-        }
-      }
-
       hr {
         border-bottom: 1px solid $uxpl-gray-background;
       }
@@ -351,7 +330,7 @@ html.video-fullscreen {
         position: relative;
 
         &.start-timed-exam {
-          margin-bottom: ($baseline/2);
+          margin-bottom:($baseline/2);
           display: block;
 
           &.action-primary {
@@ -385,7 +364,7 @@ html.video-fullscreen {
 
     .proctored-exam-skip-confirm-wrapper {
       border-left: ($baseline/4) solid $red;
-      padding: $baseline ($baseline*1.5);
+      padding: $baseline ($baseline*1.5);;
       background-color: rgb(242, 244, 245);
 
       .msg-title {
@@ -436,6 +415,7 @@ html.video-fullscreen {
         float: left;
         width: 80%;
         margin-bottom: 25px;
+
       }
 
       a.contest-review {
@@ -469,7 +449,7 @@ html.video-fullscreen {
     .faq-proctoring-exam {
       @extend .footer-sequence;
 
-      border-bottom: none;
+      border-bottom : none;
 
       a.footer-link {
         display: block;
@@ -515,11 +495,6 @@ html.video-fullscreen {
         margin-bottom: lh();
         padding-bottom: 0;
         border-bottom: none;
-      }
-
-      code::before,
-      code::after {
-        @include display-left-to-right();
       }
     }
 
@@ -671,9 +646,7 @@ html.video-fullscreen {
       }
     }
 
-    .xqa-modal,
-    .staff-modal,
-    .history-modal {
+    .xqa-modal, .staff-modal, .history-modal {
       width: 80%;
       height: 80%;
       left: left(20%);
@@ -758,6 +731,7 @@ html.video-fullscreen {
 
 .xmodule_VideoModule {
   margin-bottom: ($baseline*1.5);
+
 }
 
 textarea.short-form-response {

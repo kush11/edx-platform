@@ -1,8 +1,6 @@
 """
 Unit tests for bulk-email-related models.
 """
-
-
 import datetime
 
 import ddt
@@ -12,7 +10,6 @@ from mock import Mock, patch
 from opaque_keys.edx.keys import CourseKey
 from pytz import UTC
 
-from bulk_email.api import is_bulk_email_feature_enabled
 from bulk_email.models import (
     SEND_TO_COHORT,
     SEND_TO_STAFF,
@@ -20,17 +17,18 @@ from bulk_email.models import (
     BulkEmailFlag,
     CourseAuthorization,
     CourseEmail,
-    CourseEmailTemplate,
-    Optout,
+    CourseEmailTemplate
 )
 from course_modes.models import CourseMode
 from openedx.core.djangoapps.course_groups.models import CourseCohort
+from openedx.core.lib.tests import attr
 from student.tests.factories import UserFactory
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 
 
 @ddt.ddt
+@attr(shard=1)
 @patch('bulk_email.models.html_to_text', Mock(return_value='Mocking CourseEmail.text_message', autospec=True))
 class CourseEmailTest(ModuleStoreTestCase):
     """Test the CourseEmail model."""
@@ -131,7 +129,7 @@ class CourseEmailTest(ModuleStoreTestCase):
         target = email.targets.all()[0]
         self.assertEqual(target.target_type, SEND_TO_TRACK)
         self.assertEqual(target.short_display(), 'track-{}'.format(free_mode))
-        self.assertEqual(target.long_display(), u'Course mode: {}'.format(mode_display_name))
+        self.assertEqual(target.long_display(), 'Course mode: {}'.format(mode_display_name))
 
     def test_cohort_target(self):
         course_id = CourseKey.from_string('abc/123/doremi')
@@ -148,21 +146,7 @@ class CourseEmailTest(ModuleStoreTestCase):
         self.assertEqual(target.long_display(), 'Cohort: test cohort')
 
 
-class OptoutTest(TestCase):
-    def test_is_user_opted_out_for_course(self):
-        user = UserFactory.create()
-        course_id = CourseKey.from_string('abc/123/doremi')
-
-        self.assertFalse(Optout.is_user_opted_out_for_course(user, course_id))
-
-        Optout.objects.create(
-            user=user,
-            course_id=course_id,
-        )
-
-        self.assertTrue(Optout.is_user_opted_out_for_course(user, course_id))
-
-
+@attr(shard=1)
 class NoCourseEmailTemplateTest(TestCase):
     """Test the CourseEmailTemplate model without loading the template data."""
 
@@ -171,6 +155,7 @@ class NoCourseEmailTemplateTest(TestCase):
             CourseEmailTemplate.get_template()
 
 
+@attr(shard=1)
 class CourseEmailTemplateTest(TestCase):
     """Test the CourseEmailTemplate model."""
 
@@ -247,7 +232,7 @@ class CourseEmailTemplateTest(TestCase):
         template = CourseEmailTemplate.get_template()
         context = self._add_xss_fields(self._get_sample_html_context())
         message = template.render_htmltext(
-            u"Dear %%USER_FULLNAME%%, thanks for enrolling in %%COURSE_DISPLAY_NAME%%.", context
+            "Dear %%USER_FULLNAME%%, thanks for enrolling in %%COURSE_DISPLAY_NAME%%.", context
         )
         self.assertNotIn("<script>", message)
         self.assertIn("&lt;script&gt;alert(&#39;Course Title!&#39;);&lt;/alert&gt;", message)
@@ -262,13 +247,14 @@ class CourseEmailTemplateTest(TestCase):
         template = CourseEmailTemplate.get_template()
         context = self._add_xss_fields(self._get_sample_plain_context())
         message = template.render_plaintext(
-            u"Dear %%USER_FULLNAME%%, thanks for enrolling in %%COURSE_DISPLAY_NAME%%.", context
+            "Dear %%USER_FULLNAME%%, thanks for enrolling in %%COURSE_DISPLAY_NAME%%.", context
         )
         self.assertNotIn("&lt;script&gt;", message)
         self.assertIn(context['course_title'], message)
         self.assertIn(context['name'], message)
 
 
+@attr(shard=1)
 class CourseAuthorizationTest(TestCase):
     """Test the CourseAuthorization model."""
 
@@ -280,15 +266,15 @@ class CourseAuthorizationTest(TestCase):
         BulkEmailFlag.objects.create(enabled=True, require_course_email_auth=True)
         course_id = CourseKey.from_string('abc/123/doremi')
         # Test that course is not authorized by default
-        self.assertFalse(is_bulk_email_feature_enabled(course_id))
+        self.assertFalse(BulkEmailFlag.feature_enabled(course_id))
 
         # Authorize
         cauth = CourseAuthorization(course_id=course_id, email_enabled=True)
         cauth.save()
         # Now, course should be authorized
-        self.assertTrue(is_bulk_email_feature_enabled(course_id))
+        self.assertTrue(BulkEmailFlag.feature_enabled(course_id))
         self.assertEqual(
-            str(cauth),
+            cauth.__unicode__(),
             "Course 'abc/123/doremi': Instructor Email Enabled"
         )
 
@@ -296,9 +282,9 @@ class CourseAuthorizationTest(TestCase):
         cauth.email_enabled = False
         cauth.save()
         # Test that course is now unauthorized
-        self.assertFalse(is_bulk_email_feature_enabled(course_id))
+        self.assertFalse(BulkEmailFlag.feature_enabled(course_id))
         self.assertEqual(
-            str(cauth),
+            cauth.__unicode__(),
             "Course 'abc/123/doremi': Instructor Email Not Enabled"
         )
 
@@ -306,11 +292,11 @@ class CourseAuthorizationTest(TestCase):
         BulkEmailFlag.objects.create(enabled=True, require_course_email_auth=False)
         course_id = CourseKey.from_string('blahx/blah101/ehhhhhhh')
         # Test that course is authorized by default, since auth is turned off
-        self.assertTrue(is_bulk_email_feature_enabled(course_id))
+        self.assertTrue(BulkEmailFlag.feature_enabled(course_id))
 
         # Use the admin interface to unauthorize the course
         cauth = CourseAuthorization(course_id=course_id, email_enabled=False)
         cauth.save()
 
         # Now, course should STILL be authorized!
-        self.assertTrue(is_bulk_email_feature_enabled(course_id))
+        self.assertTrue(BulkEmailFlag.feature_enabled(course_id))

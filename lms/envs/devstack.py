@@ -1,18 +1,9 @@
 """
 Specific overrides to the base prod settings to make development easier.
 """
-
-
-# Silence noisy logs
-import logging
 from os.path import abspath, dirname, join
 
 from corsheaders.defaults import default_headers as corsheaders_default_headers
-
-# pylint: enable=unicode-format-string
-#####################################################################
-from openedx.core.djangoapps.plugins import constants as plugin_constants
-from openedx.core.djangoapps.plugins import plugin_settings
 
 from .production import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
@@ -36,15 +27,16 @@ ENTERPRISE_API_URL = LMS_INTERNAL_ROOT_URL + '/enterprise/api/v1/'
 IDA_LOGOUT_URI_LIST = [
     'http://localhost:18130/logout/',  # ecommerce
     'http://localhost:18150/logout/',  # credentials
-    'http://localhost:18381/logout/',  # discovery
 ]
 
 ################################ LOGGERS ######################################
 
+# Silence noisy logs
+import logging
 LOG_OVERRIDES = [
     ('track.contexts', logging.CRITICAL),
     ('track.middleware', logging.CRITICAL),
-    ('lms.djangoapps.discussion.django_comment_client.utils', logging.CRITICAL),
+    ('django_comment_client.utils', logging.CRITICAL),
 ]
 for log_name, log_level in LOG_OVERRIDES:
     logging.getLogger(log_name).setLevel(log_level)
@@ -66,9 +58,9 @@ DJFS = {
 
 ################################ DEBUG TOOLBAR ################################
 
-INSTALLED_APPS += ['debug_toolbar']
+INSTALLED_APPS += ['debug_toolbar', 'debug_toolbar_mongo']
 MIDDLEWARE_CLASSES += [
-    'lms.djangoapps.discussion.django_comment_client.utils.QueryCountDebugMiddleware',
+    'django_comment_client.utils.QueryCountDebugMiddleware',
     'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
@@ -83,6 +75,7 @@ DEBUG_TOOLBAR_PANELS = (
     'debug_toolbar.panels.sql.SQLPanel',
     'debug_toolbar.panels.signals.SignalsPanel',
     'debug_toolbar.panels.logging.LoggingPanel',
+    'debug_toolbar_mongo.panel.MongoDebugPanel',
     # ProfilingPanel has been intentionally removed for default devstack.py
     # runtimes for performance reasons. If you wish to re-enable it in your
     # local development environment, please create a new settings file
@@ -100,9 +93,13 @@ def should_show_debug_toolbar(request):
         return False
     return True
 
+########################### API DOCS #################################
+
+FEATURES['ENABLE_API_DOCS'] = True
+
 ########################### PIPELINE #################################
 
-PIPELINE['PIPELINE_ENABLED'] = False
+PIPELINE_ENABLED = False
 STATICFILES_STORAGE = 'openedx.core.storage.DevelopmentStorage'
 
 # Revert to the default set of finders as we don't want the production pipeline
@@ -113,12 +110,12 @@ STATICFILES_FINDERS = [
 ]
 
 # Disable JavaScript compression in development
-PIPELINE['JS_COMPRESSOR'] = None
+PIPELINE_JS_COMPRESSOR = None
 
 # Whether to run django-require in debug mode.
 REQUIRE_DEBUG = DEBUG
 
-PIPELINE['SASS_ARGUMENTS'] = '--debug-info'
+PIPELINE_SASS_ARGUMENTS = '--debug-info'
 
 # Load development webpack donfiguration
 WEBPACK_CONFIG_PATH = 'webpack.dev.config.js'
@@ -217,9 +214,6 @@ FEATURES['STORE_BILLING_INFO'] = True
 FEATURES['ENABLE_PAID_COURSE_REGISTRATION'] = True
 FEATURES['ENABLE_COSMETIC_DISPLAY_PRICE'] = True
 
-######################### Program Enrollments #####################
-FEATURES['ENABLE_ENROLLMENT_RESET'] = True
-
 ########################## Third Party Auth #######################
 
 if FEATURES.get('ENABLE_THIRD_PARTY_AUTH') and 'third_party_auth.dummy.DummyBackend' not in AUTHENTICATION_BACKENDS:
@@ -227,9 +221,6 @@ if FEATURES.get('ENABLE_THIRD_PARTY_AUTH') and 'third_party_auth.dummy.DummyBack
 
 ############## ECOMMERCE API CONFIGURATION SETTINGS ###############
 ECOMMERCE_PUBLIC_URL_ROOT = "http://localhost:8002"
-
-############################### BLOCKSTORE #####################################
-BLOCKSTORE_API_URL = "http://edx.devstack.blockstore:18250/api/v1/"
 
 ###################### Cross-domain requests ######################
 FEATURES['ENABLE_CORS_HEADERS'] = True
@@ -243,7 +234,6 @@ CORS_ALLOW_HEADERS = corsheaders_default_headers + (
 LOGIN_REDIRECT_WHITELIST = [CMS_BASE]
 
 ###################### JWTs ######################
-# pylint: disable=unicode-format-string
 JWT_AUTH.update({
     'JWT_ISSUER': OAUTH_OIDC_ISSUER,
     'JWT_AUDIENCE': 'lms-key',
@@ -269,16 +259,10 @@ JWT_AUTH.update({
         'y5ZLcTUomo4rZLjghVpq6KZxfS6I1Vz79ZsMVUWEdXOYePCKKsrQG20ogQEkmTf9FT_SouC6jPcHLXw"}]}'
     ),
 })
+
+#####################################################################
+from openedx.core.djangoapps.plugins import plugin_settings, constants as plugin_constants
 plugin_settings.add_plugins(__name__, plugin_constants.ProjectType.LMS, plugin_constants.SettingsType.DEVSTACK)
-
-
-######################### Django Rest Framework ########################
-
-REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] += (
-    'rest_framework.renderers.BrowsableAPIRenderer',
-)
-
-OPENAPI_CACHE_TIMEOUT = 0
 
 #####################################################################
 # See if the developer has any local overrides.
@@ -290,6 +274,3 @@ if os.path.isfile(join(dirname(abspath(__file__)), 'private.py')):
 MODULESTORE = convert_module_store_setting_if_needed(MODULESTORE)
 
 SECRET_KEY = '85920908f28904ed733fe576320db18cabd7b6cd'
-
-EDXNOTES_INTERNAL_API = 'http://edx.devstack.edxnotesapi:18120/api/v1'
-EDXNOTES_CLIENT_NAME = 'edx_notes_api-backend-service'

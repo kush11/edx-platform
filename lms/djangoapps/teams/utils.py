@@ -1,10 +1,6 @@
-"""
-Utility methods related to teams.
-"""
-
+"""Utility methods related to teams."""
 
 from eventtracking import tracker
-
 from track import contexts
 
 

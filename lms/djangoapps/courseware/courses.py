@@ -2,49 +2,42 @@
 Functions for accessing and displaying courses within the
 courseware.
 """
-
-
 import logging
 from collections import defaultdict
 from datetime import datetime
 
-import pytz
-import six
-from crum import get_current_request
-from django.conf import settings
-from django.db.models import Prefetch
-from django.http import Http404, QueryDict
-from django.urls import reverse
-from fs.errors import ResourceNotFound
-from opaque_keys.edx.keys import UsageKey
-from path import Path as path
-from six import text_type
-
 import branding
-from course_modes.models import CourseMode
-from lms.djangoapps.courseware.access import has_access
-from lms.djangoapps.courseware.access_response import MilestoneAccessError, StartDateError
-from lms.djangoapps.courseware.date_summary import (
-    CertificateAvailableDate,
+import pytz
+from crum import get_current_request
+from openedx.features.course_duration_limits.access import AuditExpiredError
+from courseware.access import has_access
+from courseware.access_response import StartDateError, MilestoneAccessError
+from courseware.date_summary import (
     CourseEndDate,
     CourseStartDate,
     TodaysDate,
     VerificationDeadlineDate,
-    VerifiedUpgradeDeadlineDate
+    VerifiedUpgradeDeadlineDate,
+    CertificateAvailableDate
 )
-from lms.djangoapps.courseware.masquerade import check_content_start_date_for_masquerade_user
-from lms.djangoapps.courseware.model_data import FieldDataCache
-from lms.djangoapps.courseware.module_render import get_module
+from courseware.masquerade import check_content_start_date_for_masquerade_user
+from courseware.model_data import FieldDataCache
+from courseware.module_render import get_module
+from django.conf import settings
+from django.urls import reverse
+from django.http import Http404, QueryDict
+from enrollment.api import get_course_enrollment_details
 from edxmako.shortcuts import render_to_string
+from fs.errors import ResourceNotFound
 from lms.djangoapps.certificates import api as certs_api
 from lms.djangoapps.courseware.courseware_access_exception import CoursewareAccessException
 from lms.djangoapps.courseware.exceptions import CourseAccessRedirect
+from opaque_keys.edx.keys import UsageKey
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-from openedx.core.djangoapps.enrollments.api import get_course_enrollment_details
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
-from openedx.core.lib.api.view_utils import LazySequence
-from openedx.features.course_duration_limits.access import AuditExpiredError
 from openedx.features.course_experience import COURSE_ENABLE_UNENROLLED_ACCESS_FLAG
+from path import Path as path
+from six import text_type
 from static_replace import replace_static_urls
 from student.models import CourseEnrollment
 from survey.utils import is_survey_required_and_unanswered
@@ -85,7 +78,7 @@ def get_course_by_id(course_key, depth=0):
     if course:
         return course
     else:
-        raise Http404(u"Course not found: {}.".format(six.text_type(course_key)))
+        raise Http404("Course not found: {}.".format(unicode(course_key)))
 
 
 def get_course_with_access(user, action, course_key, depth=0, check_if_enrolled=False, check_survey_complete=True):
@@ -179,12 +172,12 @@ def check_course_access(course, user, action, check_if_enrolled=False, check_sur
     if check_if_enrolled:
         # If the user is not enrolled, redirect them to the about page
         if not CourseEnrollment.is_enrolled(user, course.id):
-            raise CourseAccessRedirect(reverse('about_course', args=[six.text_type(course.id)]))
+            raise CourseAccessRedirect(reverse('about_course', args=[unicode(course.id)]))
 
     # Redirect if the user must answer a survey before entering the course.
     if check_survey_complete and action == 'load':
         if is_survey_required_and_unanswered(user, course):
-            raise CourseAccessRedirect(reverse('course_survey', args=[six.text_type(course.id)]))
+            raise CourseAccessRedirect(reverse('course_survey', args=[unicode(course.id)]))
 
 
 def can_self_enroll_in_course(course_key):
@@ -209,7 +202,7 @@ def course_open_for_self_enrollment(course_key):
         return False
 
     # Check the enrollment start and end dates.
-    course_details = get_course_enrollment_details(six.text_type(course_key))
+    course_details = get_course_enrollment_details(unicode(course_key))
     now = datetime.now().replace(tzinfo=pytz.UTC)
     start = course_details['enrollment_start']
     end = course_details['enrollment_end']
@@ -383,7 +376,7 @@ def get_course_info_section(request, user, course, section_key):
             html = render_to_string('courseware/error-message.html', None)
             log.exception(
                 u"Error rendering course_id=%s, section_key=%s",
-                six.text_type(course.id), section_key
+                unicode(course.id), section_key
             )
 
     return html
@@ -459,30 +452,19 @@ def get_course_syllabus_section(course, section_key):
 
 def get_courses(user, org=None, filter_=None):
     """
-    Return a LazySequence of courses available, optionally filtered by org code (case-insensitive).
+    Returns a list of courses available, sorted by course.number and optionally
+    filtered by org code (case-insensitive).
     """
-    courses = branding.get_visible_courses(
-        org=org,
-        filter_=filter_,
-    ).prefetch_related(
-        Prefetch(
-            'modes',
-            queryset=CourseMode.objects.exclude(mode_slug__in=CourseMode.CREDIT_MODES),
-            to_attr='selectable_modes',
-        ),
-    ).select_related(
-        'image_set'
-    )
+    courses = branding.get_visible_courses(org=org, filter_=filter_)
 
     permission_name = configuration_helpers.get_value(
         'COURSE_CATALOG_VISIBILITY_PERMISSION',
         settings.COURSE_CATALOG_VISIBILITY_PERMISSION
     )
 
-    return LazySequence(
-        (c for c in courses if has_access(user, permission_name, c)),
-        est_len=courses.count()
-    )
+    courses = [c for c in courses if has_access(user, permission_name, c)]
+
+    return courses
 
 
 def get_permission_for_course_about():
@@ -528,7 +510,7 @@ def get_cms_course_link(course, page='course'):
     """
     # This is fragile, but unfortunately the problem is that within the LMS we
     # can't use the reverse calls from the CMS
-    return u"//{}/{}/{}".format(settings.CMS_BASE, page, six.text_type(course.id))
+    return u"//{}/{}/{}".format(settings.CMS_BASE, page, unicode(course.id))
 
 
 def get_cms_block_link(block, page):
@@ -575,7 +557,7 @@ def get_problems_in_section(section):
         for vertical in subsection.get_children():
             for component in vertical.get_children():
                 if component.location.block_type == 'problem' and getattr(component, 'has_score', False):
-                    problem_descriptors[six.text_type(component.location)] = component
+                    problem_descriptors[unicode(component.location)] = component
 
     return problem_descriptors
 
@@ -608,7 +590,7 @@ def get_current_child(xmodule, min_depth=None, requested_child=None):
 
     def _get_default_child_module(child_modules):
         """Returns the first child of xmodule, subject to min_depth."""
-        if min_depth is None or min_depth <= 0:
+        if min_depth <= 0:
             return _get_child(child_modules)
         else:
             content_children = [
@@ -618,22 +600,14 @@ def get_current_child(xmodule, min_depth=None, requested_child=None):
             return _get_child(content_children) if content_children else None
 
     child = None
-
-    try:
-        # In python 3, hasattr() catches AttributeErrors only then returns False.
-        # All other exceptions bubble up the call stack.
-        has_position = hasattr(xmodule, 'position')  # This conditions returns AssertionError from xblock.fields lib.
-    except AssertionError:
-        return child
-
-    if has_position:
+    if hasattr(xmodule, 'position'):
         children = xmodule.get_display_items()
         if len(children) > 0:
             if xmodule.position is not None and not requested_child:
-                pos = int(xmodule.position) - 1  # position is 1-indexed
+                pos = xmodule.position - 1  # position is 1-indexed
                 if 0 <= pos < len(children):
                     child = children[pos]
-                    if min_depth is not None and (min_depth > 0 and not child.has_children_at_depth(min_depth - 1)):
+                    if min_depth > 0 and not child.has_children_at_depth(min_depth - 1):
                         child = None
             if child is None:
                 child = _get_default_child_module(children)
@@ -655,7 +629,7 @@ def get_course_chapter_ids(course_key):
     except Exception:  # pylint: disable=broad-except
         log.exception('Failed to retrieve course from modulestore.')
         return []
-    return [six.text_type(chapter_key) for chapter_key in chapter_keys if chapter_key.block_type == 'chapter']
+    return [unicode(chapter_key) for chapter_key in chapter_keys if chapter_key.block_type == 'chapter']
 
 
 def allow_public_access(course, visibilities):

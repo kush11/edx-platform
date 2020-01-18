@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 
-
-
+from __future__ import unicode_literals
 import json
-
-from django.db import migrations, models
 
 # Converted from the original South migration 0020_certificatehtmlviewconfiguration_data.py
 
+from django.db import migrations, models
 
 
 def forwards(apps, schema_editor):

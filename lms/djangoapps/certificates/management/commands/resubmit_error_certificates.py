@@ -16,10 +16,7 @@ Example usage:
     $ ./manage.py lms resubmit_error_certificates -c edX/DemoX/Fall_2015 -c edX/DemoX/Spring_2016
 
 """
-
-
 import logging
-from textwrap import dedent
 
 from django.core.management.base import BaseCommand, CommandError
 from opaque_keys import InvalidKeyError
@@ -35,7 +32,6 @@ LOGGER = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     """Resubmit certificates with error status. """
-    help = dedent(__doc__).strip()
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -66,7 +62,7 @@ class Command(BaseCommand):
                 only_course_keys.append(CourseKey.from_string(course_key_str))
             except InvalidKeyError:
                 raise CommandError(
-                    u'"{course_key_str}" is not a valid course key.'.format(
+                    '"{course_key_str}" is not a valid course key.'.format(
                         course_key_str=course_key_str
                     )
                 )
@@ -112,7 +108,7 @@ class Command(BaseCommand):
                     ), course_key, user.id
                 )
 
-        LOGGER.info(u"Finished resubmitting %s certificate tasks", resubmit_count)
+        LOGGER.info("Finished resubmitting %s certificate tasks", resubmit_count)
 
     def _load_course_with_cache(self, course_key, course_cache):
         """Retrieve the course, then cache it to avoid Mongo queries. """

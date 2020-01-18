@@ -50,16 +50,11 @@
                  },
 
                  snapshot: function() {
-                     var video, canvas, aspectRatio;
+                     var video;
 
                      if (this.stream) {
                          video = this.getVideo();
-                         canvas = this.getCanvas();
-                         // keep canvas aspect ratio same as video while drawing image.
-                         aspectRatio = canvas.width / video.videoWidth;
-                         canvas.width = video.videoWidth * aspectRatio;
-                         canvas.height = video.videoHeight * aspectRatio;
-                         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                         this.getCanvas().getContext('2d').drawImage(video, 0, 0);
                          video.pause();
                          return true;
                      }
@@ -156,6 +151,20 @@
                      return this.imageData;
                  },
 
+                 flashObjectTag: function() {
+                     return (
+                        '<object type="application/x-shockwave-flash" ' +
+                            'id="flash_video" ' +
+                            'name="flash_video" ' +
+                            'data="/static/js/verify_student/CameraCapture.swf" ' +
+                            'width="500" ' +
+                            'height="375">' +
+                         '<param name="quality" value="high">' +
+                         '<param name="allowscriptaccess" value="sameDomain">' +
+                         '</object>'
+                     );
+                 },
+
                  getFlashObject: function() {
                      return $('#flash_video')[0];
                  },
@@ -233,10 +242,10 @@
              this.setSubmitButtonEnabled(false);
 
             // Load the template for the webcam into the DOM
-             renderedHtml = edx.HtmlUtils.template($(this.template).html())(
+             renderedHtml = _.template($(this.template).html())(
                 {backendName: this.backend.name}
             );
-             edx.HtmlUtils.setHtml($(this.el), renderedHtml);
+             $(this.el).html(renderedHtml);
 
              $resetBtn = this.$el.find('#webcam_reset_button');
              $captureBtn = this.$el.find('#webcam_capture_button');

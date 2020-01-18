@@ -16,16 +16,13 @@ The resulting JSON object has one entry for each module in the course:
 
 """
 
-
 import json
 from textwrap import dedent
 
-import six
 from django.core.management.base import BaseCommand, CommandError
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from xblock.fields import Scope
-
 from xblock_discussion import DiscussionXBlock
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.inheritance import compute_inherited_metadata, own_metadata
@@ -76,7 +73,7 @@ class Command(BaseCommand):
 
         info = dump_module(course, inherited=options['inherited'], defaults=options['inherited_defaults'])
 
-        return json.dumps(info, indent=2, sort_keys=True, default=six.text_type)
+        return json.dumps(info, indent=2, sort_keys=True, default=unicode)
 
 
 def dump_module(module, destination=None, inherited=False, defaults=False):
@@ -93,11 +90,11 @@ def dump_module(module, destination=None, inherited=False, defaults=False):
     if isinstance(module, DiscussionXBlock) and 'discussion_id' not in items:
         items['discussion_id'] = module.discussion_id
 
-    filtered_metadata = {k: v for k, v in six.iteritems(items) if k not in FILTER_LIST}
+    filtered_metadata = {k: v for k, v in items.iteritems() if k not in FILTER_LIST}
 
-    destination[six.text_type(module.location)] = {
+    destination[unicode(module.location)] = {
         'category': module.location.block_type,
-        'children': [six.text_type(child) for child in getattr(module, 'children', [])],
+        'children': [unicode(child) for child in getattr(module, 'children', [])],
         'metadata': filtered_metadata,
     }
 
@@ -118,7 +115,7 @@ def dump_module(module, destination=None, inherited=False, defaults=False):
                 return field.values != field.default
 
         inherited_metadata = {field.name: field.read_json(module) for field in module.fields.values() if is_inherited(field)}
-        destination[six.text_type(module.location)]['inherited_metadata'] = inherited_metadata
+        destination[unicode(module.location)]['inherited_metadata'] = inherited_metadata
 
     for child in module.get_children():
         dump_module(child, destination, inherited, defaults)

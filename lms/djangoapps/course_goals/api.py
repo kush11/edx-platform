@@ -1,17 +1,15 @@
 """
 Course Goals Python API
 """
-
-
-from django.conf import settings
-from opaque_keys.edx.keys import CourseKey
-from rest_framework.reverse import reverse
+import models
 from six import text_type
+
+from opaque_keys.edx.keys import CourseKey
+from django.conf import settings
+from rest_framework.reverse import reverse
 
 from course_modes.models import CourseMode
 from openedx.features.course_experience import ENABLE_COURSE_GOALS
-
-from . import models
 
 
 def add_course_goal(user, course_id, goal_key):

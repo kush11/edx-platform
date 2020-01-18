@@ -12,7 +12,6 @@
                  AccountSettingsFieldViews, AccountSettingsView, StringUtils, HtmlUtils) {
         return function(
             fieldsData,
-            disableOrderHistoryTab,
             ordersHistoryData,
             authData,
             passwordResetSupportUrl,
@@ -29,8 +28,7 @@
             edxSupportUrl,
             extendedProfileFields,
             displayAccountDeletion,
-            isSecondaryEmailFeatureEnabled,
-            betaLanguage
+            isSecondaryEmailFeatureEnabled
         ) {
             var $accountSettingsElement, userAccountModel, userPreferencesModel, aboutSectionsData,
                 accountsSectionData, ordersSectionData, accountSettingsView, showAccountSettingsPage,
@@ -38,8 +36,7 @@
                 emailFieldView, secondaryEmailFieldView, socialFields, accountDeletionFields, platformData,
                 aboutSectionMessageType, aboutSectionMessage, fullnameFieldView, countryFieldView,
                 fullNameFieldData, emailFieldData, secondaryEmailFieldData, countryFieldData, additionalFields,
-                fieldItem, emailFieldViewIndex, focusId,
-                tabIndex = 0;
+                fieldItem, emailFieldViewIndex;
 
             $accountSettingsElement = $('.wrapper-account-settings');
 
@@ -89,9 +86,9 @@
 
             secondaryEmailFieldData = {
                 model: userAccountModel,
-                title: gettext('Recovery Email Address'),
+                title: gettext('Secondary Email Address'),
                 valueAttribute: 'secondary_email',
-                helpMessage: gettext('You may access your account with this address if single-sign on or access to your primary email is not available.'),  // eslint-disable-line max-len
+                helpMessage: gettext('You may access your account when single-sign on is not available.'),
                 persistChanges: true
             };
 
@@ -331,7 +328,7 @@
             // Add account deletion fields
             if (displayAccountDeletion) {
                 accountDeletionFields = {
-                    title: gettext('Delete My Account'),
+                    title: gettext(''),
                     fields: [],
                     // Used so content can be rendered external to Backbone
                     domHookId: 'account-deletion-container'
@@ -421,25 +418,15 @@
                     accountsTabSections: accountsSectionData,
                     ordersTabSections: ordersSectionData
                 },
-                userPreferencesModel: userPreferencesModel,
-                disableOrderHistoryTab: disableOrderHistoryTab,
-                betaLanguage: betaLanguage
+                userPreferencesModel: userPreferencesModel
             });
 
             accountSettingsView.render();
-            focusId = $.cookie('focus_id');
-            if (focusId) {
-                if (~focusId.indexOf('beta-language')) {
-                    tabIndex = -1;
-
-                    // Scroll to top of selected element
-                    $('html, body').animate({
-                        scrollTop: $(focusId).offset().top
-                    }, 'slow');
-                }
-                $(focusId).attr({tabindex: tabIndex}).focus();
+            if( $.cookie('focus_id')) {
+                $($.cookie('focus_id')).attr({"tabindex": 0});
+                $($.cookie('focus_id')).focus();
                 // Deleting the cookie
-                document.cookie = 'focus_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/account;';
+                document.cookie = "focus_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/account;";
             }
             showAccountSettingsPage = function() {
                 // Record that the account settings page was viewed.

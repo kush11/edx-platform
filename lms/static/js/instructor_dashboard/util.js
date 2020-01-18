@@ -327,7 +327,6 @@
             this.ms = ms;
             this.fn = fn;
             this.intervalID = null;
-            this.failedTries = 0;
         }
 
         intervalManager.prototype.start = function() {
@@ -343,15 +342,6 @@
             clearInterval(this.intervalID);
             this.intervalID = null;
             return this.intervalID;
-        };
-
-        intervalManager.prototype.failed_retry_threshold = 5;
-
-        intervalManager.prototype.backOff = function() {
-            this.failedTries++;
-            if (this.failedTries >= this.failed_retry_threshold) {
-                this.stop();
-            }
         };
 
         return intervalManager;
@@ -398,9 +388,6 @@
                         ths.$no_tasks_message.append($('<p>').text(gettext('No tasks currently running.')));
                         return ths.$no_tasks_message.show();
                     }
-                },
-                error: function() {
-                    ths.task_poller.backOff();
                 }
             });
         };
@@ -477,9 +464,6 @@
                     } else {
                         return false;
                     }
-                },
-                error: function() {
-                    ths.downloads_poller.backOff();
                 }
             });
         };
@@ -504,7 +488,7 @@
                     cssClass: 'file-download-link',
                     formatter: function(row, cell, value, columnDef, dataContext) {
                         return edx.HtmlUtils.joinHtml(edx.HtmlUtils.HTML(
-                            '<a rel="noopener" target="_blank" href="'), dataContext.url,
+                            '<a target="_blank" href="'), dataContext.url,
                             edx.HtmlUtils.HTML('">'), dataContext.name,
                             edx.HtmlUtils.HTML('</a>'));
                     }

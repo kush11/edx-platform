@@ -8,7 +8,8 @@
         return Backbone.Model.extend({
             defaults: {
                 email: '',
-                password: ''
+                password: '',
+                remember: false
             },
 
             ajaxType: '',

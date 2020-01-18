@@ -1,8 +1,7 @@
 """
 Tests for the Badges app models.
 """
-
-
+from path import Path
 from django.core.exceptions import ValidationError
 from django.core.files.images import ImageFile
 from django.core.files.storage import default_storage
@@ -10,8 +9,6 @@ from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.test.utils import override_settings
 from mock import Mock, patch
-from path import Path
-from six.moves import range
 
 from badges.models import (
     BadgeAssertion,
@@ -31,7 +28,7 @@ def get_image(name):
     """
     Get one of the test images from the test data directory.
     """
-    return ImageFile(open(TEST_DATA_ROOT / 'badges' / name + '.png', mode='rb'))  # pylint: disable=open-builtin
+    return ImageFile(open(TEST_DATA_ROOT / 'badges' / name + '.png'))
 
 
 @override_settings(MEDIA_ROOT=TEST_DATA_ROOT)
@@ -39,6 +36,7 @@ class BadgeImageConfigurationTest(TestCase):
     """
     Test the validation features of BadgeImageConfiguration.
     """
+    shard = 1
 
     def tearDown(self):
         tmp_path = Path(TEST_DATA_ROOT / 'course_complete_badges')
@@ -248,7 +246,7 @@ class BadgeAssertionTest(ModuleStoreTestCase):
         Verify that grabbing all assertions for a user behaves as expected.
 
         This function uses object IDs because for some reason Jenkins trips up
-        on its assertCountEqual check here despite the items being equal.
+        on its assertItemsEqual check here despite the items being equal.
         """
         user = UserFactory()
         assertions = [BadgeAssertionFactory.create(user=user).id for _i in range(3)]

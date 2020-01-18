@@ -1,14 +1,13 @@
 """
 Fragments for rendering programs.
 """
-
-
 import json
 
 from django.http import Http404
 from django.template.loader import render_to_string
-from django.urls import reverse
 from django.utils.translation import get_language_bidi
+from django.urls import reverse
+
 from web_fragments.fragment import Fragment
 
 from lms.djangoapps.commerce.utils import EcommerceService
@@ -48,7 +47,7 @@ class ProgramsFragmentView(EdxFragmentView):
         meter = ProgramProgressMeter(request.site, user, mobile_only=mobile_only)
 
         context = {
-            'marketing_url': get_program_marketing_url(programs_config, mobile_only),
+            'marketing_url': get_program_marketing_url(programs_config),
             'programs': meter.engaged_programs,
             'progress': meter.progress()
         }

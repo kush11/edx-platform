@@ -1,18 +1,16 @@
 """
 Tests for the CourseGradeFactory class.
 """
-
-
 import itertools
 
 import ddt
+from courseware.access import has_access
 from django.conf import settings
+from lms.djangoapps.grades.config.tests.utils import persistent_grades_feature_flags
 from mock import patch
+from openedx.core.djangoapps.content.block_structure.factory import BlockStructureFactory
 from six import text_type
 
-from lms.djangoapps.courseware.access import has_access
-from lms.djangoapps.grades.config.tests.utils import persistent_grades_feature_flags
-from openedx.core.djangoapps.content.block_structure.factory import BlockStructureFactory
 from student.tests.factories import UserFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
@@ -97,35 +95,35 @@ class TestCourseGradeFactory(GradeTestBase):
                 [self.sequence.display_name, self.sequence2.display_name]
             )
 
-        with self.assertNumQueries(3), mock_get_score(1, 2):
+        with self.assertNumQueries(5), mock_get_score(1, 2):
             _assert_read(expected_pass=False, expected_percent=0)  # start off with grade of 0
 
-        num_queries = 45
+        num_queries = 47
         with self.assertNumQueries(num_queries), mock_get_score(1, 2):
             grade_factory.update(self.request.user, self.course, force_update_subsections=True)
 
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(5):
             _assert_read(expected_pass=True, expected_percent=0.5)  # updated to grade of .5
 
-        num_queries = 7
+        num_queries = 9
         with self.assertNumQueries(num_queries), mock_get_score(1, 4):
             grade_factory.update(self.request.user, self.course, force_update_subsections=False)
 
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(5):
             _assert_read(expected_pass=True, expected_percent=0.5)  # NOT updated to grade of .25
 
-        num_queries = 24
+        num_queries = 26
         with self.assertNumQueries(num_queries), mock_get_score(2, 2):
             grade_factory.update(self.request.user, self.course, force_update_subsections=True)
 
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(5):
             _assert_read(expected_pass=True, expected_percent=1.0)  # updated to grade of 1.0
 
-        num_queries = 28
+        num_queries = 29
         with self.assertNumQueries(num_queries), mock_get_score(0, 0):  # the subsection now is worth zero
             grade_factory.update(self.request.user, self.course, force_update_subsections=True)
 
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(5):
             _assert_read(expected_pass=False, expected_percent=0.0)  # updated to grade of 0.0
 
     @patch.dict(settings.FEATURES, {'ASSUME_ZERO_GRADE_IF_ABSENT_FOR_ALL_TESTS': False})
@@ -146,7 +144,7 @@ class TestCourseGradeFactory(GradeTestBase):
             mocked_course_blocks.return_value = self.course_structure
             with mock_get_score(1, 2):
                 grade_factory.update(self.request.user, self.course, force_update_subsections=True)
-                self.assertEqual(mocked_course_blocks.call_count, 1)
+                self.assertEquals(mocked_course_blocks.call_count, 1)
 
         with patch('lms.djangoapps.grades.course_data.get_course_blocks') as mocked_course_blocks:
             with patch('lms.djangoapps.grades.subsection_grade.get_score') as mocked_get_score:
@@ -202,12 +200,12 @@ class TestCourseGradeFactory(GradeTestBase):
                 'Homework': {
                     'category': 'Homework',
                     'percent': 0.25,
-                    'detail': 'Homework = 25.00% of a possible 100.00%',   # pylint: disable=unicode-format-string
+                    'detail': 'Homework = 25.00% of a possible 100.00%',
                 },
                 'NoCredit': {
                     'category': 'NoCredit',
                     'percent': 0.0,
-                    'detail': 'NoCredit = 0.00% of a possible 0.00%',  # pylint: disable=unicode-format-string
+                    'detail': 'NoCredit = 0.00% of a possible 0.00%',
                 }
             },
             'percent': 0.25,
@@ -249,6 +247,7 @@ class TestGradeIteration(SharedModuleStoreTestCase):
     """
     COURSE_NUM = "1000"
     COURSE_NAME = "grading_test_course"
+    shard = 1
 
     @classmethod
     def setUpClass(cls):
@@ -290,7 +289,7 @@ class TestGradeIteration(SharedModuleStoreTestCase):
             wraps=BlockStructureFactory.create_from_store
         ) as mock_create_from_store:
             all_course_grades, all_errors = self._course_grades_and_errors_for(self.course, self.students)
-            self.assertEqual(mock_create_from_store.call_count, 1)
+            self.assertEquals(mock_create_from_store.call_count, 1)
 
         self.assertEqual(len(all_errors), 0)
         for course_grade in all_course_grades.values():
@@ -310,12 +309,12 @@ class TestGradeIteration(SharedModuleStoreTestCase):
 
         student1, student2, student3, student4, student5 = self.students
         mock_course_grade.side_effect = [
-            Exception(u"Error for {}.".format(student.username))
+            Exception("Error for {}.".format(student.username))
             if student.username in ['student3', 'student4']
             else mock_course_grade.return_value
             for student in self.students
         ]
-        with self.assertNumQueries(8):
+        with self.assertNumQueries(9):
             all_course_grades, all_errors = self._course_grades_and_errors_for(self.course, self.students)
         self.assertEqual(
             {student: text_type(all_errors[student]) for student in all_errors},

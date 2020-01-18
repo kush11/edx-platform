@@ -1,8 +1,6 @@
 """
 Django Celery tasks for service status app
 """
-
-
 import logging
 from smtplib import SMTPException
 
@@ -39,4 +37,4 @@ def send_verification_status_email(context):
             fail_silently=False
         )
     except SMTPException:
-        log.warning(u"Failure in sending verification status e-mail to %s", dest_addr)
+        log.warning("Failure in sending verification status e-mail to %s", dest_addr)

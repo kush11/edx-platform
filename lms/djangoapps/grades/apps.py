@@ -4,12 +4,10 @@ Grades Application Configuration
 Signal handlers are connected here.
 """
 
-
 from django.apps import AppConfig
 from django.conf import settings
 from edx_proctoring.runtime import set_runtime_service
-
-from openedx.core.djangoapps.plugins.constants import PluginSettings, PluginURLs, ProjectType, SettingsType
+from openedx.core.djangoapps.plugins.constants import ProjectType, SettingsType, PluginURLs, PluginSettings
 
 
 class GradesConfig(AppConfig):
@@ -22,13 +20,13 @@ class GradesConfig(AppConfig):
         PluginURLs.CONFIG: {
             ProjectType.LMS: {
                 PluginURLs.NAMESPACE: u'grades_api',
-                PluginURLs.REGEX: u'^api/grades/',
-                PluginURLs.RELATIVE_PATH: u'rest_api.urls',
+                PluginURLs.REGEX: u'api/grades/',
+                PluginURLs.RELATIVE_PATH: u'api.urls',
             }
         },
         PluginSettings.CONFIG: {
             ProjectType.LMS: {
-                SettingsType.PRODUCTION: {PluginSettings.RELATIVE_PATH: u'settings.production'},
+                SettingsType.AWS: {PluginSettings.RELATIVE_PATH: u'settings.aws'},
                 SettingsType.COMMON: {PluginSettings.RELATIVE_PATH: u'settings.common'},
                 SettingsType.TEST: {PluginSettings.RELATIVE_PATH: u'settings.test'},
             }

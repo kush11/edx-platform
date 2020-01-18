@@ -1,14 +1,12 @@
 """
 Decorators used by the support app.
 """
-
-
 from functools import wraps
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 
-from lms.djangoapps.courseware.access import has_access
+from courseware.access import has_access
 
 
 def require_support_permission(func):

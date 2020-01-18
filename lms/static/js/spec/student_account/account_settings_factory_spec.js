@@ -17,7 +17,6 @@ define(['backbone',
             var createAccountSettingsPage = function() {
                 var context = AccountSettingsPage(
                     Helpers.FIELDS_DATA,
-                    false,
                     [],
                     Helpers.AUTH_DATA,
                     Helpers.PASSWORD_RESET_SUPPORT_LINK,
@@ -154,7 +153,6 @@ define(['backbone',
             var createEnterpriseLearnerAccountSettingsPage = function() {
                 var context = AccountSettingsPage(
                     Helpers.FIELDS_DATA,
-                    false,
                     [],
                     Helpers.AUTH_DATA,
                     Helpers.PASSWORD_RESET_SUPPORT_LINK,

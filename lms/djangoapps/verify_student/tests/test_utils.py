@@ -3,18 +3,16 @@
 Tests for verify_student utility functions.
 """
 
-
-import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import ddt
-from django.conf import settings
-from django.utils import timezone
+import unittest
+import pytz
 from mock import patch
 from pytest import mark
-
-from lms.djangoapps.verify_student.models import ManualVerification, SoftwareSecurePhotoVerification, SSOVerification
-from lms.djangoapps.verify_student.utils import most_recent_verification, verification_for_datetime
+from django.conf import settings
+from lms.djangoapps.verify_student.models import SoftwareSecurePhotoVerification, SSOVerification, ManualVerification
+from lms.djangoapps.verify_student.utils import verification_for_datetime, most_recent_verification
 from student.tests.factories import UserFactory
 
 FAKE_SETTINGS = {
@@ -29,10 +27,11 @@ class TestVerifyStudentUtils(unittest.TestCase):
     """
     Tests for utility functions in verify_student.
     """
+    shard = 4
 
     def test_verification_for_datetime(self):
         user = UserFactory.create()
-        now = timezone.now()
+        now = datetime.now(pytz.UTC)
 
         # No attempts in the query set, so should return None
         query = SoftwareSecurePhotoVerification.objects.filter(user=user)
@@ -74,7 +73,7 @@ class TestVerifyStudentUtils(unittest.TestCase):
         # Immediately after the expiration date, should not get the attempt
         attempt.created_at = attempt.created_at - timedelta(days=settings.VERIFY_STUDENT["DAYS_GOOD_FOR"])
         attempt.save()
-        after = now + timedelta(days=1)
+        after = datetime.now(pytz.UTC) + timedelta(days=1)
         query = SoftwareSecurePhotoVerification.objects.filter(user=user)
         result = verification_for_datetime(after, query)
         self.assertIs(result, None)

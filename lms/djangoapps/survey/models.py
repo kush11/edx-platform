@@ -2,33 +2,27 @@
 Models to support Course Surveys feature
 """
 
-
 import logging
 from collections import OrderedDict
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from lxml import etree
 from model_utils.models import TimeStampedModel
 from opaque_keys.edx.django.models import CourseKeyField
 
-from openedx.core.djangolib.markup import HTML
 from student.models import User
 from survey.exceptions import SurveyFormNameAlreadyExists, SurveyFormNotFound
 
 log = logging.getLogger("edx.survey")
 
 
-@python_2_unicode_compatible
 class SurveyForm(TimeStampedModel):
     """
     Model to define a Survey Form that contains the HTML form data
     that is presented to the end user. A SurveyForm is not tied to
     a particular run of a course, to allow for sharing of Surveys
     across courses
-
-    .. no_pii:
     """
     name = models.CharField(max_length=255, db_index=True, unique=True)
     form = models.TextField()
@@ -36,7 +30,7 @@ class SurveyForm(TimeStampedModel):
     class Meta(object):
         app_label = 'survey'
 
-    def __str__(self):
+    def __unicode__(self):
         return self.name
 
     def save(self, *args, **kwargs):
@@ -58,8 +52,8 @@ class SurveyForm(TimeStampedModel):
         try:
             fields = cls.get_field_names_from_html(html)
         except Exception as ex:
-            log.exception(u"Cannot parse SurveyForm html: {}".format(ex))
-            raise ValidationError(u"Cannot parse SurveyForm as HTML: {}".format(ex))
+            log.exception("Cannot parse SurveyForm html: {}".format(ex))
+            raise ValidationError("Cannot parse SurveyForm as HTML: {}".format(ex))
 
         if not len(fields):
             raise ValidationError("SurveyForms must contain at least one form input field")
@@ -152,7 +146,7 @@ class SurveyForm(TimeStampedModel):
         # make sure the form is wrap in some outer single element
         # otherwise lxml can't parse it
         # NOTE: This wrapping doesn't change the ability to query it
-        tree = etree.fromstring(HTML(u'<div>{}</div>').format(HTML(html)))
+        tree = etree.fromstring(u'<div>{}</div>'.format(html))
 
         input_fields = (
             tree.findall('.//input') + tree.findall('.//select') +
@@ -160,7 +154,7 @@ class SurveyForm(TimeStampedModel):
         )
 
         for input_field in input_fields:
-            if 'name' in list(input_field.keys()) and input_field.attrib['name'] not in names:
+            if 'name' in input_field.keys() and input_field.attrib['name'] not in names:
                 names.append(input_field.attrib['name'])
 
         return names
@@ -169,10 +163,6 @@ class SurveyForm(TimeStampedModel):
 class SurveyAnswer(TimeStampedModel):
     """
     Model for the answers that a user gives for a particular form in a course
-
-    .. pii: These are free-form questions asked by course authors. Types below are current as of Feb 2019, new ones could be added. "other" PII currently includes "company", "job title", and "work experience".
-    .. pii_types: name, location, other
-    .. pii_retirement: retained
     """
     user = models.ForeignKey(User, db_index=True, on_delete=models.CASCADE)
     form = models.ForeignKey(SurveyForm, db_index=True, on_delete=models.CASCADE)

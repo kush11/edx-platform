@@ -1,8 +1,6 @@
 """
 URLs for the CCX Feature.
 """
-
-
 from django.conf.urls import url
 
 import ccx.views

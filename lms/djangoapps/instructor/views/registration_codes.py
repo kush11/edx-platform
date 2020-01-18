@@ -1,18 +1,15 @@
 """
 E-commerce Tab Instructor Dashboard Query Registration Code Status.
 """
-
-
 import logging
 
-import six
 from django.urls import reverse
 from django.utils.translation import ugettext as _
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET, require_POST
 from opaque_keys.edx.locator import CourseKey
 
-from lms.djangoapps.courseware.courses import get_course_by_id
+from courseware.courses import get_course_by_id
 from lms.djangoapps.instructor.enrollment import get_email_params, send_mail_to_student
 from lms.djangoapps.instructor.views.api import require_level
 from shoppingcart.models import CourseRegistrationCode, RegistrationCodeRedemption
@@ -40,14 +37,14 @@ def look_up_registration_code(request, course_id):
             'is_registration_code_exists': False,
             'is_registration_code_valid': False,
             'is_registration_code_redeemed': False,
-            'message': _(u'The enrollment code ({code}) was not found for the {course_name} course.').format(
+            'message': _('The enrollment code ({code}) was not found for the {course_name} course.').format(
                 code=code, course_name=course.display_name
             )
         }, status=400)  # status code 200: OK by default
 
     reg_code_already_redeemed = RegistrationCodeRedemption.is_registration_code_redeemed(code)
 
-    registration_code_detail_url = reverse('registration_code_details', kwargs={'course_id': six.text_type(course_id)})
+    registration_code_detail_url = reverse('registration_code_details', kwargs={'course_id': unicode(course_id)})
 
     return JsonResponse({
         'is_registration_code_exists': True,
@@ -81,7 +78,7 @@ def registration_code_details(request, course_id):
         registration_code = CourseRegistrationCode.objects.get(code=code)
     except CourseRegistrationCode.DoesNotExist:
         return JsonResponse({
-            'message': _(u'The enrollment code ({code}) was not found for the {course_name} course.').format(
+            'message': _('The enrollment code ({code}) was not found for the {course_name} course.').format(
                 code=code, course_name=course.display_name
             )}, status=400)
 
@@ -100,7 +97,7 @@ def registration_code_details(request, course_id):
         code_redemption = RegistrationCodeRedemption.get_registration_code_redemption(code, course_key)
         if code_redemption is None:
             return JsonResponse({
-                'message': _(u'The redemption does not exist against enrollment code ({code}).').format(
+                'message': _('The redemption does not exist against enrollment code ({code}).').format(
                     code=code)}, status=400)
 
         delete_redemption_entry(request, code_redemption, course_key)
@@ -127,5 +124,5 @@ def delete_redemption_entry(request, code_redemption, course_key):
     send_mail_to_student(email_address, email_params)
 
     # remove the redemption entry from the database.
-    log.info(u'deleting redemption entry (%s) from the database.', code_redemption.id)
+    log.info('deleting redemption entry (%s) from the database.', code_redemption.id)
     code_redemption.delete()

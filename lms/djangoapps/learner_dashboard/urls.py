@@ -1,6 +1,4 @@
 """Learner dashboard URL routing configuration"""
-
-
 from django.conf.urls import url
 
 from lms.djangoapps.learner_dashboard import programs, views

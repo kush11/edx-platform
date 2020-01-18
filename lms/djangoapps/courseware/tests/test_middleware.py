@@ -2,7 +2,6 @@
 Tests for courseware middleware
 """
 
-
 from django.http import Http404
 from django.test.client import RequestFactory
 
@@ -14,6 +13,7 @@ from xmodule.modulestore.tests.factories import CourseFactory
 
 class CoursewareMiddlewareTestCase(SharedModuleStoreTestCase):
     """Tests that courseware middleware is correctly redirected"""
+    shard = 1
 
     @classmethod
     def setUpClass(cls):

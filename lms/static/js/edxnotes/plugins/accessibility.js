@@ -1,11 +1,6 @@
-/* eslint-disable */
 (function(define, undefined) {
     'use strict';
-    define(['jquery',
-            'underscore',
-            'annotator_1.2.9',
-            'edx-ui-toolkit/js/utils/constants',
-    ], function($, _, Annotator, Constants) {
+    define(['jquery', 'underscore', 'annotator_1.2.9'], function($, _, Annotator) {
     /**
      * Adds the Accessibility Plugin
      **/
@@ -55,7 +50,7 @@
                     class: 'edx-notes-focus-grabber',
                     tabindex: '-1'
                 });
-                this.annotator.wrapper.before(this.focusGrabber); // xss-lint: disable=javascript-jquery-insertion
+                this.annotator.wrapper.before(this.focusGrabber);
             },
 
             removeFocusGrabber: function() {
@@ -80,7 +75,7 @@
                     this.annotator.wrapper.after($('<div />', {
                         class: 'aria-note-description sr',
                         id: 'aria-note-description-' + id,
-                        text: Annotator.Util.escape(annotation.text) // xss-lint: disable=javascript-escape
+                        text: Annotator.Util.escape(annotation.text)
                     }));
 
                     $(annotation.highlights).attr({
@@ -197,13 +192,13 @@
             },
 
             onHighlightKeyDown: function(event) {
-                var key = Constants.keyCodes,
+                var KEY = $.ui.keyCode,
                     keyCode = event.keyCode,
                     $target = $(event.currentTarget),
                     annotation, position;
 
                 switch (keyCode) {
-                case key.tab:
+                case KEY.TAB:
                     // This happens only when coming from notes page
                     if (this.annotator.viewer.isShown()) {
                         this.annotator.element.find('.annotator-listing').focus();
@@ -211,8 +206,8 @@
                         event.stopPropagation();
                     }
                     break;
-                case key.enter:
-                case key.space:
+                case KEY.ENTER:
+                case KEY.SPACE:
                     if (!this.annotator.viewer.isShown()) {
                         position = $target.position();
                         this.showViewer(position, $target.data('annotation'));
@@ -220,7 +215,7 @@
                         event.stopPropagation();
                     }
                     break;
-                case key.esc:
+                case KEY.ESCAPE:
                     this.annotator.viewer.hide();
                     event.preventDefault();
                     event.stopPropagation();
@@ -229,14 +224,14 @@
             },
 
             onViewerKeyDown: function(event) {
-                var key = Constants.keyCodes,
+                var KEY = $.ui.keyCode,
                     keyCode = event.keyCode,
                     $target = $(event.target),
                     listing = this.annotator.element.find('.annotator-listing'),
                     tabControls;
 
                 switch (keyCode) {
-                case key.tab:
+                case KEY.TAB:
                     tabControls = this.getViewerTabControls();
                     if (event.shiftKey) { // Tabbing backwards
                         if ($target.is(listing)) {
@@ -254,15 +249,15 @@
                     event.preventDefault();
                     event.stopPropagation();
                     break;
-                case key.enter:
-                case key.space:
+                case KEY.ENTER:
+                case KEY.SPACE:
                     if ($target.hasClass('annotator-close')) {
                         this.onClose();
                         this.annotator.viewer.hide();
                         event.preventDefault();
                     }
                     break;
-                case key.esc:
+                case KEY.ESCAPE:
                     this.onClose();
                     this.annotator.viewer.hide();
                     event.preventDefault();
@@ -271,7 +266,7 @@
             },
 
             onEditorKeyDown: function(event) {
-                var key = Constants.keyCodes,
+                var KEY = $.ui.keyCode,
                     keyCode = event.keyCode,
                     $target = $(event.target),
                     editor, form, editorControls, save, cancel,
@@ -284,7 +279,7 @@
                 cancel = editorControls.find('.annotator-cancel');
 
                 switch (keyCode) {
-                case key.tab:
+                case KEY.TAB:
                     tabControls = this.getEditorTabControls();
                     if (event.shiftKey) { // Tabbing backwards
                         if ($target.is(form)) {
@@ -302,7 +297,7 @@
                     event.preventDefault();
                     event.stopPropagation();
                     break;
-                case key.enter:
+                case KEY.ENTER:
                     if ($target.is(save) || event.metaKey || event.ctrlKey) {
                         this.onClose();
                         this.annotator.editor.submit();
@@ -314,7 +309,7 @@
                     }
                     event.preventDefault();
                     break;
-                case key.space:
+                case KEY.SPACE:
                     if ($target.is(save)) {
                         this.onClose();
                         this.annotator.editor.submit();
@@ -326,7 +321,7 @@
                     }
                     event.preventDefault();
                     break;
-                case key.esc:
+                case KEY.ESCAPE:
                     this.onClose();
                     this.annotator.editor.hide();
                     event.preventDefault();

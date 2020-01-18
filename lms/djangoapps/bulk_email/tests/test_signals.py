@@ -1,8 +1,6 @@
 """
 Unit tests for student optouts from course email
 """
-
-
 import json
 
 from django.core import mail
@@ -23,6 +21,7 @@ class TestOptoutCourseEmailsBySignal(ModuleStoreTestCase):
     """
     Tests that the force_optout_all signal receiver opts the user out of course emails
     """
+    shard = 1
 
     def setUp(self):
         super(TestOptoutCourseEmailsBySignal, self).setUp()
@@ -60,7 +59,7 @@ class TestOptoutCourseEmailsBySignal(ModuleStoreTestCase):
         email_section = '<div class="vert-left send-email" id="section-send-email">'
 
         # If this fails, it is likely because BulkEmailFlag.is_enabled() is set to False
-        self.assertContains(response, email_section)
+        self.assertIn(email_section, response.content)
 
         test_email = {
             'action': 'Send email',
@@ -69,7 +68,7 @@ class TestOptoutCourseEmailsBySignal(ModuleStoreTestCase):
             'message': 'test message for all'
         }
         response = self.client.post(self.send_mail_url, test_email)
-        self.assertEqual(json.loads(response.content.decode('utf-8')), self.success_content)
+        self.assertEquals(json.loads(response.content), self.success_content)
 
     def test_optout_course(self):
         """

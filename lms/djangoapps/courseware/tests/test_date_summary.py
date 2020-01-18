@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
 """Tests for course home page date summary blocks."""
-
-
 from datetime import datetime, timedelta
 
 import ddt
 import waffle
 from django.contrib.messages.middleware import MessageMiddleware
-from django.test import RequestFactory
 from django.urls import reverse
+from django.test import RequestFactory
 from freezegun import freeze_time
 from mock import patch
 from pytz import utc
 
 from course_modes.models import CourseMode
 from course_modes.tests.factories import CourseModeFactory
-from lms.djangoapps.courseware.courses import get_course_date_blocks
-from lms.djangoapps.courseware.date_summary import (
+from courseware.courses import get_course_date_blocks
+from courseware.date_summary import (
     CertificateAvailableDate,
     CourseEndDate,
     CourseStartDate,
@@ -24,7 +22,7 @@ from lms.djangoapps.courseware.date_summary import (
     VerificationDeadlineDate,
     VerifiedUpgradeDeadlineDate
 )
-from lms.djangoapps.courseware.models import (
+from courseware.models import (
     CourseDynamicUpgradeDeadlineConfiguration,
     DynamicUpgradeDeadlineConfiguration,
     OrgDynamicUpgradeDeadlineConfiguration
@@ -38,12 +36,14 @@ from openedx.core.djangoapps.self_paced.models import SelfPacedConfiguration
 from openedx.core.djangoapps.site_configuration.tests.factories import SiteFactory
 from openedx.core.djangoapps.user_api.preferences.api import set_user_preference
 from openedx.core.djangoapps.waffle_utils.testutils import override_waffle_flag
+from openedx.core.lib.tests import attr
 from openedx.features.course_experience import UNIFIED_COURSE_TAB_FLAG, UPGRADE_DEADLINE_MESSAGE, CourseHomeMessages
 from student.tests.factories import TEST_PASSWORD, CourseEnrollmentFactory, UserFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 
 
+@attr(shard=1)
 @ddt.ddt
 class CourseDateSummaryTest(SharedModuleStoreTestCase):
     """Tests for course date summary blocks."""
@@ -61,7 +61,7 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
         self.client.login(username=user.username, password=TEST_PASSWORD)
         url = reverse('info', args=(course.id,))
         response = self.client.get(url)
-        self.assertNotContains(response, 'date-summary', status_code=302)
+        self.assertNotIn('date-summary', response.content)
 
     def test_course_home_logged_out(self):
         course = create_course_run()
@@ -181,7 +181,7 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
                 '<div class="date-summary date-summary-todays-date">',
                 '<span class="hd hd-6 heading localized-datetime"',
                 'data-datetime="2015-01-02 00:00:00+00:00"',
-                u'data-string="Today is {date}"',
+                'data-string="Today is {date}"',
                 'data-timezone="None"'
             ]
             url = reverse(url_name, args=(course.id,))
@@ -209,7 +209,7 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
                 '<div class="date-summary date-summary-todays-date">',
                 '<span class="hd hd-6 heading localized-datetime"',
                 'data-datetime="2015-01-02 00:00:00+00:00"',
-                u'data-string="Today is {date}"',
+                'data-string="Today is {date}"',
                 'data-timezone="America/Los_Angeles"'
             ]
             for html in html_elements:
@@ -235,7 +235,7 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
             url = reverse(url_name, args=(course.id,))
             response = self.client.get(url, follow=True)
             html_elements = [
-                u'data-string="in 1 day - {date}"',
+                'data-string="in 1 day - {date}"',
                 'data-datetime="2015-01-03 00:00:00+00:00"'
             ]
             for html in html_elements:
@@ -255,7 +255,7 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
             url = reverse(url_name, args=(course.id,))
             response = self.client.get(url, follow=True)
             html_elements = [
-                u'data-string="in 1 day - {date}"',
+                'data-string="in 1 day - {date}"',
                 'data-datetime="2015-01-03 00:00:00+00:00"',
                 'data-timezone="America/Los_Angeles"'
             ]
@@ -436,8 +436,8 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
             self.assertEqual(block.link, '')
 
     @ddt.data(
-        (-1, u'1 day ago - {date}'),
-        (1, u'in 1 day - {date}')
+        (-1, '1 day ago - {date}'),
+        (1, 'in 1 day - {date}')
     )
     @ddt.unpack
     def test_render_date_string_past(self, delta, expected_date_string):
@@ -450,6 +450,7 @@ class CourseDateSummaryTest(SharedModuleStoreTestCase):
             self.assertEqual(block.relative_datestring, expected_date_string)
 
 
+@attr(shard=1)
 @ddt.ddt
 class TestDateAlerts(SharedModuleStoreTestCase):
     """
@@ -566,6 +567,7 @@ class TestDateAlerts(SharedModuleStoreTestCase):
 
 
 @ddt.ddt
+@attr(shard=1)
 class TestScheduleOverrides(SharedModuleStoreTestCase):
 
     def setUp(self):
@@ -597,7 +599,7 @@ class TestScheduleOverrides(SharedModuleStoreTestCase):
             'Don\'t miss the opportunity to highlight your new knowledge and skills by earning a verified'
             ' certificate.'
         )
-        self.assertEqual(upgrade_date_summary.relative_datestring, u'by {date}')
+        self.assertEqual(upgrade_date_summary.relative_datestring, 'by {date}')
 
     @override_waffle_flag(CREATE_SCHEDULE_WAFFLE_FLAG, True)
     def test_date_with_self_paced_with_enrollment_after_course_start(self):

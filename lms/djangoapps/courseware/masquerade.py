@@ -4,10 +4,9 @@ Allow course staff to see a student or staff view of courseware.
 Which kind of view has been selected is stored in the session state.
 '''
 
-
 import logging
-from datetime import datetime
 
+from datetime import datetime
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -87,7 +86,7 @@ def handle_ajax(request, course_key_string):
             return JsonResponse({
                 'success': False,
                 'error': _(
-                    u'There is no user with the username or email address u"{user_identifier}" '
+                    'There is no user with the username or email address "{user_identifier}" '
                     'enrolled in this course.'
                 ).format(user_identifier=user_name)
             })

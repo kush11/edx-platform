@@ -1,6 +1,5 @@
 """ Custom API permissions. """
 
-
 from django.contrib.auth.models import User
 from rest_framework.permissions import BasePermission, DjangoModelPermissions
 
@@ -23,6 +22,6 @@ class IsAuthenticatedOrActivationOverridden(BasePermission):
         if not request.user.is_authenticated and is_account_activation_requirement_disabled():
             try:
                 request.user = User.objects.get(id=request.session._session_cache['_auth_user_id'])
-            except User.DoesNotExist:
+            except DoesNotExist:
                 pass
         return request.user.is_authenticated

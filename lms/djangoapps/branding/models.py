@@ -5,8 +5,6 @@ Includes:
     BrandingInfoConfig: A ConfigurationModel for managing how Video Module will
         use Branding.
 """
-
-
 import json
 
 from config_models.models import ConfigurationModel
@@ -26,14 +24,12 @@ class BrandingInfoConfig(ConfigurationModel):
                     "logo_tag": "Video hosted by XuetangX.com"
             }
         }
-
-    .. no_pii:
     """
     class Meta(ConfigurationModel.Meta):
         app_label = "branding"
 
     configuration = TextField(
-        help_text=u"JSON data of Configuration for Video Branding."
+        help_text="JSON data of Configuration for Video Branding."
     )
 
     def clean(self):
@@ -61,8 +57,6 @@ class BrandingApiConfig(ConfigurationModel):
     When this flag is disabled, the api will return 404.
 
     When the flag is enabled, the api will returns the valid reponse.
-
-    .. no_pii:
     """
     class Meta(ConfigurationModel.Meta):
         app_label = "branding"

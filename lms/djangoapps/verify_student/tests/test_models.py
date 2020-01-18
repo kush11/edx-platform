@@ -1,31 +1,30 @@
 # -*- coding: utf-8 -*-
-
-
-import base64
-import simplejson as json
+import json
 from datetime import datetime, timedelta
 
 import boto
 import ddt
 import mock
+import pytz
 import requests.exceptions
 from django.conf import settings
 from django.test import TestCase
-from django.utils.timezone import now
 from freezegun import freeze_time
 from mock import patch
-from six.moves import range
-from student.tests.factories import UserFactory
+from opaque_keys.edx.keys import CourseKey
 from testfixtures import LogCapture
-from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 
 from common.test.utils import MockS3Mixin
 from lms.djangoapps.verify_student.models import (
     SoftwareSecurePhotoVerification,
     SSOVerification,
     ManualVerification,
-    VerificationException,
+    VerificationDeadline,
+    VerificationException
 )
+from openedx.core.djangolib.testing.utils import CacheIsolationTestCase
+from student.tests.factories import UserFactory
+from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 
 FAKE_SETTINGS = {
     "SOFTWARE_SECURE": {
@@ -67,8 +66,8 @@ def mock_software_secure_post(url, headers=None, data=None, **kwargs):
         assert data_dict.get(key)
 
     # The keys should be stored as Base64 strings, i.e. this should not explode
-    data_dict["PhotoIDKey"] = base64.b64decode(data_dict["PhotoIDKey"])
-    data_dict["UserPhotoKey"] = base64.b64decode(data_dict["UserPhotoKey"])
+    data_dict["PhotoIDKey"].decode("base64")
+    data_dict["UserPhotoKey"].decode("base64")
 
     response = requests.Response()
     response.status_code = 200
@@ -95,7 +94,6 @@ class TestVerification(TestCase):
     """
     Common tests across all types of Verications (e.g., SoftwareSecurePhotoVerication, SSOVerification)
     """
-
     def verification_active_at_datetime(self, attempt):
         """
         Tests to ensure the Verification is active or inactive at the appropriate datetimes.
@@ -116,7 +114,7 @@ class TestVerification(TestCase):
         # Not active after the expiration date
         attempt.created_at = attempt.created_at - timedelta(days=settings.VERIFY_STUDENT["DAYS_GOOD_FOR"])
         attempt.save()
-        self.assertFalse(attempt.active_at_datetime(now() + timedelta(days=1)))
+        self.assertFalse(attempt.active_at_datetime(datetime.now(pytz.UTC) + timedelta(days=1)))
 
 
 # Lots of patching to stub in our own settings, and HTTP posting
@@ -124,6 +122,7 @@ class TestVerification(TestCase):
 @patch('lms.djangoapps.verify_student.models.requests.post', new=mock_software_secure_post)
 @ddt.ddt
 class TestPhotoVerification(TestVerification, MockS3Mixin, ModuleStoreTestCase):
+    shard = 4
 
     def setUp(self):
         super(TestPhotoVerification, self).setUp()
@@ -235,7 +234,7 @@ class TestPhotoVerification(TestVerification, MockS3Mixin, ModuleStoreTestCase):
                 self.assertEqual(attempt.status, "must_retry")
                 logger.check(
                     ('lms.djangoapps.verify_student.models', 'ERROR',
-                     u'Software Secure submission failed for user %s, setting status to must_retry'
+                     'Software Secure submission failed for user %s, setting status to must_retry'
                      % attempt.user.username))
 
     @mock.patch.dict(settings.FEATURES, {'AUTOMATIC_VERIFY_STUDENT_IDENTITY_FOR_TESTING': True})
@@ -261,10 +260,7 @@ class TestPhotoVerification(TestVerification, MockS3Mixin, ModuleStoreTestCase):
         attempt.status = 'denied'
         attempt.error_msg = '[{"userPhotoReasons": ["Face out of view"]}, {"photoIdReasons": ["Photo hidden/No photo", "ID name not provided"]}]'
         parsed_error_msg = attempt.parsed_error_msg()
-        self.assertEqual(
-            sorted(parsed_error_msg),
-            sorted(['id_image_missing_name', 'user_image_not_clear', 'id_image_not_clear'])
-        )
+        self.assertEquals(parsed_error_msg, ['id_image_missing_name', 'user_image_not_clear', 'id_image_not_clear'])
 
     @ddt.data(
         'Not Provided',
@@ -314,15 +310,15 @@ class TestPhotoVerification(TestVerification, MockS3Mixin, ModuleStoreTestCase):
         self.assertEqual(second_result, first_result)
 
         # Test method 'get_initial_verification' returns None after expiration
-        expired_future = now() + timedelta(days=(FAKE_SETTINGS['DAYS_GOOD_FOR'] + 1))
+        expired_future = datetime.utcnow() + timedelta(days=(FAKE_SETTINGS['DAYS_GOOD_FOR'] + 1))
         with freeze_time(expired_future):
             third_result = SoftwareSecurePhotoVerification.get_initial_verification(user)
             self.assertIsNone(third_result)
 
         # Test method 'get_initial_verification' returns correct attempt after system expiration,
         # but within earliest allowed override.
-        expired_future = now() + timedelta(days=(FAKE_SETTINGS['DAYS_GOOD_FOR'] + 1))
-        earliest_allowed = now() - timedelta(days=1)
+        expired_future = datetime.utcnow() + timedelta(days=(FAKE_SETTINGS['DAYS_GOOD_FOR'] + 1))
+        earliest_allowed = datetime.utcnow() - timedelta(days=1)
         with freeze_time(expired_future):
             fourth_result = SoftwareSecurePhotoVerification.get_initial_verification(user, earliest_allowed)
             self.assertIsNotNone(fourth_result)
@@ -373,83 +369,11 @@ class TestPhotoVerification(TestVerification, MockS3Mixin, ModuleStoreTestCase):
         # No user
         self.assertFalse(attempt.retire_user(user_id=47))
 
-    def test_get_recent_verification(self):
-        """Test that method 'get_recent_verification' of model
-        'SoftwareSecurePhotoVerification' always returns the most
-        recent 'approved' verification based on updated_at set
-        against a user.
-        """
-        user = UserFactory.create()
-        attempt = None
-
-        for _ in range(2):
-            # Make an approved verification
-            attempt = SoftwareSecurePhotoVerification(user=user)
-            attempt.status = 'approved'
-            attempt.expiry_date = datetime.now()
-            attempt.save()
-
-        # Test method 'get_recent_verification' returns the most recent
-        # verification attempt based on updated_at
-        recent_verification = SoftwareSecurePhotoVerification.get_recent_verification(user=user)
-        self.assertIsNotNone(recent_verification)
-        self.assertEqual(recent_verification.id, attempt.id)
-
-    def test_get_recent_verification_expiry_null(self):
-        """Test that method 'get_recent_verification' of model
-        'SoftwareSecurePhotoVerification' will return None when expiry_date
-        is NULL for 'approved' verifications based on updated_at value.
-        """
-        user = UserFactory.create()
-        attempt = None
-
-        for _ in range(2):
-            # Make an approved verification
-            attempt = SoftwareSecurePhotoVerification(user=user)
-            attempt.status = 'approved'
-            attempt.save()
-
-        # Test method 'get_recent_verification' returns None
-        # as attempts don't have an expiry_date
-        recent_verification = SoftwareSecurePhotoVerification.get_recent_verification(user=user)
-        self.assertIsNone(recent_verification)
-
-    def test_no_approved_verification(self):
-        """Test that method 'get_recent_verification' of model
-        'SoftwareSecurePhotoVerification' returns None if no
-        'approved' verification are found
-        """
-        user = UserFactory.create()
-        SoftwareSecurePhotoVerification(user=user)
-
-        result = SoftwareSecurePhotoVerification.get_recent_verification(user=user)
-        self.assertIs(result, None)
-
-    def test_update_expiry_email_date_for_user(self):
-        """Test that method update_expiry_email_date_for_user of
-        model 'SoftwareSecurePhotoVerification' set expiry_email_date
-        if the most recent approved verification is expired.
-        """
-        email_config = getattr(settings, 'VERIFICATION_EXPIRY_EMAIL', {'DAYS_RANGE': 1, 'RESEND_DAYS': 15})
-        user = UserFactory.create()
-        verification = SoftwareSecurePhotoVerification(user=user)
-        verification.expiry_date = now() - timedelta(days=FAKE_SETTINGS['DAYS_GOOD_FOR'])
-        verification.status = 'approved'
-        verification.save()
-
-        self.assertIsNone(verification.expiry_email_date)
-
-        SoftwareSecurePhotoVerification.update_expiry_email_date_for_user(user, email_config)
-        result = SoftwareSecurePhotoVerification.get_recent_verification(user=user)
-
-        self.assertIsNotNone(result.expiry_email_date)
-
 
 class SSOVerificationTest(TestVerification):
     """
     Tests for the SSOVerification model
     """
-
     def test_active_at_datetime(self):
         user = UserFactory.create()
         attempt = SSOVerification.objects.create(user=user)
@@ -460,8 +384,52 @@ class ManualVerificationTest(TestVerification):
     """
     Tests for the ManualVerification model
     """
-
     def test_active_at_datetime(self):
         user = UserFactory.create()
         verification = ManualVerification.objects.create(user=user)
         self.verification_active_at_datetime(verification)
+
+
+class VerificationDeadlineTest(CacheIsolationTestCase):
+    """
+    Tests for the VerificationDeadline model.
+    """
+    shard = 4
+
+    ENABLED_CACHES = ['default']
+
+    def test_caching(self):
+        deadlines = {
+            CourseKey.from_string("edX/DemoX/Fall"): datetime.now(pytz.UTC),
+            CourseKey.from_string("edX/DemoX/Spring"): datetime.now(pytz.UTC) + timedelta(days=1)
+        }
+        course_keys = deadlines.keys()
+
+        # Initially, no deadlines are set
+        with self.assertNumQueries(1):
+            all_deadlines = VerificationDeadline.deadlines_for_courses(course_keys)
+            self.assertEqual(all_deadlines, {})
+
+        # Create the deadlines
+        for course_key, deadline in deadlines.iteritems():
+            VerificationDeadline.objects.create(
+                course_key=course_key,
+                deadline=deadline,
+            )
+
+        # Warm the cache
+        with self.assertNumQueries(1):
+            VerificationDeadline.deadlines_for_courses(course_keys)
+
+        # Load the deadlines from the cache
+        with self.assertNumQueries(0):
+            all_deadlines = VerificationDeadline.deadlines_for_courses(course_keys)
+            self.assertEqual(all_deadlines, deadlines)
+
+        # Delete the deadlines
+        VerificationDeadline.objects.all().delete()
+
+        # Verify that the deadlines are updated correctly
+        with self.assertNumQueries(1):
+            all_deadlines = VerificationDeadline.deadlines_for_courses(course_keys)
+            self.assertEqual(all_deadlines, {})

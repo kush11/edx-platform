@@ -1,23 +1,21 @@
 """Views for the branding app. """
-
-
 import logging
+import urllib
 
-import six
 from django.conf import settings
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.core.cache import cache
+from django.urls import reverse
 from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse
 from django.utils import translation
 from django.utils.translation.trans_real import get_supported_language_variant
 from django.views.decorators.cache import cache_control
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 import branding.api as branding_api
-import lms.djangoapps.courseware.views.views as courseware_views
+import courseware.views.views
 import student.views
 from edxmako.shortcuts import marketing_link, render_to_response
 from openedx.core.djangoapps.lang_pref.api import released_languages
@@ -43,7 +41,17 @@ def index(request):
         if configuration_helpers.get_value(
                 'ALWAYS_REDIRECT_HOMEPAGE_TO_DASHBOARD_FOR_AUTHENTICATED_USER',
                 settings.FEATURES.get('ALWAYS_REDIRECT_HOMEPAGE_TO_DASHBOARD_FOR_AUTHENTICATED_USER', True)):
-            return redirect('dashboard')
+            return redirect(reverse('dashboard'))
+
+    if settings.FEATURES.get('AUTH_USE_CERTIFICATES'):
+        from openedx.core.djangoapps.external_auth.views import ssl_login
+        # Set next URL to dashboard if it isn't set to avoid
+        # caching a redirect to / that causes a redirect loop on logout
+        if not request.GET.get('next'):
+            req_new = request.GET.copy()
+            req_new['next'] = reverse('dashboard')
+            request.GET = req_new
+        return ssl_login(request)
 
     enable_mktg_site = configuration_helpers.get_value(
         'ENABLE_MKTG_SITE',
@@ -62,7 +70,7 @@ def index(request):
     # keep specialized logic for Edge until we can migrate over Edge to fully use
     # configuration.
     if domain and 'edge.edx.org' in domain:
-        return redirect("signin_user")
+        return redirect(reverse("signin_user"))
 
     #  we do not expect this case to be reached in cases where
     #  marketing and edge are enabled
@@ -90,7 +98,7 @@ def courses(request):
 
     #  we do not expect this case to be reached in cases where
     #  marketing is enabled or the courses are not browsable
-    return courseware_views.courses(request)
+    return courseware.views.views.courses(request)
 
 
 def _footer_static_url(request, name):
@@ -107,7 +115,7 @@ def _footer_css_urls(request, package_name):
     # to identify the CSS file name(s) to include in the footer.
     # We then construct an absolute URI so that external sites (such as the marketing site)
     # can locate the assets.
-    package = settings.PIPELINE['STYLESHEETS'].get(package_name, {})
+    package = settings.PIPELINE_CSS.get(package_name, {})
     paths = [package['output_filename']] if not settings.DEBUG else package['source_filenames']
     return [
         _footer_static_url(request, path)
@@ -115,7 +123,7 @@ def _footer_css_urls(request, package_name):
     ]
 
 
-def _render_footer_html(request, show_openedx_logo, include_dependencies, include_language_selector, language):
+def _render_footer_html(request, show_openedx_logo, include_dependencies, include_language_selector):
     """Render the footer as HTML.
 
     Arguments:
@@ -135,8 +143,7 @@ def _render_footer_html(request, show_openedx_logo, include_dependencies, includ
         'footer_css_urls': _footer_css_urls(request, css_name),
         'bidi': bidi,
         'include_dependencies': include_dependencies,
-        'include_language_selector': include_language_selector,
-        'language': language
+        'include_language_selector': include_language_selector
     }
 
     return render_to_response("footer.html", context)
@@ -275,20 +282,20 @@ def footer(request):
         }
         if include_language_selector:
             cache_params['language_selector_options'] = ','.join(sorted([lang.code for lang in released_languages()]))
-        cache_key = u"branding.footer.{params}.html".format(params=six.moves.urllib.parse.urlencode(cache_params))
+        cache_key = u"branding.footer.{params}.html".format(params=urllib.urlencode(cache_params))
 
         content = cache.get(cache_key)
         if content is None:
             with translation.override(language):
                 content = _render_footer_html(
-                    request, show_openedx_logo, include_dependencies, include_language_selector, language
+                    request, show_openedx_logo, include_dependencies, include_language_selector
                 )
                 cache.set(cache_key, content, settings.FOOTER_CACHE_TIMEOUT)
         return HttpResponse(content, status=200, content_type="text/html; charset=utf-8")
 
     elif 'application/json' in accepts:
         cache_key = u"branding.footer.{params}.json".format(
-            params=six.moves.urllib.parse.urlencode({
+            params=urllib.urlencode({
                 'language': language,
                 'is_secure': request.is_secure(),
             })

@@ -2,15 +2,11 @@
 This module is essentially a broker to xmodule/tabs.py -- it was originally introduced to
 perform some LMS-specific tab display gymnastics for the Entrance Exams feature
 """
-
-
-import six
+from courseware.access import has_access
+from courseware.entrance_exams import user_can_skip_entrance_exam
 from django.conf import settings
 from django.utils.translation import ugettext as _
 from django.utils.translation import ugettext_noop
-
-from lms.djangoapps.courseware.access import has_access
-from lms.djangoapps.courseware.entrance_exams import user_can_skip_entrance_exam
 from openedx.core.lib.course_tabs import CourseTabPluginManager
 from openedx.features.course_experience import UNIFIED_COURSE_TAB_FLAG, default_course_url_name
 from student.models import CourseEnrollment
@@ -295,7 +291,7 @@ class SingleTextbookTab(CourseTab):
     def __init__(self, name, tab_id, view_name, index):
         def link_func(course, reverse_func, index=index):
             """ Constructs a link for textbooks from a view name, a course, and an index. """
-            return reverse_func(view_name, args=[six.text_type(course.id), index])
+            return reverse_func(view_name, args=[unicode(course.id), index])
 
         tab_dict = dict()
         tab_dict['name'] = name
@@ -328,7 +324,7 @@ def get_course_tab_list(request, course):
             tab.name = _("Entrance Exam")
         # TODO: LEARNER-611 - once the course_info tab is removed, remove this code
         if UNIFIED_COURSE_TAB_FLAG.is_enabled(course.id) and tab.type == 'course_info':
-            continue
+                continue
         if tab.type == 'static_tab' and tab.course_staff_only and \
                 not bool(user and has_access(user, 'staff', course, course.id)):
             continue

@@ -1,8 +1,6 @@
 """
 Tests for StudentViewTransformer.
 """
-
-
 import ddt
 
 # pylint: disable=protected-access
@@ -18,6 +16,7 @@ class TestStudentViewTransformer(ModuleStoreTestCase):
     """
     Test proper behavior for StudentViewTransformer
     """
+    shard = 4
 
     def setUp(self):
         super(TestStudentViewTransformer, self).setUp()

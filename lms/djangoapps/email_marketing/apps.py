@@ -1,8 +1,6 @@
 """
 Configuration for the email_marketing Django application.
 """
-
-
 from django.apps import AppConfig
 
 

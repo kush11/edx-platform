@@ -1,8 +1,6 @@
 """
 Tests for the LMS/lib utils
 """
-
-
 from lms.lib import utils
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
@@ -13,6 +11,7 @@ class LmsUtilsTest(ModuleStoreTestCase):
     """
     Tests for the LMS utility functions
     """
+    shard = 4
 
     def setUp(self):
         """

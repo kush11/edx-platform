@@ -1,13 +1,9 @@
 """
 Tests for the badges API views.
 """
-
-
-import six
 from ddt import data, ddt, unpack
 from django.conf import settings
 from django.test.utils import override_settings
-from six.moves import range
 
 from badges.tests.factories import BadgeAssertionFactory, BadgeClassFactory, RandomBadgeClassFactory
 from openedx.core.lib.api.test_utils import ApiTestCase
@@ -48,7 +44,7 @@ class UserAssertionTestCase(UrlResetMixin, ModuleStoreTestCase, ApiTestCase):
         self.assertIn(badge_class.image.url, json_class['image_url'])
         self.assertEqual(badge_class.description, json_class['description'])
         self.assertEqual(badge_class.criteria, json_class['criteria'])
-        self.assertEqual(badge_class.course_id and six.text_type(badge_class.course_id), json_class['course_id'])
+        self.assertEqual(badge_class.course_id and unicode(badge_class.course_id), json_class['course_id'])
 
     def check_assertion_structure(self, assertion, json_assertion):
         """
@@ -65,7 +61,7 @@ class UserAssertionTestCase(UrlResetMixin, ModuleStoreTestCase, ApiTestCase):
         if wildcard:
             return '*'
         else:
-            return six.text_type(badge_class.course_id)
+            return unicode(badge_class.course_id)
 
     def create_badge_class(self, check_course, **kwargs):
         """
@@ -155,6 +151,7 @@ class TestUserBadgeAssertionsByClass(UserAssertionTestCase):
     """
     Test the Badge Assertions view with the badge class filter.
     """
+    shard = 3
 
     @unpack
     @data((False, False), (True, False), (True, True))

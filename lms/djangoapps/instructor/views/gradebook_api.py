@@ -2,20 +2,17 @@
 Grade book view for instructor and pagination work (for grade book)
 which is currently use by ccx and instructor apps.
 """
-
-
 import math
 
-import six
 from django.contrib.auth.models import User
-from django.db import transaction
 from django.urls import reverse
+from django.db import transaction
 from django.views.decorators.cache import cache_control
 from opaque_keys.edx.keys import CourseKey
 
-from lms.djangoapps.courseware.courses import get_course_with_access
+from courseware.courses import get_course_with_access
 from edxmako.shortcuts import render_to_response
-from lms.djangoapps.grades.api import CourseGradeFactory
+from lms.djangoapps.grades.course_grade_factory import CourseGradeFactory
 from lms.djangoapps.instructor.views.api import require_level
 from xmodule.modulestore.django import modulestore
 
@@ -114,11 +111,11 @@ def spoc_gradebook(request, course_id):
 
     return render_to_response('courseware/gradebook.html', {
         'page': page,
-        'page_url': reverse('spoc_gradebook', kwargs={'course_id': six.text_type(course_key)}),
+        'page_url': reverse('spoc_gradebook', kwargs={'course_id': unicode(course_key)}),
         'students': student_info,
         'course': course,
         'course_id': course_key,
         # Checked above
         'staff_access': True,
-        'ordered_grades': sorted(list(course.grade_cutoffs.items()), key=lambda i: i[1], reverse=True),
+        'ordered_grades': sorted(course.grade_cutoffs.items(), key=lambda i: i[1], reverse=True),
     })

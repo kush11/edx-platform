@@ -1,8 +1,6 @@
 """
 Django AppConfig module for the Gating app
 """
-
-
 from django.apps import AppConfig
 
 

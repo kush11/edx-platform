@@ -1,6 +1,4 @@
 """ Tests for models. """
-
-
 import ddt
 from django.test import TestCase
 
@@ -12,6 +10,7 @@ from ..models import Course
 @ddt.ddt
 class CourseTests(TestCase):
     """ Tests for Course model. """
+    shard = 4
 
     def setUp(self):
         super(CourseTests, self).setUp()

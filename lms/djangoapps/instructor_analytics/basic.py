@@ -3,30 +3,25 @@ Student and course analytics.
 
 Serve miscellaneous course and student data
 """
-
-
 import datetime
 import json
-import logging
 
-import six
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db.models import Count, Q
 from django.urls import reverse
+from django.db.models import Count, Q
 from edx_proctoring.api import get_exam_violation_report
-from opaque_keys.edx.keys import CourseKey, UsageKey
+from opaque_keys.edx.keys import UsageKey
 from six import text_type
 
 import xmodule.graders as xmgraders
-from lms.djangoapps.courseware.models import StudentModule
 from lms.djangoapps.certificates.models import CertificateStatuses, GeneratedCertificate
-from lms.djangoapps.grades.api import context as grades_context
+from courseware.models import StudentModule
+from lms.djangoapps.grades.context import grading_context_for_course
 from lms.djangoapps.verify_student.services import IDVerificationService
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
-from openedx.core.djangolib.markup import HTML, Text
 from shoppingcart.models import (
     CouponRedemption,
     CourseRegCodeItem,
@@ -36,11 +31,7 @@ from shoppingcart.models import (
 )
 from student.models import CourseEnrollment, CourseEnrollmentAllowed
 
-log = logging.getLogger(__name__)
-
-
-STUDENT_FEATURES = ('id', 'username', 'first_name', 'last_name', 'is_staff', 'email',
-                    'date_joined', 'last_login')
+STUDENT_FEATURES = ('id', 'username', 'first_name', 'last_name', 'is_staff', 'email')
 PROFILE_FEATURES = ('name', 'language', 'location', 'year_of_birth', 'gender',
                     'level_of_education', 'mailing_address', 'goals', 'meta',
                     'city', 'country')
@@ -122,7 +113,7 @@ def sale_order_record_features(course_id, features):
             coupon_codes = [redemption.coupon.code for redemption in coupon_redemption]
             order_item_dict.update({'coupon_code': ", ".join(coupon_codes)})
 
-        sale_order_dict.update(dict(list(order_item_dict.items())))
+        sale_order_dict.update(dict(order_item_dict.items()))
 
         return sale_order_dict
 
@@ -180,7 +171,7 @@ def sale_record_features(course_id, features):
 
         course_reg_dict['course_id'] = text_type(course_id)
         course_reg_dict.update({'codes': ", ".join(codes)})
-        sale_dict.update(dict(list(course_reg_dict.items())))
+        sale_dict.update(dict(course_reg_dict.items()))
 
         return sale_dict
 
@@ -199,7 +190,7 @@ def issued_certificates(course_key, features):
     ]
     """
 
-    report_run_date = datetime.date.today().strftime(u"%B %d, %Y")
+    report_run_date = datetime.date.today().strftime("%B %d, %Y")
     certificate_features = [x for x in CERTIFICATE_FEATURES if x in features]
     generated_certificates = list(GeneratedCertificate.eligible_certificates.filter(
         course_id=course_key,
@@ -248,7 +239,7 @@ def enrolled_students_features(course_key, features):
             DjangoJSONEncoder().default(attr)
             return attr
         except TypeError:
-            return six.text_type(attr)
+            return unicode(attr)
 
     def extract_student(student, features):
         """ convert student to dictionary """
@@ -338,7 +329,7 @@ def get_proctored_exam_results(course_key, features):
     """
     comment_statuses = ['Rules Violation', 'Suspicious']
 
-    def extract_details(exam_attempt, features, course_enrollments):
+    def extract_details(exam_attempt, features):
         """
         Build dict containing information about a single student exam_attempt.
         """
@@ -348,36 +339,18 @@ def get_proctored_exam_results(course_key, features):
 
         for status in comment_statuses:
             comment_list = exam_attempt.get(
-                u'{status} Comments'.format(status=status),
+                '{status} Comments'.format(status=status),
                 []
             )
             proctored_exam.update({
-                u'{status} Count'.format(status=status): len(comment_list),
-                u'{status} Comments'.format(status=status): '; '.join(comment_list),
+                '{status} Count'.format(status=status): len(comment_list),
+                '{status} Comments'.format(status=status): '; '.join(comment_list),
             })
-        try:
-            proctored_exam['track'] = course_enrollments[exam_attempt['user_id']]
-        except KeyError:
-            proctored_exam['track'] = 'Unknown'
+
         return proctored_exam
 
     exam_attempts = get_exam_violation_report(course_key)
-    course_enrollments = get_enrollments_for_course(exam_attempts)
-    return [extract_details(exam_attempt, features, course_enrollments) for exam_attempt in exam_attempts]
-
-
-def get_enrollments_for_course(exam_attempts):
-    """
-     Returns all enrollments from a list of attempts. user_id is passed from proctoring.
-     """
-    if exam_attempts:
-        users = []
-        for e in exam_attempts:
-            users.append(e['user_id'])
-
-        enrollments = {c.user_id: c.mode for c in CourseEnrollment.objects.filter(
-            course_id=CourseKey.from_string(exam_attempts[0]['course_id']), user_id__in=users)}
-        return enrollments
+    return [extract_details(exam_attempt, features) for exam_attempt in exam_attempts]
 
 
 def coupon_codes_features(features, coupons_list, course_id):
@@ -468,73 +441,9 @@ def list_problem_responses(course_key, problem_location, limit_responses=None):
         smdat = smdat[:limit_responses]
 
     return [
-        {'username': response.student.username, 'state': get_response_state(response)}
+        {'username': response.student.username, 'state': response.state}
         for response in smdat
     ]
-
-
-def get_response_state(response):
-    """
-    Returns state of a particular response as string.
-
-    This method also does necessary encoding for displaying unicode data correctly.
-    """
-    def get_transformer():
-        """
-        Returns state transformer depending upon the problem type.
-        """
-        problem_state_transformers = {
-            'openassessment': transform_ora_state,
-            'problem': transform_capa_state
-        }
-        problem_type = response.module_type
-        return problem_state_transformers.get(problem_type)
-
-    problem_state = response.state
-    problem_state_transformer = get_transformer()
-    if not problem_state_transformer:
-        return problem_state
-
-    state = json.loads(problem_state)
-    try:
-        transformed_state = problem_state_transformer(state)
-        return json.dumps(transformed_state, ensure_ascii=False)
-    except TypeError:
-        username = response.student.username
-        err_msg = (
-            u'Error occurred while attempting to load learner state '
-            u'{username} for state {state}.'.format(
-                username=username,
-                state=problem_state
-            )
-        )
-        log.error(err_msg)
-        return problem_state
-
-
-def transform_ora_state(state):
-    """
-    ORA problem state transformer transforms the problem states.
-
-    Some state variables values are json dumped strings which needs to be loaded
-    into a python object.
-    """
-    fields_to_transform = ['saved_response', 'saved_files_descriptions']
-
-    for field in fields_to_transform:
-        field_state = state.get(field)
-        if not field_state:
-            continue
-
-        state[field] = json.loads(field_state)
-    return state
-
-
-def transform_capa_state(state):
-    """
-    Transforms the CAPA problem state.
-    """
-    return state
 
 
 def course_registration_features(features, registration_codes, csv_type):
@@ -608,26 +517,26 @@ def dump_grading_context(course):
         msg += '\n'
         msg += "Graded sections:\n"
         for subgrader, category, weight in course.grader.subgraders:
-            msg += u"  subgrader=%s, type=%s, category=%s, weight=%s\n"\
+            msg += "  subgrader=%s, type=%s, category=%s, weight=%s\n"\
                 % (subgrader.__class__, subgrader.type, category, weight)
             subgrader.index = 1
             graders[subgrader.type] = subgrader
     msg += hbar
-    msg += u"Listing grading context for course %s\n" % text_type(course.id)
+    msg += "Listing grading context for course %s\n" % text_type(course.id)
 
-    gcontext = grades_context.grading_context_for_course(course)
+    gcontext = grading_context_for_course(course)
     msg += "graded sections:\n"
 
-    msg += '%s\n' % list(gcontext['all_graded_subsections_by_type'].keys())
+    msg += '%s\n' % gcontext['all_graded_subsections_by_type'].keys()
     for (gsomething, gsvals) in gcontext['all_graded_subsections_by_type'].items():
-        msg += u"--> Section %s:\n" % (gsomething)
+        msg += "--> Section %s:\n" % (gsomething)
         for sec in gsvals:
             sdesc = sec['subsection_block']
             frmat = getattr(sdesc, 'format', None)
             aname = ''
             if frmat in graders:
                 gform = graders[frmat]
-                aname = u'%s %02d' % (gform.short_label, gform.index)
+                aname = '%s %02d' % (gform.short_label, gform.index)
                 gform.index += 1
             elif sdesc.display_name in graders:
                 gform = graders[sdesc.display_name]
@@ -635,9 +544,9 @@ def dump_grading_context(course):
             notes = ''
             if getattr(sdesc, 'score_by_attempt', False):
                 notes = ', score by attempt!'
-            msg += u"      %s (format=%s, Assignment=%s%s)\n"\
+            msg += "      %s (format=%s, Assignment=%s%s)\n"\
                 % (sdesc.display_name, frmat, aname, notes)
     msg += "all graded blocks:\n"
     msg += "length=%d\n" % gcontext['count_all_graded_blocks']
-    msg = HTML('<pre>{}</pre>').format(Text(msg))
+    msg = '<pre>%s</pre>' % msg.replace('<', '&lt;')
     return msg

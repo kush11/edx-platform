@@ -1,23 +1,15 @@
 # -*- coding: utf-8 -*-
-"""
-Tests for the teams API at the HTTP request level.
-"""
-
-
+"""Tests for the teams API at the HTTP request level."""
 import itertools
 from contextlib import contextmanager
 from datetime import datetime
 
 import ddt
 import pytz
-import six
 from mock import Mock
 from opaque_keys.edx.keys import CourseKey
 
-from lms.djangoapps.teams import TEAM_DISCUSSION_CONTEXT
-from lms.djangoapps.teams.models import CourseTeam, CourseTeamMembership
-from lms.djangoapps.teams.tests.factories import CourseTeamFactory, CourseTeamMembershipFactory
-from openedx.core.djangoapps.django_comment_common.signals import (
+from django_comment_common.signals import (
     comment_created,
     comment_deleted,
     comment_edited,
@@ -28,6 +20,9 @@ from openedx.core.djangoapps.django_comment_common.signals import (
     thread_edited,
     thread_voted
 )
+from lms.djangoapps.teams import TEAM_DISCUSSION_CONTEXT
+from lms.djangoapps.teams.models import CourseTeam, CourseTeamMembership
+from lms.djangoapps.teams.tests.factories import CourseTeamFactory, CourseTeamMembershipFactory
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
 from util.testing import EventTestMixin
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
@@ -36,53 +31,10 @@ COURSE_KEY1 = CourseKey.from_string('edx/history/1')
 COURSE_KEY2 = CourseKey.from_string('edx/history/2')
 
 
-class TestModelStrings(SharedModuleStoreTestCase):
-    """
-    Test `__repr__` and `__str__` methods of this app's models.
-    """
-    @classmethod
-    def setUpClass(cls):
-        super(TestModelStrings, cls).setUpClass()
-        cls.user = UserFactory.create(username="the-user")
-        CourseEnrollmentFactory.create(user=cls.user, course_id="edx/the-course/1")
-        cls.team = CourseTeamFactory(
-            course_id="edx/the-course/1",
-            team_id="the-team",
-            topic_id="the-teamset",
-            name="The Team"
-        )
-        cls.team_membership = cls.team.add_user(cls.user)
-
-    def test_team_repr(self):
-        assert repr(self.team) == (
-            "<CourseTeam"
-            " id=1"
-            " team_id=the-team"
-            " team_size=1"
-            " topic_id=the-teamset"
-            " course_id=edx/the-course/1"
-            ">"
-        )
-
-    def test_team_text(self):
-        assert six.text_type(self.team) == (
-            "The Team in edx/the-course/1"
-        )
-
-    def test_team_membership_repr(self):
-        assert repr(self.team_membership) == (
-            "<CourseTeamMembership id=1 user_id=1 team_id=1>"
-        )
-
-    def test_team_membership_text_type(self):
-        assert six.text_type(self.team_membership) == (
-            "the-user is member of The Team in edx/the-course/1"
-        )
-
-
 @ddt.ddt
 class TeamMembershipTest(SharedModuleStoreTestCase):
     """Tests for the TeamMembership model."""
+    shard = 4
 
     def setUp(self):
         """
@@ -165,6 +117,7 @@ class TeamMembershipTest(SharedModuleStoreTestCase):
 @ddt.ddt
 class TeamSignalsTest(EventTestMixin, SharedModuleStoreTestCase):
     """Tests for handling of team-related signals."""
+    shard = 4
 
     SIGNALS = {
         'thread_created': thread_created,
@@ -180,7 +133,7 @@ class TeamSignalsTest(EventTestMixin, SharedModuleStoreTestCase):
 
     DISCUSSION_TOPIC_ID = 'test_topic'
 
-    def setUp(self):  # pylint: disable=arguments-differ
+    def setUp(self):
         """Create a user with a team to test signals."""
         super(TeamSignalsTest, self).setUp('lms.djangoapps.teams.utils.tracker')
         self.user = UserFactory.create(username="user")
@@ -228,16 +181,15 @@ class TeamSignalsTest(EventTestMixin, SharedModuleStoreTestCase):
 
     @ddt.data(
         *itertools.product(
-            list(SIGNALS.keys()),
+            SIGNALS.keys(),
             (('user', True), ('moderator', False))
         )
     )
     @ddt.unpack
-    def test_signals(self, signal_name, user_should_update):
+    def test_signals(self, signal_name, (user, should_update)):
         """Test that `last_activity_at` is correctly updated when team-related
         signals are sent.
         """
-        (user, should_update) = user_should_update
         with self.assert_last_activity_updated(should_update):
             user = getattr(self, user)
             signal = self.SIGNALS[signal_name]
@@ -251,7 +203,7 @@ class TeamSignalsTest(EventTestMixin, SharedModuleStoreTestCase):
             signal = self.SIGNALS[signal_name]
             signal.send(sender=None, user=self.user, post=self.mock_comment(user=self.moderator))
 
-    @ddt.data(*list(SIGNALS.keys()))
+    @ddt.data(*SIGNALS.keys())
     def test_signals_course_context(self, signal_name):
         """Test that `last_activity_at` is not updated when activity takes
         place in discussions outside of a team.

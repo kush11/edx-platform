@@ -2,17 +2,18 @@
 Unit tests for Edx Proctoring feature flag in new instructor dashboard.
 """
 
-
 import ddt
 from django.apps import apps
 from django.conf import settings
 from django.urls import reverse
+
 from edx_proctoring.api import create_exam
 from edx_proctoring.backends.tests.test_backend import TestBackendProvider
+
 from mock import patch
 from six import text_type
 
-from student.roles import CourseInstructorRole, CourseStaffRole
+from student.roles import CourseStaffRole, CourseInstructorRole
 from student.tests.factories import AdminFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
@@ -24,6 +25,7 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
     """
     Check for Proctoring view on the new instructor dashboard
     """
+    shard = 1
 
     @classmethod
     def setUpClass(cls):
@@ -134,7 +136,7 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
         self.setup_course(True, True)
         response = self.client.get(self.url)
         # the default backend does not support the review dashboard
-        self.assertNotContains(response, 'Review Dashboard')
+        self.assertNotIn('Review Dashboard', response.content)
 
         backend = TestBackendProvider()
         config = apps.get_app_config('edx_proctoring')
@@ -147,7 +149,7 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
                 backend='test',
             )
             response = self.client.get(self.url)
-            self.assertContains(response, 'Review Dashboard')
+            self.assertIn('Review Dashboard', response.content)
 
     def _assert_proctoring_tab_available(self, available):
         """
@@ -155,5 +157,5 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
         """
         func = self.assertIn if available else self.assertNotIn
         response = self.client.get(self.url)
-        func(self.proctoring_link, response.content.decode('utf-8'))
-        func('proctoring-wrapper', response.content.decode('utf-8'))
+        func(self.proctoring_link, response.content)
+        func('proctoring-wrapper', response.content)

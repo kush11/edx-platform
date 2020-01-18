@@ -2,10 +2,8 @@
 Management command to resend all lti scores for the requested course.
 """
 
-
 import textwrap
 
-import six
 from django.core.management import BaseCommand
 from opaque_keys.edx.keys import CourseKey
 
@@ -46,7 +44,7 @@ class Command(BaseCommand):
         """
         tasks.send_composite_outcome.delay(
             assignment.user_id,
-            six.text_type(assignment.course_key),
+            unicode(assignment.course_key),
             assignment.id,
             assignment.version_number,
         )

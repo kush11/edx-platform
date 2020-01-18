@@ -3,12 +3,9 @@
 Admin site configurations for verify_student.
 """
 
-
 from django.contrib import admin
 
-from lms.djangoapps.verify_student.models import (
-    ManualVerification, SoftwareSecurePhotoVerification, SSOVerification,
-    SSPVerificationRetryConfig)
+from lms.djangoapps.verify_student.models import SoftwareSecurePhotoVerification, SSOVerification, ManualVerification
 
 
 @admin.register(SoftwareSecurePhotoVerification)
@@ -40,11 +37,3 @@ class ManualVerificationAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'status', 'reason', 'created_at', 'updated_at',)
     raw_id_fields = ('user',)
     search_fields = ('user__username', 'reason',)
-
-
-@admin.register(SSPVerificationRetryConfig)
-class SSPVerificationRetryAdmin(admin.ModelAdmin):
-    """
-    Admin for the SSPVerificationRetryConfig table.
-    """
-    pass

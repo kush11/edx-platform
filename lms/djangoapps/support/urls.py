@@ -1,8 +1,6 @@
 """
 URLs for the student support app.
 """
-
-
 from django.conf.urls import url
 
 from lms.djangoapps.support.views.contact_us import ContactUsView
@@ -13,7 +11,6 @@ from support.views.feature_based_enrollments import FeatureBasedEnrollmentsSuppo
 from support.views.index import index
 from support.views.manage_user import ManageUserDetailView, ManageUserSupportView
 from support.views.refund import RefundSupportView
-from support.views.program_enrollments import LinkProgramEnrollmentSupportView
 
 COURSE_ENTITLEMENTS_VIEW = EntitlementSupportView.as_view()
 
@@ -41,5 +38,4 @@ urlpatterns = [
         FeatureBasedEnrollmentsSupportView.as_view(),
         name="feature_based_enrollments"
     ),
-    url(r'link_program_enrollments/?$', LinkProgramEnrollmentSupportView.as_view(), name='link_program_enrollments')
 ]

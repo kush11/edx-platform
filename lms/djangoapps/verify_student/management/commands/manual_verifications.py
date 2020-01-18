@@ -1,14 +1,12 @@
 """
 Django admin commands related to verify_student
 """
-
-
 import logging
 import os
 from pprint import pformat
 
-from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
+from django.contrib.auth.models import User
 
 from lms.djangoapps.verify_student.models import ManualVerification
 from lms.djangoapps.verify_student.utils import earliest_allowed_verification_date
@@ -50,9 +48,9 @@ class Command(BaseCommand):
                 len(failed_emails),
                 total_emails
             ))
-            log.error(u'Failed emails:{}'.format(pformat(failed_emails)))
+            log.error('Failed emails:{}'.format(pformat(failed_emails)))
         else:
-            log.info(u'Successfully generated manual verification for {} emails.'.format(total_emails))
+            log.info('Successfully generated manual verification for {} emails.'.format(total_emails))
 
     def _generate_manual_verification_from_file(self, email_ids_file):
         """

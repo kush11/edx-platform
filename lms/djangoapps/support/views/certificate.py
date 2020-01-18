@@ -1,9 +1,8 @@
 """
 Certificate tool in the student support app.
 """
+import urllib
 
-
-from six.moves.urllib.parse import unquote, quote_plus  # pylint: disable=import-error
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 
@@ -26,13 +25,14 @@ class CertificatesSupportView(View):
 
     Most of the heavy lifting is performed client-side through API
     calls directly to the certificates app.
+
     """
 
     @method_decorator(require_support_permission)
     def get(self, request):
         """Render the certificates support view. """
         context = {
-            "user_filter": unquote(quote_plus(request.GET.get("user", ""))),
+            "user_filter": urllib.unquote(urllib.quote_plus(request.GET.get("user", ""))),
             "course_filter": request.GET.get("course_id", "")
         }
         return render_to_response("support/certificates.html", context)

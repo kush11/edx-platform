@@ -121,10 +121,14 @@ class EntitlementUnenrollmentView extends Backbone.View {
   }
 
   switchToSlideOne() {
+    // Randomize survey option order
+    const survey = document.querySelector('.options');
+    for (let i = survey.children.length - 1; i >= 0; i -= 1) {
+      survey.appendChild(survey.children[Math.trunc(Math.random() * i)]);
+    }
     this.$('.entitlement-unenrollment-modal-inner-wrapper header').addClass('hidden');
     this.$('.entitlement-unenrollment-modal-submit-wrapper').addClass('hidden');
     this.$('.slide1').removeClass('hidden');
-    this.$('.entitlement-unenrollment-modal-inner-wrapper').prevObject.addClass('entitlement-unenrollment-modal-long-survey');
 
     // From accessibility_tools.js
     window.trapFocusForAccessibleModal(
@@ -137,25 +141,19 @@ class EntitlementUnenrollmentView extends Backbone.View {
   }
 
   switchToSlideTwo() {
-    const price = this.$(".reasons_survey input[name='priceEntitlementUnenrollment']:checked").val();
-    const dissastisfied = this.$(".reasons_survey input[name='dissastisfiedEntitlementUnenrollment']:checked").val();
-    const difficult = this.$(".reasons_survey input[name='difficultEntitlementUnenrollment']:checked").val();
-    const time = this.$(".reasons_survey input[name='timeEntitlementUnenrollment']:checked").val();
-    const unavailable = this.$(".reasons_survey input[name='unavailableEntitlementUnenrollment']:checked").val();
-    const email = this.$(".reasons_survey input[name='emailEntitlementUnenrollment']:checked").val();
-
-    if (price || dissastisfied || difficult || time || unavailable || email) {
-      const results = { price, dissastisfied, difficult, time, unavailable, email };
-
+    let reason = this.$(".reasons_survey input[name='reason']:checked").attr('val');
+    if (reason === 'Other') {
+      reason = this.$('.other_text').val();
+    }
+    if (reason) {
       window.analytics.track('entitlement_unenrollment_reason.selected', {
         category: 'user-engagement',
-        label: JSON.stringify(results),
+        label: reason,
         displayName: 'v1',
       });
     }
     this.$('.slide1').addClass('hidden');
     this.$('.slide2').removeClass('hidden');
-    this.$('.entitlement-unenrollment-modal-inner-wrapper').prevObject.removeClass('entitlement-unenrollment-modal-long-survey');
 
     // From accessibility_tools.js
     window.trapFocusForAccessibleModal(

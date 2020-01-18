@@ -1,22 +1,19 @@
 """
 Computes the data to display on the Instructor Dashboard
 """
-
-
-import decimal
 import json
 
 from django.db.models import Count
 from django.utils.translation import ugettext as _
+
 from opaque_keys.edx.locator import BlockUsageLocator
 from six import text_type
 
-from lms.djangoapps.courseware import models
-from lms.djangoapps.instructor_analytics.csvs import create_csv_response
+from courseware import models
+from instructor_analytics.csvs import create_csv_response
 from util.json_request import JsonResponse
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.inheritance import own_metadata
-from openedx.core.lib.grade_utils import round_away_from_zero
 
 # Used to limit the length of list displayed to the screen.
 MAX_SCREEN_LIST_LENGTH = 250
@@ -194,7 +191,7 @@ def get_d3_problem_grade_distrib(course_id):
                             for (grade, count_grade) in problem_info['grade_distrib']:
                                 percent = 0.0
                                 if max_grade > 0:
-                                    percent = round_away_from_zero((grade * 100.0) / max_grade, 1)
+                                    percent = round((grade * 100.0) / max_grade, 1)
 
                                 # Compute percent of students with this grade
                                 student_count_percent = 0
@@ -283,7 +280,7 @@ def get_d3_sequential_open_distrib(course_id):
                 'module_url': text_type(subsection.location),
             })
             subsection = {
-                'xValue': u"SS {0}".format(c_subsection),
+                'xValue': "SS {0}".format(c_subsection),
                 'stackData': stack_data,
             }
             data.append(subsection)
@@ -353,7 +350,7 @@ def get_d3_section_grade_distrib(course_id, section):
             for (grade, count_grade) in grade_distrib[problem]['grade_distrib']:
                 percent = 0.0
                 if max_grade > 0:
-                    percent = round_away_from_zero((grade * 100.0) / max_grade, 1)
+                    percent = round((grade * 100.0) / max_grade, 1)
 
                 # Construct tooltip for problem in grade distibution view
                 tooltip = {
@@ -514,7 +511,7 @@ def get_students_problem_grades(request, csv=False):
 
             student_dict['percent'] = 0
             if student['max_grade'] > 0:
-                student_dict['percent'] = round_away_from_zero(student['grade'] * 100 / student['max_grade'])
+                student_dict['percent'] = round(student['grade'] * 100 / student['max_grade'])
             results.append(student_dict)
 
         max_exceeded = False
@@ -536,7 +533,7 @@ def get_students_problem_grades(request, csv=False):
         for student in students:
             percent = 0
             if student['max_grade'] > 0:
-                percent = round_away_from_zero((student['grade'] * 100 / student['max_grade']), 1)
+                percent = round(student['grade'] * 100 / student['max_grade'])
             results.append([student['student__profile__name'], student['student__username'], student['grade'], percent])
 
         response = create_csv_response(filename, header, results)
@@ -601,5 +598,5 @@ def sanitize_filename(filename):
     """
     filename = filename.replace(" ", "_")
     filename = filename.encode('utf-8')
-    filename = filename[0:25].decode('utf-8') + '.csv'
+    filename = filename[0:25] + '.csv'
     return filename

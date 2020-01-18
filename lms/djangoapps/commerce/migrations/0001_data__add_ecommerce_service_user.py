@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-
-
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.db import migrations, models
+from django.db import models, migrations
+
 
 USERNAME = settings.ECOMMERCE_SERVICE_WORKER_USERNAME
 EMAIL = USERNAME + '@fake.email'

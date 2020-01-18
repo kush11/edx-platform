@@ -1,9 +1,8 @@
 """
 Extremely basic tests for the fix_ungraded_certs command
 """
-
-
 import pytest
+
 from django.core.management import call_command
 
 

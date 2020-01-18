@@ -2,7 +2,6 @@
 Course API Authorization functions
 """
 
-
 from student.roles import GlobalStaff
 
 

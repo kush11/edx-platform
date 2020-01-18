@@ -7,16 +7,15 @@ This module provides functions to retrieve basic branded parts
 such as the site visible courses, university name and logo.
 """
 
-
 from django.conf import settings
-from opaque_keys.edx.keys import CourseKey
 
+from opaque_keys.edx.keys import CourseKey
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 
 
 def get_visible_courses(org=None, filter_=None):
     """
-    Yield the CourseOverviews that should be visible in this branded
+    Return the set of CourseOverviews that should be visible in this branded
     instance.
 
     Arguments:
@@ -28,9 +27,8 @@ def get_visible_courses(org=None, filter_=None):
     # Import is placed here to avoid model import at project startup.
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
+    courses = []
     current_site_orgs = configuration_helpers.get_current_site_orgs()
-
-    courses = CourseOverview.objects.none()
 
     if org:
         # Check the current site's orgs to make sure the org's courses should be displayed
@@ -42,7 +40,7 @@ def get_visible_courses(org=None, filter_=None):
     else:
         courses = CourseOverview.get_all_courses(filter_=filter_)
 
-    courses = courses.order_by('id')
+    courses = sorted(courses, key=lambda course: course.number)
 
     # Filtering can stop here.
     if current_site_orgs:
@@ -59,11 +57,11 @@ def get_visible_courses(org=None, filter_=None):
         )
 
     if filtered_visible_ids:
-        return courses.filter(id__in=filtered_visible_ids)
+        return [course for course in courses if course.id in filtered_visible_ids]
     else:
         # Filter out any courses based on current org, to avoid leaking these.
         orgs = configuration_helpers.get_all_orgs()
-        return courses.exclude(org__in=orgs)
+        return [course for course in courses if course.location.org not in orgs]
 
 
 def get_university_for_request():

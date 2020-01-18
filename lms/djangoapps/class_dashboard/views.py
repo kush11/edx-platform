@@ -2,7 +2,6 @@
 Handles requests for data, returning a json
 """
 
-
 import json
 import logging
 
@@ -10,8 +9,8 @@ from django.http import HttpResponse
 from opaque_keys.edx.keys import CourseKey
 
 from class_dashboard import dashboard_data
-from lms.djangoapps.courseware.access import has_access
-from lms.djangoapps.courseware.courses import get_course_overview_with_access
+from courseware.access import has_access
+from courseware.courses import get_course_overview_with_access
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ def all_sequential_open_distrib(request, course_id):
         try:
             data = dashboard_data.get_d3_sequential_open_distrib(course_key)
         except Exception as ex:  # pylint: disable=broad-except
-            log.error(u'Generating metrics failed with exception: %s', ex)
+            log.error('Generating metrics failed with exception: %s', ex)
             data = {'error': "error"}
     else:
         data = {'error': "Access Denied: User does not have access to this course's data"}
@@ -70,7 +69,7 @@ def all_problem_grade_distribution(request, course_id):
         try:
             data = dashboard_data.get_d3_problem_grade_distrib(course_key)
         except Exception as ex:  # pylint: disable=broad-except
-            log.error(u'Generating metrics failed with exception: %s', ex)
+            log.error('Generating metrics failed with exception: %s', ex)
             data = {'error': "error"}
     else:
         data = {'error': "Access Denied: User does not have access to this course's data"}
@@ -101,7 +100,7 @@ def section_problem_grade_distrib(request, course_id, section):
         try:
             data = dashboard_data.get_d3_section_grade_distrib(course_key, section)
         except Exception as ex:  # pylint: disable=broad-except
-            log.error(u'Generating metrics failed with exception: %s', ex)
+            log.error('Generating metrics failed with exception: %s', ex)
             data = {'error': "error"}
     else:
         data = {'error': "Access Denied: User does not have access to this course's data"}

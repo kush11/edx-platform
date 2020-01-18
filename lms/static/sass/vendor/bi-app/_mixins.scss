@@ -292,9 +292,3 @@
     @content;
   }
 }
-
-@mixin display-left-to-right {
-  @if $bi-app-direction == rtl {
-    content: "\200E‎";
-  }
-}

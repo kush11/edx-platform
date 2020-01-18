@@ -2,14 +2,13 @@
 Views for serving static textbooks.
 """
 
-
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.http import Http404
 from opaque_keys.edx.keys import CourseKey
 
-from lms.djangoapps.courseware.access import has_access
-from lms.djangoapps.courseware.courses import get_course_with_access
+from courseware.access import has_access
+from courseware.courses import get_course_with_access
 from edxmako.shortcuts import render_to_response
 from static_replace import replace_static_urls
 
@@ -25,7 +24,7 @@ def index(request, course_id, book_index, page=None):
 
     book_index = int(book_index)
     if book_index < 0 or book_index >= len(course.textbooks):
-        raise Http404(u"Invalid book index value: {0}".format(book_index))
+        raise Http404("Invalid book index value: {0}".format(book_index))
     textbook = course.textbooks[book_index]
     table_of_contents = textbook.table_of_contents
 
@@ -83,7 +82,7 @@ def pdf_index(request, course_id, book_index, chapter=None, page=None):
 
     book_index = int(book_index)
     if book_index < 0 or book_index >= len(course.pdf_textbooks):
-        raise Http404(u"Invalid book index value: {0}".format(book_index))
+        raise Http404("Invalid book index value: {0}".format(book_index))
     textbook = course.pdf_textbooks[book_index]
 
     viewer_params = '&file='
@@ -151,7 +150,7 @@ def html_index(request, course_id, book_index, chapter=None):
 
     book_index = int(book_index)
     if book_index < 0 or book_index >= len(course.html_textbooks):
-        raise Http404(u"Invalid book index value: {0}".format(book_index))
+        raise Http404("Invalid book index value: {0}".format(book_index))
     textbook = course.html_textbooks[book_index]
 
     if 'url' in textbook:

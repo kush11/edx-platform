@@ -1,8 +1,3 @@
-"""
-Experimentation routers
-"""
-
-
 from rest_framework import routers
 from rest_framework.routers import DynamicDetailRoute, DynamicListRoute, Route
 

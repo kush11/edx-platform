@@ -2,8 +2,7 @@
 Management command to find all students that need certificates for
 courses that have finished, and put their cert requests on the queue.
 """
-
-
+from __future__ import print_function
 import datetime
 import logging
 
@@ -112,7 +111,7 @@ class Command(BaseCommand):
                     timeleft = diff * (total - count) / status_interval
                     hours, remainder = divmod(timeleft.seconds, 3600)
                     minutes, _seconds = divmod(remainder, 60)
-                    print(u"{0}/{1} completed ~{2:02}:{3:02}m remaining".format(count, total, hours, minutes))
+                    print("{0}/{1} completed ~{2:02}:{3:02}m remaining".format(count, total, hours, minutes))
                     start = datetime.datetime.now(UTC)
 
                 cert_status = certificate_status_for_student(student, course_key)['status']

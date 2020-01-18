@@ -1,13 +1,10 @@
 """
 Provide tests for git_add_course management command.
 """
-
-
 import logging
 import os
 import shutil
-import six
-from six import StringIO
+import StringIO
 import subprocess
 import unittest
 from uuid import uuid4
@@ -40,6 +37,9 @@ TEST_MONGODB_LOG = {
     'db': 'test_xlog',
 }
 
+FEATURES_WITH_SSL_AUTH = settings.FEATURES.copy()
+FEATURES_WITH_SSL_AUTH['AUTH_USE_CERTIFICATES'] = True
+
 
 @override_settings(
     MONGODB_LOG=TEST_MONGODB_LOG,
@@ -51,7 +51,8 @@ class TestGitAddCourse(SharedModuleStoreTestCase):
     """
     Tests the git_add_course management command for proper functions.
     """
-    TEST_REPO = 'https://github.com/edx/edx4edx_lite.git'
+    shard = 3
+    TEST_REPO = 'https://github.com/mitocw/edx4edx_lite.git'
     TEST_COURSE = 'MITx/edx4edx/edx4edx'
     TEST_BRANCH = 'testing_do_not_delete'
     TEST_BRANCH_COURSE = CourseKey.from_string('MITx/edx4edx_branch/edx4edx')
@@ -66,25 +67,22 @@ class TestGitAddCourse(SharedModuleStoreTestCase):
         """
         Convenience function for testing command failures
         """
-        with self.assertRaisesRegex(CommandError, regex):
-            call_command('git_add_course', *args, stderr=StringIO())
+        with self.assertRaisesRegexp(CommandError, regex):
+            call_command('git_add_course', *args, stderr=StringIO.StringIO())
 
     def test_command_args(self):
         """
         Validate argument checking
         """
         # No argument given.
-        if six.PY2:
-            self.assertCommandFailureRegexp('Error: too few arguments')
-        else:
-            self.assertCommandFailureRegexp('Error: the following arguments are required: repository_url')
+        self.assertCommandFailureRegexp('Error: too few arguments')
         # Extra/Un-named arguments given.
         self.assertCommandFailureRegexp(
             'Error: unrecognized arguments: blah blah blah',
             'blah', 'blah', 'blah', 'blah')
         # Not a valid path.
         self.assertCommandFailureRegexp(
-            u'Path {0} doesn\'t exist, please create it,'.format(self.git_repo_dir),
+            'Path {0} doesn\'t exist, please create it,'.format(self.git_repo_dir),
             'blah')
         # Test successful import from command
         if not os.path.isdir(self.git_repo_dir):
@@ -207,7 +205,7 @@ class TestGitAddCourse(SharedModuleStoreTestCase):
             git_import.add_repo('file://{0}'.format(bare_repo), None, None)
 
         # Get logger for checking strings in logs
-        output = StringIO()
+        output = StringIO.StringIO()
         test_log_handler = logging.StreamHandler(output)
         test_log_handler.setLevel(logging.DEBUG)
         glog = git_import.log

@@ -1,8 +1,6 @@
 """
 API URLs for EdxNotes
 """
-
-
 from django.conf.urls import url
 
 from edxnotes import views

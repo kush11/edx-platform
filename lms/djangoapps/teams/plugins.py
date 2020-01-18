@@ -1,11 +1,9 @@
 """
 Definition of the course team feature.
 """
-
-
 from django.utils.translation import ugettext_noop
 
-from lms.djangoapps.courseware.tabs import EnrolledTab
+from courseware.tabs import EnrolledTab
 
 from . import is_feature_enabled
 

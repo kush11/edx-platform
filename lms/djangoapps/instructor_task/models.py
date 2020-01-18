@@ -12,8 +12,6 @@ file and check it in at the same time as your model changes. To do that,
 ASSUMPTIONS: modules have unique IDs, even across different module_types
 
 """
-
-
 import codecs
 import csv
 import hashlib
@@ -22,14 +20,11 @@ import logging
 import os.path
 from uuid import uuid4
 
-import six
 from boto.exception import BotoServerError
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.db import models, transaction
-from django.utils.encoding import python_2_unicode_compatible
-from django.utils.translation import ugettext as _
 from opaque_keys.edx.django.models import CourseKeyField
 from six import text_type
 
@@ -40,10 +35,8 @@ logger = logging.getLogger(__name__)
 # define custom states used by InstructorTask
 QUEUING = 'QUEUING'
 PROGRESS = 'PROGRESS'
-TASK_INPUT_LENGTH = 10000
 
 
-@python_2_unicode_compatible
 class InstructorTask(models.Model):
     """
     Stores information about background tasks that have been submitted to
@@ -65,8 +58,6 @@ class InstructorTask(models.Model):
     `requester` stores id of user who submitted the task
     `created` stores date that entry was first created
     `updated` stores date that entry was last modified
-
-    .. no_pii:
     """
     class Meta(object):
         app_label = "instructor_task"
@@ -74,7 +65,7 @@ class InstructorTask(models.Model):
     task_type = models.CharField(max_length=50, db_index=True)
     course_id = CourseKeyField(max_length=255, db_index=True)
     task_key = models.CharField(max_length=255, db_index=True)
-    task_input = models.TextField()
+    task_input = models.CharField(max_length=255)
     task_id = models.CharField(max_length=255, db_index=True)  # max_length from celery_taskmeta
     task_state = models.CharField(max_length=50, null=True, db_index=True)  # max_length from celery_taskmeta
     task_output = models.CharField(max_length=1024, null=True)
@@ -93,8 +84,8 @@ class InstructorTask(models.Model):
             'task_output': self.task_output,
         },)
 
-    def __str__(self):
-        return six.text_type(repr(self))
+    def __unicode__(self):
+        return unicode(repr(self))
 
     @classmethod
     def create(cls, course_id, task_type, task_key, task_input, requester):
@@ -103,18 +94,14 @@ class InstructorTask(models.Model):
         """
         # create the task_id here, and pass it into celery:
         task_id = str(uuid4())
+
         json_task_input = json.dumps(task_input)
 
-        # check length of task_input, and return an exception if it's too long
-        if len(json_task_input) > TASK_INPUT_LENGTH:
-            logger.error(
-                u'Task input longer than: `%s` for `%s` of course: `%s`',
-                TASK_INPUT_LENGTH,
-                task_type,
-                course_id
-            )
-            error_msg = _('An error has occurred. Task was not created.')
-            raise AttributeError(error_msg)
+        # check length of task_input, and return an exception if it's too long:
+        if len(json_task_input) > 265:
+            fmt = 'Task input longer than 265: "{input}" for "{task}" of "{course}"'
+            msg = fmt.format(input=json_task_input, task=task_type, course=course_id)
+            raise ValueError(msg)
 
         # create the task, then save it:
         instructor_task = cls(
@@ -148,7 +135,7 @@ class InstructorTask(models.Model):
         # will fit in the column.  In the meantime, just return an exception.
         json_output = json.dumps(returned_result)
         if len(json_output) > 1023:
-            raise ValueError(u"Length of task output is too long: {0}".format(json_output))
+            raise ValueError("Length of task output is too long: {0}".format(json_output))
         return json_output
 
     @staticmethod
@@ -237,10 +224,7 @@ class ReportStore(object):
         compatibility.
         """
         for row in rows:
-            if six.PY2:
-                yield [six.text_type(item).encode('utf-8') for item in row]
-            else:
-                yield [six.text_type(item) for item in row]
+            yield [unicode(item).encode('utf-8') for item in row]
 
 
 class DjangoStorageReportStore(ReportStore):
@@ -279,11 +263,6 @@ class DjangoStorageReportStore(ReportStore):
         object, ready to be read from the beginning.
         """
         path = self.path_to(course_id, filename)
-        # See https://github.com/boto/boto/issues/2868
-        # Boto doesn't play nice with unicod in python3
-        if not six.PY2:
-            buff = ContentFile(buff.read().encode('utf-8'))
-
         self.storage.save(path, buff)
 
     def store_rows(self, course_id, filename, rows):
@@ -293,8 +272,7 @@ class DjangoStorageReportStore(ReportStore):
         """
         output_buffer = ContentFile('')
         # Adding unicode signature (BOM) for MS Excel 2013 compatibility
-        if six.PY2:
-            output_buffer.write(codecs.BOM_UTF8)
+        output_buffer.write(codecs.BOM_UTF8)
         csvwriter = csv.writer(output_buffer)
         csvwriter.writerows(self._get_utf8_encoded_rows(rows))
         output_buffer.seek(0)
@@ -332,5 +310,5 @@ class DjangoStorageReportStore(ReportStore):
         """
         Return the full path to a given file for a given course.
         """
-        hashed_course_id = hashlib.sha1(text_type(course_id).encode('utf-8')).hexdigest()
+        hashed_course_id = hashlib.sha1(text_type(course_id)).hexdigest()
         return os.path.join(hashed_course_id, filename)

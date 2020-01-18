@@ -17,55 +17,20 @@ Common traits:
 # and throws spurious errors. Therefore, we disable invalid-name checking.
 # pylint: disable=invalid-name
 
-
-import codecs
 import datetime
+import json
+
 import os
-
 import dateutil
-import yaml
-from corsheaders.defaults import default_headers as corsheaders_default_headers
-from django.core.exceptions import ImproperlyConfigured
-from path import Path as path
 
-from openedx.core.djangoapps.plugins import plugin_settings, constants as plugin_constants
-from openedx.core.lib.derived import derive_settings
-from openedx.core.lib.logsettings import get_logger_config
+from corsheaders.defaults import default_headers as corsheaders_default_headers
+from path import Path as path
 from xmodule.modulestore.modulestore_settings import convert_module_store_setting_if_needed
+from openedx.core.djangoapps.plugins import plugin_settings, constants as plugin_constants
 
 from .common import *
-
-
-def get_env_setting(setting):
-    """ Get the environment setting or return exception """
-    try:
-        return os.environ[setting]
-    except KeyError:
-        error_msg = u"Set the %s env variable" % setting
-        raise ImproperlyConfigured(error_msg)
-
-# A file path to a YAML file from which to load all the configuration for the edx platform
-CONFIG_FILE = get_env_setting('LMS_CFG')
-
-with codecs.open(CONFIG_FILE, encoding='utf-8') as f:
-    __config__ = yaml.safe_load(f)
-
-    # ENV_TOKENS and AUTH_TOKENS are included for reverse compatability.
-    # Removing them may break plugins that rely on them.
-    ENV_TOKENS = __config__
-    AUTH_TOKENS = __config__
-
-# A file path to a YAML file from which to load all the code revisions currently deployed
-REVISION_CONFIG_FILE = get_env_setting('REVISION_CFG')
-
-try:
-    with codecs.open(REVISION_CONFIG_FILE, encoding='utf-8') as f:
-        REVISION_CONFIG = yaml.safe_load(f)
-except Exception:  # pylint: disable=broad-except
-    REVISION_CONFIG = {}
-
-# Do NOT calculate this dynamically at startup with git because it's *slow*.
-EDX_PLATFORM_REVISION = REVISION_CONFIG.get('EDX_PLATFORM_REVISION', EDX_PLATFORM_REVISION)
+from openedx.core.lib.derived import derive_settings  # pylint: disable=wrong-import-order
+from openedx.core.lib.logsettings import get_logger_config  # pylint: disable=wrong-import-order
 
 # SERVICE_VARIANT specifies name of the variant used, which decides what JSON
 # configuration files are read during startup.
@@ -136,6 +101,12 @@ CELERY_QUEUES = {
 CELERY_ROUTES = "{}celery.Router".format(QUEUE_VARIANT)
 CELERYBEAT_SCHEDULE = {}  # For scheduling tasks, entries can be added to this dict
 
+########################## NON-SECURE ENV CONFIG ##############################
+# Things like server locations, ports, etc.
+
+with open(CONFIG_ROOT / CONFIG_PREFIX + "env.json") as env_file:
+    ENV_TOKENS = json.load(env_file)
+
 # STATIC_ROOT specifies the directory where static files are
 # collected
 STATIC_ROOT_BASE = ENV_TOKENS.get('STATIC_ROOT_BASE', None)
@@ -148,7 +119,8 @@ if STATIC_ROOT_BASE:
 # STATIC_URL_BASE specifies the base url to use for static files
 STATIC_URL_BASE = ENV_TOKENS.get('STATIC_URL_BASE', None)
 if STATIC_URL_BASE:
-    STATIC_URL = STATIC_URL_BASE
+    # collectstatic will fail if STATIC_URL is a unicode string
+    STATIC_URL = STATIC_URL_BASE.encode('ascii')
     if not STATIC_URL.endswith("/"):
         STATIC_URL += "/"
 
@@ -241,9 +213,6 @@ if 'loc_cache' not in CACHES:
         'LOCATION': 'edx_location_mem_cache',
     }
 
-if 'staticfiles' in CACHES:
-    CACHES['staticfiles']['KEY_PREFIX'] = EDX_PLATFORM_REVISION
-
 # Email overrides
 DEFAULT_FROM_EMAIL = ENV_TOKENS.get('DEFAULT_FROM_EMAIL', DEFAULT_FROM_EMAIL)
 DEFAULT_FEEDBACK_EMAIL = ENV_TOKENS.get('DEFAULT_FEEDBACK_EMAIL', DEFAULT_FEEDBACK_EMAIL)
@@ -310,7 +279,7 @@ CELERY_QUEUES.update(
     {
         alternate: {}
         for alternate in ALTERNATE_QUEUES
-        if alternate not in list(CELERY_QUEUES.keys())
+        if alternate not in CELERY_QUEUES.keys()
     }
 )
 
@@ -331,10 +300,6 @@ ENABLE_COMPREHENSIVE_THEMING = ENV_TOKENS.get('ENABLE_COMPREHENSIVE_THEMING', EN
 
 # Marketing link overrides
 MKTG_URL_LINK_MAP.update(ENV_TOKENS.get('MKTG_URL_LINK_MAP', {}))
-ENTERPRISE_MARKETING_FOOTER_QUERY_PARAMS = ENV_TOKENS.get(
-    'ENTERPRISE_MARKETING_FOOTER_QUERY_PARAMS',
-    ENTERPRISE_MARKETING_FOOTER_QUERY_PARAMS
-)
 
 # Intentional defaults.
 SUPPORT_SITE_LINK = ENV_TOKENS.get('SUPPORT_SITE_LINK', SUPPORT_SITE_LINK)
@@ -348,7 +313,7 @@ ACTIVATION_EMAIL_SUPPORT_LINK = ENV_TOKENS.get(
 MOBILE_STORE_URLS = ENV_TOKENS.get('MOBILE_STORE_URLS', MOBILE_STORE_URLS)
 
 # Timezone overrides
-TIME_ZONE = ENV_TOKENS.get('CELERY_TIMEZONE', CELERY_TIMEZONE)
+TIME_ZONE = ENV_TOKENS.get('TIME_ZONE', TIME_ZONE)
 
 # Translation overrides
 LANGUAGES = ENV_TOKENS.get('LANGUAGES', LANGUAGES)
@@ -383,8 +348,8 @@ CERT_NAME_LONG = ENV_TOKENS.get('CERT_NAME_LONG', CERT_NAME_LONG)
 CERT_QUEUE = ENV_TOKENS.get("CERT_QUEUE", 'test-pull')
 ZENDESK_URL = ENV_TOKENS.get('ZENDESK_URL', ZENDESK_URL)
 ZENDESK_CUSTOM_FIELDS = ENV_TOKENS.get('ZENDESK_CUSTOM_FIELDS', ZENDESK_CUSTOM_FIELDS)
-ZENDESK_GROUP_ID_MAPPING = ENV_TOKENS.get('ZENDESK_GROUP_ID_MAPPING', ZENDESK_GROUP_ID_MAPPING)
 
+FEEDBACK_SUBMISSION_EMAIL = ENV_TOKENS.get("FEEDBACK_SUBMISSION_EMAIL")
 MKTG_URLS = ENV_TOKENS.get('MKTG_URLS', MKTG_URLS)
 
 # Badgr API
@@ -419,8 +384,28 @@ if "TRACKING_IGNORE_URL_PATTERNS" in ENV_TOKENS:
 SSL_AUTH_EMAIL_DOMAIN = ENV_TOKENS.get("SSL_AUTH_EMAIL_DOMAIN", "MIT.EDU")
 SSL_AUTH_DN_FORMAT_STRING = ENV_TOKENS.get(
     "SSL_AUTH_DN_FORMAT_STRING",
-    u"/C=US/ST=Massachusetts/O=Massachusetts Institute of Technology/OU=Client CA v1/CN={0}/emailAddress={1}"
+    "/C=US/ST=Massachusetts/O=Massachusetts Institute of Technology/OU=Client CA v1/CN={0}/emailAddress={1}"
 )
+
+# Django CAS external authentication settings
+CAS_EXTRA_LOGIN_PARAMS = ENV_TOKENS.get("CAS_EXTRA_LOGIN_PARAMS", None)
+if FEATURES.get('AUTH_USE_CAS'):
+    CAS_SERVER_URL = ENV_TOKENS.get("CAS_SERVER_URL", None)
+    AUTHENTICATION_BACKENDS = [
+        'django.contrib.auth.backends.ModelBackend',
+        'django_cas.backends.CASBackend',
+    ]
+
+    INSTALLED_APPS.append('django_cas')
+
+    MIDDLEWARE_CLASSES.append('django_cas.middleware.CASMiddleware')
+    CAS_ATTRIBUTE_CALLBACK = ENV_TOKENS.get('CAS_ATTRIBUTE_CALLBACK', None)
+    if CAS_ATTRIBUTE_CALLBACK:
+        import importlib
+        CAS_USER_DETAILS_RESOLVER = getattr(
+            importlib.import_module(CAS_ATTRIBUTE_CALLBACK['module']),
+            CAS_ATTRIBUTE_CALLBACK['function']
+        )
 
 # Video Caching. Pairing country codes with CDN URLs.
 # Example: {'CN': 'http://api.xuetangx.com/edx/video?s3_url='}
@@ -442,9 +427,6 @@ NOTIFICATION_EMAIL_EDX_LOGO = ENV_TOKENS.get('NOTIFICATION_EMAIL_EDX_LOGO', NOTI
 # but it is highly recommended that this is True for enviroments accessed
 # by end users.
 CSRF_COOKIE_SECURE = ENV_TOKENS.get('CSRF_COOKIE_SECURE', False)
-
-# Determines which origins are trusted for unsafe requests eg. POST requests.
-CSRF_TRUSTED_ORIGINS = ENV_TOKENS.get('CSRF_TRUSTED_ORIGINS', [])
 
 # Whitelist of domains to which the login/logout pages will redirect.
 LOGIN_REDIRECT_WHITELIST = ENV_TOKENS.get('LOGIN_REDIRECT_WHITELIST', LOGIN_REDIRECT_WHITELIST)
@@ -496,6 +478,12 @@ if FEATURES.get('ENABLE_CORS_HEADERS') or FEATURES.get('ENABLE_CROSS_DOMAIN_CSRF
 # Field overrides. To use the IDDE feature, add
 # 'courseware.student_field_overrides.IndividualStudentOverrideProvider'.
 FIELD_OVERRIDE_PROVIDERS = tuple(ENV_TOKENS.get('FIELD_OVERRIDE_PROVIDERS', []))
+
+############################## SECURE AUTH ITEMS ###############
+# Secret things: passwords, access keys, etc.
+
+with open(CONFIG_ROOT / CONFIG_PREFIX + "auth.json") as auth_file:
+    AUTH_TOKENS = json.load(auth_file)
 
 ############### XBlock filesystem field config ##########
 if 'DJFS' in AUTH_TOKENS and AUTH_TOKENS['DJFS'] is not None:
@@ -585,11 +573,6 @@ MONGODB_LOG = AUTH_TOKENS.get('MONGODB_LOG', {})
 EMAIL_HOST_USER = AUTH_TOKENS.get('EMAIL_HOST_USER', '')  # django default is ''
 EMAIL_HOST_PASSWORD = AUTH_TOKENS.get('EMAIL_HOST_PASSWORD', '')  # django default is ''
 
-############################### BLOCKSTORE #####################################
-BLOCKSTORE_API_URL = ENV_TOKENS.get('BLOCKSTORE_API_URL', None)  # e.g. "https://blockstore.example.com/api/v1/"
-# Configure an API auth token at (blockstore URL)/admin/authtoken/token/
-BLOCKSTORE_API_AUTH_TOKEN = AUTH_TOKENS.get('BLOCKSTORE_API_AUTH_TOKEN', None)
-
 # Datadog for events!
 DATADOG = AUTH_TOKENS.get("DATADOG", {})
 DATADOG.update(ENV_TOKENS.get("DATADOG", {}))
@@ -601,6 +584,9 @@ if 'DATADOG_API' in AUTH_TOKENS:
 # Analytics API
 ANALYTICS_API_KEY = AUTH_TOKENS.get("ANALYTICS_API_KEY", ANALYTICS_API_KEY)
 ANALYTICS_API_URL = ENV_TOKENS.get("ANALYTICS_API_URL", ANALYTICS_API_URL)
+
+# Mailchimp New User List
+MAILCHIMP_NEW_USER_LIST_ID = ENV_TOKENS.get("MAILCHIMP_NEW_USER_LIST_ID")
 
 # Zendesk
 ZENDESK_USER = AUTH_TOKENS.get("ZENDESK_USER")
@@ -675,13 +661,8 @@ FINANCIAL_REPORTS = ENV_TOKENS.get("FINANCIAL_REPORTS", FINANCIAL_REPORTS)
 ORA2_FILE_PREFIX = ENV_TOKENS.get("ORA2_FILE_PREFIX", ORA2_FILE_PREFIX)
 
 ##### ACCOUNT LOCKOUT DEFAULT PARAMETERS #####
-MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED = ENV_TOKENS.get(
-    "MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED", MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED
-)
-
-MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS = ENV_TOKENS.get(
-    "MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS", MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS
-)
+MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED = ENV_TOKENS.get("MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED", 5)
+MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS = ENV_TOKENS.get("MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS", 15 * 60)
 
 #### PASSWORD POLICY SETTINGS #####
 AUTH_PASSWORD_VALIDATORS = ENV_TOKENS.get("AUTH_PASSWORD_VALIDATORS", AUTH_PASSWORD_VALIDATORS)
@@ -703,7 +684,6 @@ if FEATURES.get('ENABLE_THIRD_PARTY_AUTH'):
         'social_core.backends.linkedin.LinkedinOAuth2',
         'social_core.backends.facebook.FacebookOAuth2',
         'social_core.backends.azuread.AzureADOAuth2',
-        'third_party_auth.identityserver3.IdentityServer3',
         'third_party_auth.saml.SAMLAuthBackend',
         'third_party_auth.lti.LTIAuthBackend',
     ])
@@ -828,9 +808,8 @@ FACEBOOK_APP_SECRET = AUTH_TOKENS.get("FACEBOOK_APP_SECRET")
 FACEBOOK_APP_ID = AUTH_TOKENS.get("FACEBOOK_APP_ID")
 
 XBLOCK_SETTINGS = ENV_TOKENS.get('XBLOCK_SETTINGS', {})
-XBLOCK_SETTINGS.setdefault("VideoBlock", {})["licensing_enabled"] = FEATURES.get("LICENSING", False)
-XBLOCK_SETTINGS.setdefault("VideoBlock", {})['YOUTUBE_API_KEY'] = AUTH_TOKENS.get('YOUTUBE_API_KEY', YOUTUBE_API_KEY)
-YOUTUBE_API_KEY = AUTH_TOKENS.get('YOUTUBE_API_KEY', YOUTUBE_API_KEY)
+XBLOCK_SETTINGS.setdefault("VideoDescriptor", {})["licensing_enabled"] = FEATURES.get("LICENSING", False)
+XBLOCK_SETTINGS.setdefault("VideoModule", {})['YOUTUBE_API_KEY'] = AUTH_TOKENS.get('YOUTUBE_API_KEY', YOUTUBE_API_KEY)
 
 ##### VIDEO IMAGE STORAGE #####
 VIDEO_IMAGE_SETTINGS = ENV_TOKENS.get('VIDEO_IMAGE_SETTINGS', VIDEO_IMAGE_SETTINGS)
@@ -870,7 +849,7 @@ XBLOCK_FIELD_DATA_WRAPPERS += (
 )
 
 MODULESTORE_FIELD_OVERRIDE_PROVIDERS += (
-    'lms.djangoapps.courseware.self_paced_overrides.SelfPacedDateOverrideProvider',
+    'courseware.self_paced_overrides.SelfPacedDateOverrideProvider',
 )
 
 # PROFILE IMAGE CONFIG
@@ -888,7 +867,6 @@ PROFILE_IMAGE_SIZES_MAP = ENV_TOKENS.get(
 
 EDXNOTES_PUBLIC_API = ENV_TOKENS.get('EDXNOTES_PUBLIC_API', EDXNOTES_PUBLIC_API)
 EDXNOTES_INTERNAL_API = ENV_TOKENS.get('EDXNOTES_INTERNAL_API', EDXNOTES_INTERNAL_API)
-EDXNOTES_CLIENT_NAME = ENV_TOKENS.get('EDXNOTES_CLIENT_NAME', EDXNOTES_CLIENT_NAME)
 
 EDXNOTES_CONNECT_TIMEOUT = ENV_TOKENS.get('EDXNOTES_CONNECT_TIMEOUT', EDXNOTES_CONNECT_TIMEOUT)
 EDXNOTES_READ_TIMEOUT = ENV_TOKENS.get('EDXNOTES_READ_TIMEOUT', EDXNOTES_READ_TIMEOUT)
@@ -916,6 +894,18 @@ CREDIT_HELP_LINK_URL = ENV_TOKENS.get('CREDIT_HELP_LINK_URL', CREDIT_HELP_LINK_U
 JWT_AUTH.update(ENV_TOKENS.get('JWT_AUTH', {}))
 JWT_AUTH.update(AUTH_TOKENS.get('JWT_AUTH', {}))
 
+################# MICROSITE ####################
+MICROSITE_CONFIGURATION = ENV_TOKENS.get('MICROSITE_CONFIGURATION', {})
+MICROSITE_ROOT_DIR = path(ENV_TOKENS.get('MICROSITE_ROOT_DIR', ''))
+# this setting specify which backend to be used when pulling microsite specific configuration
+MICROSITE_BACKEND = ENV_TOKENS.get("MICROSITE_BACKEND", MICROSITE_BACKEND)
+# this setting specify which backend to be used when loading microsite specific templates
+MICROSITE_TEMPLATE_BACKEND = ENV_TOKENS.get("MICROSITE_TEMPLATE_BACKEND", MICROSITE_TEMPLATE_BACKEND)
+# TTL for microsite database template cache
+MICROSITE_DATABASE_TEMPLATE_CACHE_TTL = ENV_TOKENS.get(
+    "MICROSITE_DATABASE_TEMPLATE_CACHE_TTL", MICROSITE_DATABASE_TEMPLATE_CACHE_TTL
+)
+
 # Offset for pk of courseware.StudentModuleHistoryExtended
 STUDENTMODULEHISTORYEXTENDED_OFFSET = ENV_TOKENS.get(
     'STUDENTMODULEHISTORYEXTENDED_OFFSET', STUDENTMODULEHISTORYEXTENDED_OFFSET
@@ -929,8 +919,9 @@ if ENV_TOKENS.get('AUDIT_CERT_CUTOFF_DATE', None):
 
 CREDENTIALS_GENERATION_ROUTING_KEY = ENV_TOKENS.get('CREDENTIALS_GENERATION_ROUTING_KEY', DEFAULT_PRIORITY_QUEUE)
 
-# Queue to use for award program certificates
-PROGRAM_CERTIFICATES_ROUTING_KEY = ENV_TOKENS.get('PROGRAM_CERTIFICATES_ROUTING_KEY', DEFAULT_PRIORITY_QUEUE)
+# The extended StudentModule history table
+if FEATURES.get('ENABLE_CSMH_EXTENDED'):
+    INSTALLED_APPS.append('coursewarehistoryextended')
 
 API_ACCESS_MANAGER_EMAIL = ENV_TOKENS.get('API_ACCESS_MANAGER_EMAIL')
 API_ACCESS_FROM_EMAIL = ENV_TOKENS.get('API_ACCESS_FROM_EMAIL')
@@ -981,6 +972,13 @@ ENTERPRISE_COURSE_ENROLLMENT_AUDIT_MODES = ENV_TOKENS.get(
 ENTERPRISE_SUPPORT_URL = ENV_TOKENS.get(
     'ENTERPRISE_SUPPORT_URL',
     ENTERPRISE_SUPPORT_URL
+)
+
+# A shared secret to be used for encrypting passwords passed from the enterprise api
+# to the enteprise reporting script.
+ENTERPRISE_REPORTING_SECRET = AUTH_TOKENS.get(
+    'ENTERPRISE_REPORTING_SECRET',
+    ENTERPRISE_REPORTING_SECRET
 )
 
 # A default dictionary to be used for filtering out enterprise customer catalog.
@@ -1040,10 +1038,6 @@ BASE_COOKIE_DOMAIN = ENV_TOKENS.get(
     'BASE_COOKIE_DOMAIN',
     BASE_COOKIE_DOMAIN
 )
-SYSTEM_TO_FEATURE_ROLE_MAPPING = ENV_TOKENS.get(
-    'SYSTEM_TO_FEATURE_ROLE_MAPPING',
-    SYSTEM_TO_FEATURE_ROLE_MAPPING
-)
 
 ############## CATALOG/DISCOVERY SERVICE API CLIENT CONFIGURATION ######################
 # The LMS communicates with the Catalog service via the EdxRestApiClient class
@@ -1054,13 +1048,9 @@ COURSES_API_CACHE_TIMEOUT = ENV_TOKENS.get('COURSES_API_CACHE_TIMEOUT', COURSES_
 
 # Add an ICP license for serving content in China if your organization is registered to do so
 ICP_LICENSE = ENV_TOKENS.get('ICP_LICENSE', None)
-ICP_LICENSE_INFO = ENV_TOKENS.get('ICP_LICENSE_INFO', {})
 
 ############## Settings for CourseGraph ############################
 COURSEGRAPH_JOB_QUEUE = ENV_TOKENS.get('COURSEGRAPH_JOB_QUEUE', DEFAULT_PRIORITY_QUEUE)
-
-# How long to cache OpenAPI schemas and UI, in seconds.
-OPENAPI_CACHE_TIMEOUT = ENV_TOKENS.get('OPENAPI_CACHE_TIMEOUT', 60 * 60)
 
 ########################## Parental controls config  #######################
 
@@ -1070,6 +1060,9 @@ PARENTAL_CONSENT_AGE_LIMIT = ENV_TOKENS.get(
     'PARENTAL_CONSENT_AGE_LIMIT',
     PARENTAL_CONSENT_AGE_LIMIT
 )
+
+# Do NOT calculate this dynamically at startup with git because it's *slow*.
+EDX_PLATFORM_REVISION = ENV_TOKENS.get('EDX_PLATFORM_REVISION', EDX_PLATFORM_REVISION)
 
 ########################## Extra middleware classes  #######################
 
@@ -1104,24 +1097,20 @@ RETIREMENT_SERVICE_WORKER_USERNAME = ENV_TOKENS.get(
 )
 RETIREMENT_STATES = ENV_TOKENS.get('RETIREMENT_STATES', RETIREMENT_STATES)
 
-############### Settings for Username Replacement ###############
-USERNAME_REPLACEMENT_WORKER = ENV_TOKENS.get('USERNAME_REPLACEMENT_WORKER', USERNAME_REPLACEMENT_WORKER)
-
 ############## Settings for Course Enrollment Modes ######################
 COURSE_ENROLLMENT_MODES = ENV_TOKENS.get('COURSE_ENROLLMENT_MODES', COURSE_ENROLLMENT_MODES)
 
-############## Settings for Microfrontend URLS  #########################
+############## Settings for Writable Gradebook  #########################
 WRITABLE_GRADEBOOK_URL = ENV_TOKENS.get('WRITABLE_GRADEBOOK_URL', WRITABLE_GRADEBOOK_URL)
-PROFILE_MICROFRONTEND_URL = ENV_TOKENS.get('PROFILE_MICROFRONTEND_URL', PROFILE_MICROFRONTEND_URL)
-ORDER_HISTORY_MICROFRONTEND_URL = ENV_TOKENS.get('ORDER_HISTORY_MICROFRONTEND_URL', ORDER_HISTORY_MICROFRONTEND_URL)
-ACCOUNT_MICROFRONTEND_URL = ENV_TOKENS.get('ACCOUNT_MICROFRONTEND_URL', ACCOUNT_MICROFRONTEND_URL)
-
-############### Settings for edx-rbac  ###############
-SYSTEM_WIDE_ROLE_CLASSES = ENV_TOKENS.get('SYSTEM_WIDE_ROLE_CLASSES') or SYSTEM_WIDE_ROLE_CLASSES
 
 ############################### Plugin Settings ###############################
 
 # This is at the bottom because it is going to load more settings after base settings are loaded
+
+# Load aws.py in plugins for reverse compatibility.  This can be removed after aws.py
+# is officially removed.
+plugin_settings.add_plugins(__name__, plugin_constants.ProjectType.LMS,
+                            plugin_constants.SettingsType.AWS)
 
 # Load production.py in plugins
 plugin_settings.add_plugins(__name__, plugin_constants.ProjectType.LMS, plugin_constants.SettingsType.PRODUCTION)
@@ -1129,11 +1118,3 @@ plugin_settings.add_plugins(__name__, plugin_constants.ProjectType.LMS, plugin_c
 ########################## Derive Any Derived Settings  #######################
 
 derive_settings(__name__)
-
-######################### Overriding custom enrollment roles ###############
-
-MANUAL_ENROLLMENT_ROLE_CHOICES = ENV_TOKENS.get('MANUAL_ENROLLMENT_ROLE_CHOICES', MANUAL_ENROLLMENT_ROLE_CHOICES)
-
-########################## limiting dashboard courses ######################
-
-DASHBOARD_COURSE_LIMIT = ENV_TOKENS.get('DASHBOARD_COURSE_LIMIT', None)

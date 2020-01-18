@@ -1,17 +1,13 @@
 """
 Database models for the badges app
 """
-
-
 from importlib import import_module
 
-import six
 from config_models.models import ConfigurationModel
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from jsonfield import JSONField
 from lazy import lazy
@@ -21,7 +17,6 @@ from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.keys import CourseKey
 
 from badges.utils import deserialize_count_specs
-from openedx.core.djangolib.markup import HTML, Text
 from xmodule.modulestore.django import modulestore
 
 
@@ -49,26 +44,23 @@ class CourseBadgesDisabledError(Exception):
     """
 
 
-@python_2_unicode_compatible
 class BadgeClass(models.Model):
     """
     Specifies a badge class to be registered with a backend.
-
-    .. no_pii:
     """
     slug = models.SlugField(max_length=255, validators=[validate_lowercase])
-    issuing_component = models.SlugField(max_length=50, default=u'', blank=True, validators=[validate_lowercase])
+    issuing_component = models.SlugField(max_length=50, default='', blank=True, validators=[validate_lowercase])
     display_name = models.CharField(max_length=255)
     course_id = CourseKeyField(max_length=255, blank=True, default=None)
     description = models.TextField()
     criteria = models.TextField()
     # Mode a badge was awarded for. Included for legacy/migration purposes.
-    mode = models.CharField(max_length=100, default=u'', blank=True)
-    image = models.ImageField(upload_to=u'badge_classes', validators=[validate_badge_image])
+    mode = models.CharField(max_length=100, default='', blank=True)
+    image = models.ImageField(upload_to='badge_classes', validators=[validate_badge_image])
 
-    def __str__(self):
-        return HTML(u"<Badge '{slug}' for '{issuing_component}'>").format(
-            slug=HTML(self.slug), issuing_component=HTML(self.issuing_component)
+    def __unicode__(self):
+        return u"<Badge '{slug}' for '{issuing_component}'>".format(
+            slug=self.slug, issuing_component=self.issuing_component
         )
 
     @classmethod
@@ -145,12 +137,9 @@ class BadgeClass(models.Model):
         verbose_name_plural = "Badge Classes"
 
 
-@python_2_unicode_compatible
 class BadgeAssertion(TimeStampedModel):
     """
     Tracks badges on our side of the badge baking transaction
-
-    .. no_pii:
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     badge_class = models.ForeignKey(BadgeClass, on_delete=models.CASCADE)
@@ -159,11 +148,10 @@ class BadgeAssertion(TimeStampedModel):
     image_url = models.URLField()
     assertion_url = models.URLField()
 
-    def __str__(self):
-        return HTML(u"<{username} Badge Assertion for {slug} for {issuing_component}").format(
-            username=HTML(self.user.username),
-            slug=HTML(self.badge_class.slug),
-            issuing_component=HTML(self.badge_class.issuing_component),
+    def __unicode__(self):
+        return u"<{username} Badge Assertion for {slug} for {issuing_component}".format(
+            username=self.user.username, slug=self.badge_class.slug,
+            issuing_component=self.badge_class.issuing_component,
         )
 
     @classmethod
@@ -183,12 +171,9 @@ class BadgeAssertion(TimeStampedModel):
 BadgeAssertion._meta.get_field('created').db_index = True
 
 
-@python_2_unicode_compatible
 class CourseCompleteImageConfiguration(models.Model):
     """
     Contains the icon configuration for badges for a specific course mode.
-
-    .. no_pii:
     """
     mode = models.CharField(
         max_length=125,
@@ -200,7 +185,7 @@ class CourseCompleteImageConfiguration(models.Model):
         help_text=_(
             u"Badge images must be square PNG files. The file size should be under 250KB."
         ),
-        upload_to=u'course_complete_badges',
+        upload_to='course_complete_badges',
         validators=[validate_badge_image]
     )
     default = models.BooleanField(
@@ -211,10 +196,10 @@ class CourseCompleteImageConfiguration(models.Model):
         default=False,
     )
 
-    def __str__(self):
-        return HTML(u"<CourseCompleteImageConfiguration for '{mode}'{default}>").format(
-            mode=HTML(self.mode),
-            default=HTML(u" (default)") if self.default else HTML(u'')
+    def __unicode__(self):
+        return u"<CourseCompleteImageConfiguration for '{mode}'{default}>".format(
+            mode=self.mode,
+            default=u" (default)" if self.default else u''
         )
 
     def clean(self):
@@ -239,16 +224,13 @@ class CourseCompleteImageConfiguration(models.Model):
         app_label = "badges"
 
 
-@python_2_unicode_compatible
 class CourseEventBadgesConfiguration(ConfigurationModel):
     """
     Determines the settings for meta course awards-- such as completing a certain
     number of courses or enrolling in a certain number of them.
-
-    .. no_pii:
     """
     courses_completed = models.TextField(
-        blank=True, default=u'',
+        blank=True, default='',
         help_text=_(
             u"On each line, put the number of completed courses to award a badge for, a comma, and the slug of a "
             u"badge class you have created that has the issuing component 'openedx__course'. "
@@ -256,7 +238,7 @@ class CourseEventBadgesConfiguration(ConfigurationModel):
         )
     )
     courses_enrolled = models.TextField(
-        blank=True, default=u'',
+        blank=True, default='',
         help_text=_(
             u"On each line, put the number of enrolled courses to award a badge for, a comma, and the slug of a "
             u"badge class you have created that has the issuing component 'openedx__course'. "
@@ -264,7 +246,7 @@ class CourseEventBadgesConfiguration(ConfigurationModel):
         )
     )
     course_groups = models.TextField(
-        blank=True, default=u'',
+        blank=True, default='',
         help_text=_(
             u"Each line is a comma-separated list. The first item in each line is the slug of a badge class you "
             u"have created that has an issuing component of 'openedx__course'. The remaining items in each line are "
@@ -273,10 +255,8 @@ class CourseEventBadgesConfiguration(ConfigurationModel):
         )
     )
 
-    def __str__(self):
-        return HTML(u"<CourseEventBadgesConfiguration ({})>").format(
-            Text(u"Enabled") if self.enabled else Text(u"Disabled")
-        )
+    def __unicode__(self):
+        return u"<CourseEventBadgesConfiguration ({})>".format(u"Enabled" if self.enabled else u"Disabled")
 
     @property
     def completed_settings(self):
@@ -318,12 +298,12 @@ class CourseEventBadgesConfiguration(ConfigurationModel):
             try:
                 self.completed_settings
             except (ValueError, InvalidKeyError):
-                errors['courses_completed'] = [six.text_type(error_message)]
+                errors['courses_completed'] = [unicode(error_message)]
         if 'courses_enrolled' not in exclude:
             try:
                 self.enrolled_settings
             except (ValueError, InvalidKeyError):
-                errors['courses_enrolled'] = [six.text_type(error_message)]
+                errors['courses_enrolled'] = [unicode(error_message)]
         if 'course_groups' not in exclude:
             store = modulestore()
             try:
@@ -332,7 +312,7 @@ class CourseEventBadgesConfiguration(ConfigurationModel):
                         if not store.get_course(course_key):
                             ValueError(u"The course {course_key} does not exist.".format(course_key=course_key))
             except (ValueError, InvalidKeyError):
-                errors['course_groups'] = [six.text_type(error_message)]
+                errors['course_groups'] = [unicode(error_message)]
         if errors:
             raise ValidationError(errors)
 

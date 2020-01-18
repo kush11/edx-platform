@@ -1,12 +1,8 @@
 """
 Tests for CourseData utility class.
 """
-
-
-import six
-from mock import patch
-
 from lms.djangoapps.course_blocks.api import get_course_blocks
+from mock import patch
 from openedx.core.djangoapps.content.block_structure.api import get_course_in_cache
 from student.tests.factories import UserFactory
 from xmodule.modulestore import ModuleStoreEnum
@@ -20,6 +16,7 @@ class CourseDataTest(ModuleStoreTestCase):
     """
     Simple tests to ensure CourseData works as advertised.
     """
+    shard = 4
 
     def setUp(self):
         super(CourseDataTest, self).setUp()
@@ -71,13 +68,13 @@ class CourseDataTest(ModuleStoreTestCase):
             dict(course_key=self.course.id),
         ]:
             course_data = CourseData(self.user, **kwargs)
-            self.assertEqual(course_data.course_key, self.course.id)
-            self.assertEqual(course_data.location, self.course.location)
-            self.assertEqual(course_data.structure.root_block_usage_key, self.one_true_structure.root_block_usage_key)
-            self.assertEqual(course_data.course.id, self.course.id)
-            self.assertEqual(course_data.version, self.course.course_version)
-            self.assertEqual(course_data.edited_on, expected_edited_on)
-            self.assertIn(u'Course: course_key', six.text_type(course_data))
+            self.assertEquals(course_data.course_key, self.course.id)
+            self.assertEquals(course_data.location, self.course.location)
+            self.assertEquals(course_data.structure.root_block_usage_key, self.one_true_structure.root_block_usage_key)
+            self.assertEquals(course_data.course.id, self.course.id)
+            self.assertEquals(course_data.version, self.course.course_version)
+            self.assertEquals(course_data.edited_on, expected_edited_on)
+            self.assertIn(u'Course: course_key', unicode(course_data))
             self.assertIn(u'Course: course_key', course_data.full_string())
 
     def test_no_data(self):

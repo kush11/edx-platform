@@ -1,8 +1,6 @@
 """
 Unit tests for shoppingcart context_processor
 """
-
-
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from mock import Mock, patch
@@ -19,6 +17,7 @@ class UserCartContextProcessorUnitTest(ModuleStoreTestCase):
     """
     Unit test for shoppingcart context_processor
     """
+    shard = 4
 
     def setUp(self):
         super(UserCartContextProcessorUnitTest, self).setUp()

@@ -1,27 +1,21 @@
 """
 CourseGrade Class
 """
-
-
 from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
-import six
-from ccx_keys.locator import CCXLocator
 from django.conf import settings
-from django.utils.encoding import python_2_unicode_compatible
 from lazy import lazy
 
-from openedx.core.lib.grade_utils import round_away_from_zero
+from ccx_keys.locator import CCXLocator
 from xmodule import block_metadata_utils
 
 from .config import assume_zero_if_absent
-from .scores import compute_percent
 from .subsection_grade import ZeroSubsectionGrade
 from .subsection_grade_factory import SubsectionGradeFactory
+from .scores import compute_percent
 
 
-@python_2_unicode_compatible
 class CourseGradeBase(object):
     """
     Base class for Course Grades.
@@ -37,9 +31,9 @@ class CourseGradeBase(object):
         self.letter_grade = letter_grade or None
         self.force_update_subsections = force_update_subsections
 
-    def __str__(self):
+    def __unicode__(self):
         return u'Course Grade: percent: {}, letter_grade: {}, passed: {}'.format(
-            six.text_type(self.percent),
+            unicode(self.percent),
             self.letter_grade,
             self.passed,
         )
@@ -70,7 +64,7 @@ class CourseGradeBase(object):
         a dict keyed by subsection format types.
         """
         subsections_by_format = defaultdict(OrderedDict)
-        for chapter in six.itervalues(self.chapter_grades):
+        for chapter in self.chapter_grades.itervalues():
             for subsection_grade in chapter['sections']:
                 if subsection_grade.graded:
                     graded_total = subsection_grade.graded_total
@@ -99,7 +93,7 @@ class CourseGradeBase(object):
         keyed by subsection location.
         """
         subsection_grades = defaultdict(OrderedDict)
-        for chapter in six.itervalues(self.chapter_grades):
+        for chapter in self.chapter_grades.itervalues():
             for subsection_grade in chapter['sections']:
                 subsection_grades[subsection_grade.location] = subsection_grade
         return subsection_grades
@@ -110,7 +104,7 @@ class CourseGradeBase(object):
         Returns a dict of problem scores keyed by their locations.
         """
         problem_scores = {}
-        for chapter in six.itervalues(self.chapter_grades):
+        for chapter in self.chapter_grades.itervalues():
             for subsection_grade in chapter['sections']:
                 problem_scores.update(subsection_grade.problem_scores)
         return problem_scores
@@ -211,7 +205,6 @@ class CourseGradeBase(object):
         """
         chapter_subsection_grades = self._get_subsection_grades(course_structure, chapter.location)
         return {
-            # xss-lint: disable=python-deprecated-display-name
             'display_name': block_metadata_utils.display_name_with_default_escaped(chapter),
             'url_name': block_metadata_utils.url_name_for_block(chapter),
             'sections': chapter_subsection_grades,
@@ -278,7 +271,7 @@ class CourseGrade(CourseGradeBase):
         if assume_zero_if_absent(self.course_data.course_key):
             return True
 
-        for chapter in six.itervalues(self.chapter_grades):
+        for chapter in self.chapter_grades.itervalues():
             for subsection_grade in chapter['sections']:
                 if subsection_grade.all_total.first_attempted:
                     return True
@@ -297,9 +290,7 @@ class CourseGrade(CourseGradeBase):
         Computes and returns the grade percentage from the given
         result from the grader.
         """
-
-        # Confused about the addition of .05 here?  See https://openedx.atlassian.net/browse/TNL-6972
-        return round_away_from_zero(grader_result['percent'] * 100 + 0.05) / 100
+        return round(grader_result['percent'] * 100 + 0.05) / 100
 
     @staticmethod
     def _compute_letter_grade(grade_cutoffs, percent):
@@ -331,4 +322,4 @@ class CourseGrade(CourseGradeBase):
 
 
 def _uniqueify_and_keep_order(iterable):
-    return list(OrderedDict([(item, None) for item in iterable]).keys())
+    return OrderedDict([(item, None) for item in iterable]).keys()

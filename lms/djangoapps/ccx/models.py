@@ -1,13 +1,12 @@
 """
 Models for the custom course feature
 """
-
+from __future__ import unicode_literals
 
 import json
 import logging
 from datetime import datetime
 
-import six
 from ccx_keys.locator import CCXLocator
 from django.contrib.auth.models import User
 from django.db import models
@@ -24,15 +23,13 @@ log = logging.getLogger("edx.ccx")
 class CustomCourseForEdX(models.Model):
     """
     A Custom Course.
-
-    .. no_pii:
     """
     course_id = CourseKeyField(max_length=255, db_index=True)
     display_name = models.CharField(max_length=255)
     coach = models.ForeignKey(User, db_index=True, on_delete=models.CASCADE)
     # if not empty, this field contains a json serialized list of
     # the master course modules
-    structure_json = models.TextField(verbose_name=u'Structure JSON', blank=True, null=True)
+    structure_json = models.TextField(verbose_name='Structure JSON', blank=True, null=True)
 
     class Meta(object):
         app_label = 'ccx'
@@ -103,14 +100,12 @@ class CustomCourseForEdX(models.Model):
         Returns:
             The CCXLocator corresponding to this CCX.
         """
-        return CCXLocator.from_course_locator(self.course_id, six.text_type(self.id))
+        return CCXLocator.from_course_locator(self.course_id, unicode(self.id))
 
 
 class CcxFieldOverride(models.Model):
     """
     Field overrides for custom courses.
-
-    .. no_pii:
     """
     ccx = models.ForeignKey(CustomCourseForEdX, db_index=True, on_delete=models.CASCADE)
     location = UsageKeyField(max_length=255, db_index=True)
@@ -120,4 +115,4 @@ class CcxFieldOverride(models.Model):
         app_label = 'ccx'
         unique_together = (('ccx', 'location', 'field'),)
 
-    value = models.TextField(default=u'null')
+    value = models.TextField(default='null')

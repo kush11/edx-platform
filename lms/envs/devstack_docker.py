@@ -14,6 +14,7 @@ CMS_BASE = 'localhost:18010'
 SITE_NAME = LMS_BASE
 LMS_ROOT_URL = 'http://{}'.format(LMS_BASE)
 LMS_INTERNAL_ROOT_URL = LMS_ROOT_URL
+LOGIN_REDIRECT_WHITELIST = [CMS_BASE]
 
 ECOMMERCE_PUBLIC_URL_ROOT = 'http://localhost:18130'
 ECOMMERCE_API_URL = 'http://edx.devstack.ecommerce:18130/api/v2'
@@ -34,12 +35,12 @@ JWT_AUTH.update({
 FEATURES.update({
     'AUTOMATIC_AUTH_FOR_TESTING': True,
     'ENABLE_COURSEWARE_SEARCH': False,
-    'ENABLE_COURSEWARE_SEARCH_FOR_COURSE_STAFF': True,
     'ENABLE_COURSE_DISCOVERY': False,
     'ENABLE_DASHBOARD_SEARCH': False,
     'ENABLE_DISCUSSION_SERVICE': True,
     'SHOW_HEADER_LANGUAGE_SELECTOR': True,
     'ENABLE_ENTERPRISE_INTEGRATION': False,
+    'ENABLE_COMBINED_LOGIN_REGISTRATION': True,
 })
 
 ENABLE_MKTG_SITE = os.environ.get('ENABLE_MARKETING_SITE', False)
@@ -71,8 +72,6 @@ MKTG_URLS = {
     'WHAT_IS_VERIFIED_CERT': '/verified-certificate',
 }
 
-ENTERPRISE_MARKETING_FOOTER_QUERY_PARAMS = {}
-
 CREDENTIALS_SERVICE_USERNAME = 'credentials_worker'
 
 COURSE_CATALOG_API_URL = 'http://edx.devstack.discovery:18381/api/v1/'
@@ -80,28 +79,3 @@ COURSE_CATALOG_API_URL = 'http://edx.devstack.discovery:18381/api/v1/'
 # Uncomment the lines below if you'd like to see SQL statements in your devstack LMS log.
 # LOGGING['handlers']['console']['level'] = 'DEBUG'
 # LOGGING['loggers']['django.db.backends'] = {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False}
-
-SYSTEM_WIDE_ROLE_CLASSES = os.environ.get("SYSTEM_WIDE_ROLE_CLASSES", SYSTEM_WIDE_ROLE_CLASSES)
-SYSTEM_WIDE_ROLE_CLASSES.extend(['system_wide_roles.SystemWideRoleAssignment'])
-
-if FEATURES['ENABLE_ENTERPRISE_INTEGRATION']:
-    SYSTEM_WIDE_ROLE_CLASSES.extend(['enterprise.SystemWideEnterpriseUserRoleAssignment'])
-
-########################## THEMING  #######################
-# If you want to enable theming in devstack, uncomment this section and add any relevant
-# theme directories to COMPREHENSIVE_THEME_DIRS
-
-# We have to import the private method here because production.py calls
-# derive_settings('lms.envs.production') which runs _make_mako_template_dirs with
-# the settings from production, which doesn't include these theming settings. Thus,
-# the templating engine is unable to find the themed templates because they don't exist
-# in it's path. Re-calling derive_settings doesn't work because the settings was already
-# changed from a function to a list, and it can't be derived again.
-
-# from .common import _make_mako_template_dirs
-# ENABLE_COMPREHENSIVE_THEMING = True
-# COMPREHENSIVE_THEME_DIRS = [
-#     "/edx/app/edxapp/edx-platform/themes/"
-# ]
-# TEMPLATES[1]["DIRS"] = _make_mako_template_dirs
-# derive_settings(__name__)

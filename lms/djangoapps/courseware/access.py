@@ -10,40 +10,40 @@ Note: The access control logic in this file does NOT check for enrollment in
   If enrollment is to be checked, use get_course_with_access in courseware.courses.
   It is a wrapper around has_access that additionally checks for enrollment.
 """
-
-
 import logging
 from datetime import datetime
 
-import six
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
-from opaque_keys.edx.keys import CourseKey, UsageKey
 from pytz import UTC
+from opaque_keys.edx.keys import CourseKey, UsageKey
 from six import text_type
 from xblock.core import XBlock
 
-from lms.djangoapps.courseware.access_response import (
-    IncorrectPartitionGroupError,
+from courseware.access_response import (
     MilestoneAccessError,
     MobileAvailabilityError,
-    NoAllowedPartitionGroupsError,
-    VisibilityError
+    VisibilityError,
 )
-from lms.djangoapps.courseware.access_utils import (
+from courseware.access_utils import (
     ACCESS_DENIED,
     ACCESS_GRANTED,
     adjust_start_date,
-    check_course_open_for_learner,
     check_start_date,
     debug,
-    in_preview_mode
+    in_preview_mode,
+    check_course_open_for_learner,
 )
-from lms.djangoapps.courseware.masquerade import get_masquerade_role, is_masquerading_as_student
+from courseware.access_response import (
+    NoAllowedPartitionGroupsError,
+    IncorrectPartitionGroupError,
+)
+from courseware.masquerade import get_masquerade_role, is_masquerading_as_student
 from lms.djangoapps.ccx.custom_exception import CCXLocatorValidationException
 from lms.djangoapps.ccx.models import CustomCourseForEdX
 from mobile_api.models import IgnoreMobileAvailableFlagConfig
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from openedx.core.djangoapps.external_auth.models import ExternalAuthMap
 from openedx.features.course_duration_limits.access import check_course_expired
 from student import auth
 from student.models import CourseEnrollmentAllowed
@@ -163,12 +163,12 @@ def has_access(user, action, obj, course_key=None):
     if isinstance(obj, UsageKey):
         return _has_access_location(user, action, obj, course_key)
 
-    if isinstance(obj, six.string_types):
+    if isinstance(obj, basestring):
         return _has_access_string(user, action, obj)
 
     # Passing an unknown object here is a coding error, so rather than
     # returning a default, complain.
-    raise TypeError(u"Unknown object type in has_access(): '{0}'"
+    raise TypeError("Unknown object type in has_access(): '{0}'"
                     .format(type(obj)))
 
 
@@ -248,9 +248,21 @@ def _can_enroll_courselike(user, courselike):
     Returns:
         AccessResponse, indicating whether the user can enroll.
     """
+    enrollment_domain = courselike.enrollment_domain
     # Courselike objects (e.g., course descriptors and CourseOverviews) have an attribute named `id`
     # which actually points to a CourseKey. Sigh.
     course_key = courselike.id
+
+    # If using a registration method to restrict enrollment (e.g., Shibboleth)
+    if settings.FEATURES.get('RESTRICT_ENROLL_BY_REG_METHOD') and enrollment_domain:
+        if user is not None and user.is_authenticated and \
+                ExternalAuthMap.objects.filter(user=user, external_domain=enrollment_domain):
+            debug("Allow: external_auth of " + enrollment_domain)
+            reg_method_ok = True
+        else:
+            reg_method_ok = False
+    else:
+        reg_method_ok = True
 
     # If the user appears in CourseEnrollmentAllowed paired with the given course key,
     # they may enroll, except if the CEA has already been used by a different user.
@@ -261,7 +273,7 @@ def _can_enroll_courselike(user, courselike):
         if cea and cea.valid_for_user(user):
             return ACCESS_GRANTED
         elif cea:
-            debug(u"Deny: CEA was already consumed by a different user {} and can't be used again by {}".format(
+            debug("Deny: CEA was already consumed by a different user {} and can't be used again by {}".format(
                 cea.user.id,
                 user.id,
             ))
@@ -277,7 +289,7 @@ def _can_enroll_courselike(user, courselike):
     now = datetime.now(UTC)
     enrollment_start = courselike.enrollment_start or datetime.min.replace(tzinfo=UTC)
     enrollment_end = courselike.enrollment_end or datetime.max.replace(tzinfo=UTC)
-    if enrollment_start < now < enrollment_end:
+    if reg_method_ok and enrollment_start < now < enrollment_end:
         debug("Allow: in enrollment period")
         return ACCESS_GRANTED
 
@@ -462,7 +474,7 @@ def _has_group_access(descriptor, user, course_key):
                     partitions.append(partition)
             else:
                 log.debug(
-                    u"Skipping partition with ID %s in course %s because it is no longer active",
+                    "Skipping partition with ID %s in course %s because it is no longer active",
                     partition.id, course_key
                 )
         except NoSuchUserPartitionError:
@@ -504,12 +516,11 @@ def _has_group_access(descriptor, user, course_key):
 
     if missing_groups:
         partition, user_group, allowed_groups = missing_groups[0]
-        block_key = descriptor.scope_ids.usage_id
         return IncorrectPartitionGroupError(
             partition=partition,
             user_group=user_group,
             allowed_groups=allowed_groups,
-            user_message=partition.access_denied_message(block_key, user, user_group, allowed_groups),
+            user_message=partition.access_denied_message(descriptor, user, user_group, allowed_groups),
             user_fragment=partition.access_denied_fragment(descriptor, user, user_group, allowed_groups),
         )
 
@@ -550,16 +561,10 @@ def _has_access_descriptor(user, action, descriptor, course_key=None):
             return staff_access_response
 
         return (
-            _visible_to_nonstaff_users(descriptor, display_error_to_user=False) and
+            _visible_to_nonstaff_users(descriptor) and
             (
                 _has_detached_class_tag(descriptor) or
-                check_start_date(
-                    user,
-                    descriptor.days_early_for_beta,
-                    descriptor.start,
-                    course_key,
-                    display_error_to_user=False
-                )
+                check_start_date(user, descriptor.days_early_for_beta, descriptor.start, course_key)
             )
         )
 
@@ -635,7 +640,7 @@ def _has_access_string(user, action, perm):
         Checks for staff access
         """
         if perm != 'global':
-            debug(u"Deny: invalid permission '%s'", perm)
+            debug("Deny: invalid permission '%s'", perm)
             return ACCESS_DENIED
         return ACCESS_GRANTED if GlobalStaff().has_user(user) else ACCESS_DENIED
 
@@ -667,7 +672,7 @@ def _dispatch(table, action, user, obj):
     """
     if action in table:
         result = table[action]()
-        debug(u"%s user %s, object %s, action %s",
+        debug("%s user %s, object %s, action %s",
               'ALLOWED' if result else 'DENIED',
               user,
               text_type(obj.location) if isinstance(obj, XBlock) else str(obj),
@@ -736,7 +741,7 @@ def _has_access_to_course(user, access_level, course_key):
         return ACCESS_GRANTED
 
     if access_level not in ('staff', 'instructor'):
-        log.debug(u"Error in access._has_access_to_course access_level=%s unknown", access_level)
+        log.debug("Error in access._has_access_to_course access_level=%s unknown", access_level)
         debug("Deny: unknown access level")
         return ACCESS_DENIED
 
@@ -789,19 +794,14 @@ def _has_staff_access_to_descriptor(user, descriptor, course_key):
     return _has_staff_access_to_location(user, descriptor.location, course_key)
 
 
-def _visible_to_nonstaff_users(descriptor, display_error_to_user=True):
+def _visible_to_nonstaff_users(descriptor):
     """
     Returns if the object is visible to nonstaff users.
 
     Arguments:
         descriptor: object to check
-        display_error_to_user: If True, show an error message to the user say the content was hidden. Otherwise,
-            hide the content silently.
     """
-    if descriptor.visible_to_staff_only:
-        return VisibilityError(display_error_to_user=display_error_to_user)
-    else:
-        return ACCESS_GRANTED
+    return VisibilityError() if descriptor.visible_to_staff_only else ACCESS_GRANTED
 
 
 def _can_access_descriptor_with_milestones(user, descriptor, course_key):
@@ -813,12 +813,7 @@ def _can_access_descriptor_with_milestones(user, descriptor, course_key):
         descriptor: the object being accessed
         course_key: key for the course for this descriptor
     """
-    if milestones_helpers.get_course_content_milestones(
-        course_key,
-        six.text_type(descriptor.location),
-        'requires',
-        user.id
-    ):
+    if milestones_helpers.get_course_content_milestones(course_key, unicode(descriptor.location), 'requires', user.id):
         debug("Deny: user has not completed all milestones for content")
         return ACCESS_DENIED
     else:

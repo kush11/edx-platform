@@ -1,8 +1,6 @@
 """
 Synchronizes the announcement list with all active students.
 """
-
-
 import logging
 
 from django.contrib.auth.models import User

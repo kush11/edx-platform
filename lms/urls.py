@@ -2,39 +2,39 @@
 URLs for LMS
 """
 
-
-from config_models.views import ConfigurationModelCurrentAPIView
 from django.conf import settings
 from django.conf.urls import include, url
 from django.conf.urls.static import static
 from django.contrib.admin import autodiscover as django_autodiscover
 from django.utils.translation import ugettext_lazy as _
 from django.views.generic.base import RedirectView
-from ratelimitbackend import admin
+from rest_framework_swagger.views import get_swagger_view
 
 from branding import views as branding_views
-from lms.djangoapps.courseware.masquerade import handle_ajax as courseware_masquerade_handle_ajax
-from lms.djangoapps.courseware.module_render import (
-    handle_xblock_callback, handle_xblock_callback_noauth, xblock_view, xqueue_callback,
-)
-from lms.djangoapps.courseware.views import views as courseware_views
-from lms.djangoapps.courseware.views.index import CoursewareIndex
-from lms.djangoapps.courseware.views.views import CourseTabView, EnrollStaffView, StaticCourseTabView
+from config_models.views import ConfigurationModelCurrentAPIView
+from courseware.masquerade import handle_ajax as courseware_masquerade_handle_ajax
+from courseware.module_render import handle_xblock_callback, handle_xblock_callback_noauth, xblock_view, xqueue_callback
+from courseware.views import views as courseware_views
+from courseware.views.index import CoursewareIndex
+from courseware.views.views import CourseTabView, EnrollStaffView, StaticCourseTabView
 from debug import views as debug_views
+from django_comment_common.models import ForumsConfig
+from django_openid_auth import views as django_openid_auth_views
 from lms.djangoapps.certificates import views as certificates_views
 from lms.djangoapps.discussion import views as discussion_views
-from lms.djangoapps.discussion.notification_prefs import views as notification_prefs_views
 from lms.djangoapps.instructor.views import coupons as instructor_coupons_views
 from lms.djangoapps.instructor.views import instructor_dashboard as instructor_dashboard_views
 from lms.djangoapps.instructor.views import registration_codes as instructor_registration_codes_views
 from lms.djangoapps.instructor_task import views as instructor_task_views
+from notes import views as notes_views
+from notification_prefs import views as notification_prefs_views
 from openedx.core.djangoapps.auth_exchange.views import LoginWithAccessTokenView
 from openedx.core.djangoapps.catalog.models import CatalogIntegration
 from openedx.core.djangoapps.common_views.xblock import xblock_resource
 from openedx.core.djangoapps.cors_csrf import views as cors_csrf_views
 from openedx.core.djangoapps.course_groups import views as course_groups_views
 from openedx.core.djangoapps.debug import views as openedx_debug_views
-from openedx.core.djangoapps.django_comment_common.models import ForumsConfig
+from openedx.core.djangoapps.external_auth import views as external_auth_views
 from openedx.core.djangoapps.lang_pref import views as lang_pref_views
 from openedx.core.djangoapps.password_policy import compliance as password_policy_compliance
 from openedx.core.djangoapps.password_policy.forms import PasswordPolicyAwareAdminAuthForm
@@ -44,8 +44,8 @@ from openedx.core.djangoapps.programs.models import ProgramsApiConfig
 from openedx.core.djangoapps.self_paced.models import SelfPacedConfiguration
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.verified_track_content import views as verified_track_content_views
-from openedx.core.apidocs import schema_view
 from openedx.features.enterprise_support.api import enterprise_enabled
+from ratelimitbackend import admin
 from static_template_view import views as static_template_view_views
 from staticbook import views as staticbook_views
 from student import views as student_views
@@ -74,6 +74,9 @@ urlpatterns = [
     url(r'^dashboard/?$', student_views.student_dashboard, name='dashboard'),
     url(r'^change_enrollment$', student_views.change_enrollment, name='change_enrollment'),
 
+    # added new field to the db 
+    url(r'^discoveryRegistration/?$', student_views.discoveryRegistration, name='discoveryRegistration'),
+    
     # Event tracking endpoints
     url(r'', include('track.urls')),
 
@@ -82,13 +85,19 @@ urlpatterns = [
 
     url(r'^heartbeat', include('openedx.core.djangoapps.heartbeat.urls')),
 
-    url(r'^notifier_api/', include('lms.djangoapps.discussion.notifier_api.urls')),
-    url(r'^/api/notifier/', include('lms.djangoapps.discussion.notifier_api.urls')),
+    # Note: these are older versions of the User API that will eventually be
+    # subsumed by api/user listed below.
+    url(r'^user_api/', include('openedx.core.djangoapps.user_api.legacy_urls')),
+
+    url(r'^notifier_api/', include('notifier_api.urls')),
 
     url(r'^i18n/', include('django.conf.urls.i18n')),
 
+    # Feedback Form endpoint
+    url(r'^submit_feedback$', util_views.submit_feedback),
+
     # Enrollment API RESTful endpoints
-    url(r'^api/enrollment/v1/', include('openedx.core.djangoapps.enrollments.urls')),
+    url(r'^api/enrollment/v1/', include('enrollment.urls')),
 
     # Entitlement API RESTful endpoints
     url(r'^api/entitlements/', include('entitlements.api.urls', namespace='entitlements_api')),
@@ -99,12 +108,11 @@ urlpatterns = [
     # Course API
     url(r'^api/courses/', include('course_api.urls')),
 
+    # Completion API
+    url(r'^api/completion/', include('completion.api.urls', namespace='completion_api')),
+
     # User API endpoints
     url(r'^api/user/', include('openedx.core.djangoapps.user_api.urls')),
-    # Note: these are older versions of the User API that will eventually be
-    # subsumed by api/user listed above.
-    url(r'', include('openedx.core.djangoapps.user_api.legacy_urls')),
-
 
     # Profile Images API endpoints
     url(r'^api/profile_images/', include('openedx.core.djangoapps.profile_images.urls')),
@@ -125,7 +133,6 @@ urlpatterns = [
 
     # Multiple course modes and identity verification
     url(r'^course_modes/', include('course_modes.urls')),
-    url(r'^api/course_modes/', include('course_modes.api.urls', namespace='course_modes_api')),
     url(r'^verify_student/', include('verify_student.urls')),
 
     # URLs for managing dark launches of languages
@@ -139,7 +146,6 @@ urlpatterns = [
 
     url(r'^dashboard/', include('learner_dashboard.urls')),
     url(r'^api/experiments/', include('experiments.urls', namespace='api_experiments')),
-    url(r'^api/discounts/', include('openedx.features.discounts.urls', namespace='api_discounts')),
 ]
 
 if settings.FEATURES.get('ENABLE_MOBILE_REST_API'):
@@ -271,9 +277,6 @@ urlpatterns += [
         name='xblock_resource_url',
     ),
 
-    # New (Blockstore-based) XBlock REST API
-    url(r'', include('openedx.core.djangoapps.xblock.rest_api.urls', namespace='xblock_api')),
-
     url(
         r'^courses/{}/xqueue/(?P<userid>[^/]*)/(?P<mod_id>.*?)/(?P<dispatch>[^/]*)$'.format(
             settings.COURSE_ID_PATTERN,
@@ -295,11 +298,7 @@ urlpatterns += [
         courseware_views.course_about,
         name='about_course',
     ),
-    url(
-        r'^courses/yt_video_metadata$',
-        courseware_views.yt_video_metadata,
-        name='yt_video_metadata',
-    ),
+
     url(
         r'^courses/{}/enroll_staff$'.format(
             settings.COURSE_ID_PATTERN,
@@ -578,6 +577,19 @@ urlpatterns += [
         verified_track_content_views.cohorting_settings,
         name='verified_track_cohorting',
     ),
+    url(
+        r'^courses/{}/notes$'.format(
+            settings.COURSE_ID_PATTERN,
+        ),
+        notes_views.notes,
+        name='notes',
+    ),
+    url(
+        r'^courses/{}/notes/'.format(
+            settings.COURSE_ID_PATTERN,
+        ),
+        include('notes.urls')
+    ),
 
     # LTI endpoints listing
     url(
@@ -638,6 +650,22 @@ urlpatterns += [
         r'^u/',
         include('openedx.features.learner_profile.urls'),
     ),
+
+    # Learner analytics dashboard
+    url(
+        r'^courses/{}/learner_analytics/'.format(
+            settings.COURSE_ID_PATTERN,
+        ),
+        include('openedx.features.learner_analytics.urls'),
+    ),
+
+    # Portfolio project experiment
+    url(
+        r'^courses/{}/xfeature/portfolio/'.format(
+            settings.COURSE_ID_PATTERN,
+        ),
+        include('openedx.features.portfolio_project.urls'),
+    ),
 ]
 
 if settings.FEATURES.get('ENABLE_TEAMS'):
@@ -683,13 +711,13 @@ if settings.FEATURES.get('ENABLE_DISCUSSION_SERVICE'):
     urlpatterns += [
         url(
             r'^api/discussion/',
-            include('discussion.rest_api.urls')
+            include('discussion_api.urls')
         ),
         url(
             r'^courses/{}/discussion/'.format(
                 settings.COURSE_ID_PATTERN,
             ),
-            include('lms.djangoapps.discussion.django_comment_client.urls')
+            include('django_comment_client.urls')
         ),
         url(
             r'^notification_prefs/enable/',
@@ -720,10 +748,6 @@ if settings.FEATURES.get('ENABLE_DISCUSSION_SERVICE'):
             name='resubscribe_forum_update',
         ),
     ]
-
-urlpatterns += [
-    url(r'^bulk_email/', include('bulk_email.urls')),
-]
 
 urlpatterns += [
     url(
@@ -772,6 +796,38 @@ if settings.DEBUG or settings.FEATURES.get('ENABLE_DJANGO_ADMIN_SITE'):
         url(r'^admin/', include(admin.site.urls)),
     ]
 
+if settings.FEATURES.get('AUTH_USE_OPENID'):
+    urlpatterns += [
+        url(r'^openid/login/$', django_openid_auth_views.login_begin, name='openid-login'),
+        url(
+            r'^openid/complete/$',
+            external_auth_views.openid_login_complete,
+            name='openid-complete',
+        ),
+        url(r'^openid/logo.gif$', django_openid_auth_views.logo, name='openid-logo'),
+    ]
+
+if settings.FEATURES.get('AUTH_USE_SHIB'):
+    urlpatterns += [
+        url(r'^shib-login/$', external_auth_views.shib_login, name='shib-login'),
+    ]
+
+if settings.FEATURES.get('AUTH_USE_CAS'):
+    from django_cas import views as django_cas_views
+
+    urlpatterns += [
+        url(r'^cas-auth/login/$', external_auth_views.cas_login, name='cas-login'),
+        url(r'^cas-auth/logout/$', django_cas_views.logout, {'next_page': '/'}, name='cas-logout'),
+    ]
+
+if settings.FEATURES.get('RESTRICT_ENROLL_BY_REG_METHOD'):
+    urlpatterns += [
+        url(r'^course_specific_login/{}/$'.format(settings.COURSE_ID_PATTERN),
+            external_auth_views.course_specific_login, name='course-specific-login'),
+        url(r'^course_specific_register/{}/$'.format(settings.COURSE_ID_PATTERN),
+            external_auth_views.course_specific_register, name='course-specific-register'),
+    ]
+
 if configuration_helpers.get_value('ENABLE_BULK_ENROLLMENT_VIEW', settings.FEATURES.get('ENABLE_BULK_ENROLLMENT_VIEW')):
     urlpatterns += [
         url(r'^api/bulk_enroll/v1/', include('bulk_enroll.urls')),
@@ -800,6 +856,30 @@ if settings.FEATURES.get('EMBARGO'):
 urlpatterns += [
     url(r'^survey/', include('survey.urls')),
 ]
+
+if settings.FEATURES.get('AUTH_USE_OPENID_PROVIDER'):
+    urlpatterns += [
+        url(
+            r'^openid/provider/login/$',
+            external_auth_views.provider_login,
+            name='openid-provider-login',
+        ),
+        url(
+            r'^openid/provider/login/(?:.+)$',
+            external_auth_views.provider_identity,
+            name='openid-provider-login-identity'
+        ),
+        url(
+            r'^openid/provider/identity/$',
+            external_auth_views.provider_identity,
+            name='openid-provider-identity',
+        ),
+        url(
+            r'^openid/provider/xrds/$',
+            external_auth_views.provider_xrds,
+            name='openid-provider-xrds',
+        ),
+    ]
 
 if settings.FEATURES.get('ENABLE_OAUTH2_PROVIDER'):
     urlpatterns += [
@@ -836,6 +916,11 @@ if settings.FEATURES.get('ENABLE_INSTRUCTOR_BACKGROUND_TASKS'):
         ),
     ]
 
+if settings.FEATURES.get('RUN_AS_ANALYTICS_SERVER_ENABLED'):
+    urlpatterns += [
+        url(r'^edinsights_service/', include('edinsights.core.urls')),
+    ]
+
 if settings.FEATURES.get('ENABLE_DEBUG_RUN_PYTHON'):
     urlpatterns += [
         url(r'^debug/run_python$', debug_views.run_python),
@@ -850,7 +935,7 @@ urlpatterns += [
 if settings.FEATURES.get('ENABLE_THIRD_PARTY_AUTH'):
     urlpatterns += [
         url(r'', include('third_party_auth.urls')),
-        url(r'^api/third_party_auth/', include('third_party_auth.api.urls')),
+        url(r'api/third_party_auth/', include('third_party_auth.api.urls')),
     ]
 
 # Enterprise
@@ -905,10 +990,10 @@ if settings.FEATURES.get('ENABLE_LTI_PROVIDER'):
     ]
 
 urlpatterns += [
-    url(r'^config/self_paced', ConfigurationModelCurrentAPIView.as_view(model=SelfPacedConfiguration)),
-    url(r'^config/programs', ConfigurationModelCurrentAPIView.as_view(model=ProgramsApiConfig)),
-    url(r'^config/catalog', ConfigurationModelCurrentAPIView.as_view(model=CatalogIntegration)),
-    url(r'^config/forums', ConfigurationModelCurrentAPIView.as_view(model=ForumsConfig)),
+    url(r'config/self_paced', ConfigurationModelCurrentAPIView.as_view(model=SelfPacedConfiguration)),
+    url(r'config/programs', ConfigurationModelCurrentAPIView.as_view(model=ProgramsApiConfig)),
+    url(r'config/catalog', ConfigurationModelCurrentAPIView.as_view(model=CatalogIntegration)),
+    url(r'config/forums', ConfigurationModelCurrentAPIView.as_view(model=ForumsConfig)),
 ]
 
 if settings.DEBUG:
@@ -955,28 +1040,14 @@ if settings.BRANCH_IO_KEY:
         url(r'^text-me-the-app', student_views.text_me_the_app, name='text_me_the_app'),
     ]
 
-# API docs.
-urlpatterns += [
-    url(
-        r'^swagger(?P<format>\.json|\.yaml)$',
-        schema_view.without_ui(cache_timeout=settings.OPENAPI_CACHE_TIMEOUT), name='schema-json',
-    ),
-    url(
-        r'^swagger/$',
-        schema_view.with_ui('swagger', cache_timeout=settings.OPENAPI_CACHE_TIMEOUT),
-        name='schema-swagger-ui',
-    ),
-    url(r'^api-docs/$', schema_view.with_ui('swagger', cache_timeout=settings.OPENAPI_CACHE_TIMEOUT)),
-]
+if settings.FEATURES.get('ENABLE_API_DOCS'):
+    urlpatterns += [
+        url(r'^api-docs/$', get_swagger_view(title='LMS API')),
+    ]
 
 # edx-drf-extensions csrf app
 urlpatterns += [
     url(r'', include('csrf.urls')),
 ]
-
-if 'openedx.testing.coverage_context_listener' in settings.INSTALLED_APPS:
-    urlpatterns += [
-        url(r'coverage_context', include('openedx.testing.coverage_context_listener.urls'))
-    ]
 
 urlpatterns.extend(plugin_urls.get_patterns(plugin_constants.ProjectType.LMS))

@@ -1,15 +1,13 @@
 """
 Unit tests for course_goals.api methods.
 """
-
-
 import mock
-from django.contrib.auth.models import User
-from django.test.utils import override_settings
-from django.urls import reverse
-from rest_framework.test import APIClient
 
+from django.contrib.auth.models import User
+from django.urls import reverse
+from django.test.utils import override_settings
 from lms.djangoapps.course_goals.models import CourseGoal
+from rest_framework.test import APIClient
 from student.models import CourseEnrollment
 from track.tests import EventTrackingTestCase
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
@@ -24,6 +22,7 @@ class TestCourseGoalsAPI(EventTrackingTestCase, SharedModuleStoreTestCase):
     """
     Testing the Course Goals API.
     """
+    shard = 4
 
     def setUp(self):
         # Create a course with a verified track

@@ -2,7 +2,6 @@
 Urls for sysadmin dashboard feature
 """
 
-
 from django.conf.urls import url
 
 from dashboard import sysadmin

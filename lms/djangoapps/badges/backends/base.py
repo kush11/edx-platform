@@ -1,17 +1,14 @@
 """
 Base class for badge backends.
 """
-
-
 from abc import ABCMeta, abstractmethod
 
-import six
 
-
-class BadgeBackend(six.with_metaclass(ABCMeta, object)):
+class BadgeBackend(object):
     """
     Defines the interface for badging backends.
     """
+    __metaclass__ = ABCMeta
 
     @abstractmethod
     def award(self, badge_class, user, evidence_url=None):

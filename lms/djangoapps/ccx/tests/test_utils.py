@@ -1,8 +1,6 @@
 """
 test utils
 """
-
-
 import uuid
 from smtplib import SMTPException
 
@@ -24,6 +22,7 @@ from xmodule.modulestore.tests.factories import CourseFactory
 class TestGetCCXFromCCXLocator(ModuleStoreTestCase):
     """Verify that get_ccx_from_ccx_locator functions properly"""
     MODULESTORE = TEST_DATA_SPLIT_MODULESTORE
+    shard = 7
 
     def setUp(self):
         """Set up a course, coach, ccx and user"""

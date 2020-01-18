@@ -3,11 +3,9 @@
 Unit tests for bulk-email-related forms.
 """
 
-
 from opaque_keys.edx.locator import CourseLocator
 from six import text_type
 
-from bulk_email.api import is_bulk_email_feature_enabled
 from bulk_email.forms import CourseAuthorizationAdminForm, CourseEmailTemplateForm
 from bulk_email.models import BulkEmailFlag, CourseEmailTemplate
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
@@ -16,6 +14,7 @@ from xmodule.modulestore.tests.factories import CourseFactory
 
 class CourseAuthorizationFormTest(ModuleStoreTestCase):
     """Test the CourseAuthorizationAdminForm form for Mongo-backed courses."""
+    shard = 1
 
     def setUp(self):
         super(CourseAuthorizationFormTest, self).setUp()
@@ -29,7 +28,7 @@ class CourseAuthorizationFormTest(ModuleStoreTestCase):
 
     def test_authorize_mongo_course(self):
         # Initially course shouldn't be authorized
-        self.assertFalse(is_bulk_email_feature_enabled(self.course.id))
+        self.assertFalse(BulkEmailFlag.feature_enabled(self.course.id))
         # Test authorizing the course, which should totally work
         form_data = {'course_id': text_type(self.course.id), 'email_enabled': True}
         form = CourseAuthorizationAdminForm(data=form_data)
@@ -37,11 +36,11 @@ class CourseAuthorizationFormTest(ModuleStoreTestCase):
         self.assertTrue(form.is_valid())
         form.save()
         # Check that this course is authorized
-        self.assertTrue(is_bulk_email_feature_enabled(self.course.id))
+        self.assertTrue(BulkEmailFlag.feature_enabled(self.course.id))
 
     def test_repeat_course(self):
         # Initially course shouldn't be authorized
-        self.assertFalse(is_bulk_email_feature_enabled(self.course.id))
+        self.assertFalse(BulkEmailFlag.feature_enabled(self.course.id))
         # Test authorizing the course, which should totally work
         form_data = {'course_id': text_type(self.course.id), 'email_enabled': True}
         form = CourseAuthorizationAdminForm(data=form_data)
@@ -49,25 +48,25 @@ class CourseAuthorizationFormTest(ModuleStoreTestCase):
         self.assertTrue(form.is_valid())
         form.save()
         # Check that this course is authorized
-        self.assertTrue(is_bulk_email_feature_enabled(self.course.id))
+        self.assertTrue(BulkEmailFlag.feature_enabled(self.course.id))
 
         # Now make a new course authorization with the same course id that tries to turn email off
         form_data = {'course_id': text_type(self.course.id), 'email_enabled': False}
         form = CourseAuthorizationAdminForm(data=form_data)
         # Validation should not work because course_id field is unique
         self.assertFalse(form.is_valid())
-        self.assertEqual(
+        self.assertEquals(
             "Course authorization with this Course id already exists.",
             form._errors['course_id'][0]  # pylint: disable=protected-access
         )
-        with self.assertRaisesRegex(
+        with self.assertRaisesRegexp(
             ValueError,
             "The CourseAuthorization could not be created because the data didn't validate."
         ):
             form.save()
 
         # Course should still be authorized (invalid attempt had no effect)
-        self.assertTrue(is_bulk_email_feature_enabled(self.course.id))
+        self.assertTrue(BulkEmailFlag.feature_enabled(self.course.id))
 
     def test_form_typo(self):
         # Munge course id
@@ -80,9 +79,9 @@ class CourseAuthorizationFormTest(ModuleStoreTestCase):
 
         msg = u'Course not found.'
         msg += u' Entered course id was: "{0}".'.format(text_type(bad_id))
-        self.assertEqual(msg, form._errors['course_id'][0])  # pylint: disable=protected-access
+        self.assertEquals(msg, form._errors['course_id'][0])  # pylint: disable=protected-access
 
-        with self.assertRaisesRegex(
+        with self.assertRaisesRegexp(
             ValueError,
             "The CourseAuthorization could not be created because the data didn't validate."
         ):
@@ -96,9 +95,9 @@ class CourseAuthorizationFormTest(ModuleStoreTestCase):
 
         msg = u'Course id invalid.'
         msg += u' Entered course id was: "asd::**!@#$%^&*())//foobar!!".'
-        self.assertEqual(msg, form._errors['course_id'][0])  # pylint: disable=protected-access
+        self.assertEquals(msg, form._errors['course_id'][0])  # pylint: disable=protected-access
 
-        with self.assertRaisesRegex(
+        with self.assertRaisesRegexp(
             ValueError,
             "The CourseAuthorization could not be created because the data didn't validate."
         ):
@@ -114,7 +113,7 @@ class CourseAuthorizationFormTest(ModuleStoreTestCase):
         error_msg = form._errors['course_id'][0]  # pylint: disable=protected-access
         self.assertIn(u'Entered course id was: "{0}".'.format(self.course.id.run), error_msg)
 
-        with self.assertRaisesRegex(
+        with self.assertRaisesRegexp(
             ValueError,
             "The CourseAuthorization could not be created because the data didn't validate."
         ):

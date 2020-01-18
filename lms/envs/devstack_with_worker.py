@@ -11,7 +11,6 @@ In two separate processes on devstack:
     ./manage.py lms celery worker --settings=devstack_with_worker
 """
 
-
 import os
 
 # We intentionally define lots of variables that aren't used, and

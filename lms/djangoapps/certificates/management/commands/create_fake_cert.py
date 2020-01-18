@@ -9,10 +9,7 @@ Example usage:
     $ ./manage.py lms create_fake_cert test_user edX/DemoX/Demo_Course --mode honor --grade 0.89
 
 """
-
-
 import logging
-from textwrap import dedent
 
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
@@ -26,7 +23,6 @@ LOGGER = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     """Create a fake certificate for a user in a course. """
-    help = dedent(__doc__).strip()
 
     def add_arguments(self, parser):
         parser.add_argument(

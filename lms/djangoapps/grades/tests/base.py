@@ -1,8 +1,6 @@
 """
 Base file for Grades tests
 """
-
-
 from crum import set_current_request
 
 from capa.tests.response_xml_factory import MultipleChoiceResponseXMLFactory

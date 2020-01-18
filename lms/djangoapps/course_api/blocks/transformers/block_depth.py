@@ -1,8 +1,6 @@
 """
 Block Depth Transformer
 """
-
-
 from openedx.core.djangoapps.content.block_structure.transformer import BlockStructureTransformer
 
 

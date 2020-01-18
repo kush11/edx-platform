@@ -1,8 +1,3 @@
-"""
-Instructor Task Factory
-"""
-
-
 import json
 
 import factory

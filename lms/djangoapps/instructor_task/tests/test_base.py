@@ -2,8 +2,6 @@
 Base test classes for LMS instructor-initiated background tasks
 
 """
-
-
 import json
 # pylint: disable=attribute-defined-outside-init
 import os
@@ -11,19 +9,18 @@ import shutil
 from tempfile import mkdtemp
 from uuid import uuid4
 
-import six
 import unicodecsv
 from celery.states import FAILURE, SUCCESS
 from django.contrib.auth.models import User
 from django.urls import reverse
 from mock import Mock, patch
-from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locations import Location
+from opaque_keys.edx.keys import CourseKey
 from six import text_type
 
 from capa.tests.response_xml_factory import OptionResponseXMLFactory
-from lms.djangoapps.courseware.model_data import StudentModule
-from lms.djangoapps.courseware.tests.tests import LoginEnrollmentTestCase
+from courseware.model_data import StudentModule
+from courseware.tests.tests import LoginEnrollmentTestCase
 from lms.djangoapps.instructor_task.api_helper import encode_problem_and_student_input
 from lms.djangoapps.instructor_task.models import PROGRESS, QUEUING, ReportStore
 from lms.djangoapps.instructor_task.tests.factories import InstructorTaskFactory
@@ -187,7 +184,7 @@ class InstructorTaskCourseTestCase(LoginEnrollmentTestCase, ModuleStoreTestCase)
         mock_request = Mock()
         mock_request.GET = mock_request.POST = {'task_id': task_id}
         response = instructor_task_status(mock_request)
-        status = json.loads(response.content.decode('utf-8'))
+        status = json.loads(response.content)
         return status
 
     def create_task_request(self, requester_username):
@@ -222,7 +219,7 @@ class InstructorTaskModuleTestCase(InstructorTaskCourseTestCase):
         Returns the factory args for the option problem type.
         """
         return {
-            'question_text': u'The correct answer is {0}'.format(correct_answer),
+            'question_text': 'The correct answer is {0}'.format(correct_answer),
             'options': [OPTION_1, OPTION_2],
             'correct_option': correct_answer,
             'num_responses': num_responses,
@@ -306,6 +303,7 @@ class TestReportMixin(object):
     """
     Cleans up after tests that place files in the reports directory.
     """
+    shard = 4
 
     def setUp(self):
 
@@ -363,33 +361,10 @@ class TestReportMixin(object):
                     {key: row.get(key) for key in expected_rows[index].keys()} for index, row in enumerate(csv_rows)
                 ]
 
-            numeric_csv_rows = [self._extract_and_round_numeric_items(row) for row in csv_rows]
-            numeric_expected_rows = [self._extract_and_round_numeric_items(row) for row in expected_rows]
-
             if verify_order:
                 self.assertEqual(csv_rows, expected_rows)
-                self.assertEqual(numeric_csv_rows, numeric_expected_rows)
             else:
-                six.assertCountEqual(self, csv_rows, expected_rows)
-                six.assertCountEqual(self, numeric_csv_rows, numeric_expected_rows)
-
-    @staticmethod
-    def _extract_and_round_numeric_items(dictionary):
-        """
-        csv data may contain numeric values that are converted to strings, and fractional
-        numbers can be imprecise (e.g. 1 / 6 is sometimes '0.16666666666666666' and other times
-        '0.166666666667').  This function mutates the provided input (sorry) and returns
-        a new dictionary that contains only the numerically-valued items from it, rounded
-        to four decimal places.
-        """
-        extracted = {}
-        for key in list(dictionary):
-            try:
-                float(dictionary[key])
-                extracted[key] = round(float(dictionary.pop(key)), 4)
-            except ValueError:
-                pass
-        return extracted
+                self.assertItemsEqual(csv_rows, expected_rows)
 
     def get_csv_row_with_headers(self):
         """
@@ -400,4 +375,4 @@ class TestReportMixin(object):
         report_path = report_store.path_to(self.course.id, report_csv_filename)
         with report_store.storage.open(report_path) as csv_file:
             rows = unicodecsv.reader(csv_file, encoding='utf-8-sig')
-            return next(rows)
+            return rows.next()

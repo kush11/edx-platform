@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
+
 """
 Tests for the Shopping Cart Models
 """
-
-
 import datetime
+import StringIO
 from textwrap import dedent
 
 import pytz
 from django.conf import settings
 from mock import patch
-import six
-from six import StringIO
 from six import text_type
 
 from course_modes.models import CourseMode
@@ -33,6 +31,7 @@ class ReportTypeTests(ModuleStoreTestCase):
     """
     Tests for the models used to generate certificate status reports
     """
+    shard = 4
     FIVE_MINS = datetime.timedelta(minutes=5)
 
     @patch('student.models.CourseEnrollment.refund_cutoff_date')
@@ -109,7 +108,7 @@ class ReportTypeTests(ModuleStoreTestCase):
         second_refund.refund_requested_time = self.test_time
         second_refund.save()
 
-        self.CORRECT_REFUND_REPORT_CSV = dedent(u"""
+        self.CORRECT_REFUND_REPORT_CSV = dedent("""
             Order Number,Customer Name,Date of Original Transaction,Date of Refund,Amount of Refund,Service Fees (if any)
             3,King Bowsér,{time_str},{time_str},40.00,0.00
             4,Súsan Smith,{time_str},{time_str},40.00,0.00
@@ -140,26 +139,23 @@ class ReportTypeTests(ModuleStoreTestCase):
         Tests that a generated purchase report CSV is as we expect
         """
         report = initialize_report("refund_report", self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
-        csv_file = StringIO()
+        csv_file = StringIO.StringIO()
         report.write_csv(csv_file)
         csv = csv_file.getvalue()
         csv_file.close()
         # Using excel mode csv, which automatically ends lines with \r\n, so need to convert to \n
-        self.assertEqual(
-            csv.replace('\r\n', '\n').strip() if six.PY3 else csv.replace('\r\n', '\n').strip().decode('utf-8'),
-            self.CORRECT_REFUND_REPORT_CSV.strip()
-        )
+        self.assertEqual(csv.replace('\r\n', '\n').strip(), self.CORRECT_REFUND_REPORT_CSV.strip())
 
     def test_basic_cert_status_csv(self):
         report = initialize_report("certificate_status", self.now - self.FIVE_MINS, self.now + self.FIVE_MINS, 'A', 'Z')
-        csv_file = StringIO()
+        csv_file = StringIO.StringIO()
         report.write_csv(csv_file)
         csv = csv_file.getvalue()
         self.assertEqual(csv.replace('\r\n', '\n').strip(), self.CORRECT_CERT_STATUS_CSV.strip())
 
     def test_basic_uni_revenue_share_csv(self):
         report = initialize_report("university_revenue_share", self.now - self.FIVE_MINS, self.now + self.FIVE_MINS, 'A', 'Z')
-        csv_file = StringIO()
+        csv_file = StringIO.StringIO()
         report.write_csv(csv_file)
         csv = csv_file.getvalue()
         self.assertEqual(csv.replace('\r\n', '\n').strip(), self.CORRECT_UNI_REVENUE_SHARE_CSV.strip())
@@ -169,6 +165,7 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
     """
     Tests for the models used to generate itemized purchase reports
     """
+    shard = 4
     FIVE_MINS = datetime.timedelta(minutes=5)
     TEST_ANNOTATION = u'Ba\xfc\u5305'
 
@@ -209,11 +206,11 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
         cert.refund_requested_time = self.now
         cert.save()
 
-        self.CORRECT_CSV = dedent((b"""
+        self.CORRECT_CSV = dedent("""
             Purchase Time,Order ID,Status,Quantity,Unit Cost,Total Cost,Currency,Description,Comments
-            %s,1,purchased,1,40.00,40.00,usd,Registration for Course: Robot Super Course,Ba\xc3\xbc\xe5\x8c\x85
-            %s,1,purchased,1,40.00,40.00,usd,verified cert for course Robot Super Course,
-            """ % (six.b(str(self.now)), six.b(str(self.now)))).decode('utf-8'))
+            {time_str},1,purchased,1,40.00,40.00,usd,Registration for Course: Robot Super Course,Ba\xc3\xbc\xe5\x8c\x85
+            {time_str},1,purchased,1,40.00,40.00,usd,verified cert for course Robot Super Course,
+            """.format(time_str=str(self.now)))
 
     def test_purchased_items_btw_dates(self):
         report = initialize_report("itemized_purchase_report", self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
@@ -231,11 +228,9 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
         Tests that a generated purchase report CSV is as we expect
         """
         report = initialize_report("itemized_purchase_report", self.now - self.FIVE_MINS, self.now + self.FIVE_MINS)
-        # Note :In this we are using six.StringIO as memory buffer to read/write csv for testing.
-        # In case of py2 that will be BytesIO so we will need to decode the value before comparison.
-        csv_file = StringIO()
+        csv_file = StringIO.StringIO()
         report.write_csv(csv_file)
-        csv = csv_file.getvalue() if six.PY3 else csv_file.getvalue().decode('utf-8')
+        csv = csv_file.getvalue()
         csv_file.close()
         # Using excel mode csv, which automatically ends lines with \r\n, so need to convert to \n
         self.assertEqual(csv.replace('\r\n', '\n').strip(), self.CORRECT_CSV.strip())
@@ -247,16 +242,16 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
         """
         # delete the matching annotation
         self.annotation.delete()
-        self.assertEqual("", self.reg.csv_report_comments)
+        self.assertEqual(u"", self.reg.csv_report_comments)
 
     def test_paidcourseregistrationannotation_unicode(self):
         """
-        Fill in gap in test coverage.  __str__ method of PaidCourseRegistrationAnnotation
+        Fill in gap in test coverage.  __unicode__ method of PaidCourseRegistrationAnnotation
         """
         self.assertEqual(text_type(self.annotation), u'{} : {}'.format(text_type(self.course_key), self.TEST_ANNOTATION))
 
     def test_courseregcodeitemannotationannotation_unicode(self):
         """
-        Fill in gap in test coverage.  __str__ method of CourseRegCodeItemAnnotation
+        Fill in gap in test coverage.  __unicode__ method of CourseRegCodeItemAnnotation
         """
         self.assertEqual(text_type(self.course_reg_code_annotation), u'{} : {}'.format(text_type(self.course_key), self.TEST_ANNOTATION))

@@ -1,8 +1,6 @@
 """
 Instructor tasks related to certificates.
 """
-
-
 from time import time
 
 from django.contrib.auth.models import User

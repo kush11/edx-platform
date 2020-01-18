@@ -73,7 +73,7 @@ var edx = edx || {};
 
     // Emit an event  when the 'Find Courses' button is clicked.
     edx.dashboard.trackFindCourseBtnClicked = function($findCoursesBtn, properties) {
-        var trackProperty = properties || {category: 'dashboard', label: 'sidebar'};
+        var trackProperty = properties || {category: 'dashboard', label: null};
         window.analytics.trackLink(
             $findCoursesBtn,
             'edx.bi.dashboard.find_courses_button.clicked',
@@ -91,9 +91,5 @@ var edx = edx || {};
         edx.dashboard.trackCourseOptionDropdownClicked($('.wrapper-action-more'));
         edx.dashboard.trackLearnVerifiedLinkClicked($('.verified-info'));
         edx.dashboard.trackFindCourseBtnClicked($('.btn-find-courses'));
-        edx.dashboard.trackFindCourseBtnClicked(
-            $('.discover-new-link'),
-            {category: 'dashboard', label: 'header'}
-        );
     });
 }(jQuery));

@@ -2,17 +2,12 @@
 Views for the verification flow
 """
 
-
 import datetime
 import decimal
 import json
 import logging
+import urllib
 
-import six
-import six.moves.urllib.error  # pylint: disable=import-error
-import six.moves.urllib.parse  # pylint: disable=import-error
-import six.moves.urllib.request  # pylint: disable=import-error
-from course_modes.models import CourseMode
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles.storage import staticfiles_storage
@@ -22,25 +17,20 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.decorators import method_decorator
-from django.utils.timezone import now
 from django.utils.translation import ugettext as _
 from django.utils.translation import ugettext_lazy
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic.base import View
 from edx_rest_api_client.exceptions import SlumberBaseException
-from edxmako.shortcuts import render_to_response, render_to_string
+from eventtracking import tracker
 from ipware.ip import get_ip
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
-from shoppingcart.models import CertificateItem, Order
-from shoppingcart.processors import get_purchase_endpoint, get_signed_purchase_params
-from student.models import CourseEnrollment
-from track import segment
-from util.db import outer_atomic
-from util.json_request import JsonResponse
-from xmodule.modulestore.django import modulestore
+from pytz import UTC
 
+from course_modes.models import CourseMode
+from edxmako.shortcuts import render_to_response, render_to_string
 from lms.djangoapps.commerce.utils import EcommerceService, is_account_activation_requirement_disabled
 from lms.djangoapps.verify_student.image import InvalidImageData, decode_image_data
 from lms.djangoapps.verify_student.models import SoftwareSecurePhotoVerification, VerificationDeadline
@@ -55,6 +45,13 @@ from openedx.core.djangoapps.user_api.accounts import NAME_MIN_LENGTH
 from openedx.core.djangoapps.user_api.accounts.api import update_account_settings
 from openedx.core.djangoapps.user_api.errors import AccountValidationError, UserNotFound
 from openedx.core.lib.log_utils import audit_log
+from shoppingcart.models import CertificateItem, Order
+from shoppingcart.processors import get_purchase_endpoint, get_signed_purchase_params
+from student.models import CourseEnrollment
+from track import segment
+from util.db import outer_atomic
+from util.json_request import JsonResponse
+from xmodule.modulestore.django import modulestore
 
 log = logging.getLogger(__name__)
 
@@ -379,10 +376,10 @@ class PayAndVerifyView(View):
                 current_step = display_steps[current_step_idx + 1]['name']
 
         courseware_url = ""
-        if not course.start or course.start < now():
+        if not course.start or course.start < datetime.datetime.today().replace(tzinfo=UTC):
             courseware_url = reverse(
                 'course_root',
-                kwargs={'course_id': six.text_type(course_key)}
+                kwargs={'course_id': unicode(course_key)}
             )
 
         full_name = (
@@ -395,7 +392,7 @@ class PayAndVerifyView(View):
         # use that amount to pre-fill the price selection form.
         contribution_amount = request.session.get(
             'donation_for_course', {}
-        ).get(six.text_type(course_key), '')
+        ).get(unicode(course_key), '')
 
         # Remember whether the user is upgrading
         # so we can fire an analytics event upon payment.
@@ -416,7 +413,7 @@ class PayAndVerifyView(View):
         context = {
             'contribution_amount': contribution_amount,
             'course': course,
-            'course_key': six.text_type(course_key),
+            'course_key': unicode(course_key),
             'checkpoint_location': request.GET.get('checkpoint'),
             'course_mode': relevant_course_mode,
             'courseware_url': courseware_url,
@@ -444,10 +441,10 @@ class PayAndVerifyView(View):
         # utm_params is [(u'utm_content', u'course-v1:IDBx IDB20.1x 1T2017'),...
         utm_params = [item for item in self.request.GET.items() if 'utm_' in item[0]]
         # utm_params is utm_content=course-v1%3AIDBx+IDB20.1x+1T2017&...
-        utm_params = six.moves.urllib.parse.urlencode(utm_params, True)  # pylint: disable=too-many-function-args
+        utm_params = urllib.urlencode(utm_params, True)
         # utm_params is utm_content=course-v1:IDBx+IDB20.1x+1T2017&...
         # (course-keys do not have url encoding)
-        utm_params = six.moves.urllib.parse.unquote(utm_params)  # pylint: disable=too-many-function-args
+        utm_params = urllib.unquote(utm_params)
         if utm_params:
             if '?' in url:
                 url = url + '&' + utm_params
@@ -456,8 +453,8 @@ class PayAndVerifyView(View):
         return url
 
     def _redirect_if_necessary(
-        self, message, already_verified, already_paid, is_enrolled, course_key,
-        user_is_trying_to_pay, user, sku
+            self, message, already_verified, already_paid, is_enrolled, course_key,
+            user_is_trying_to_pay, user, sku
     ):
         """Redirect the user to a more appropriate page if necessary.
 
@@ -491,7 +488,7 @@ class PayAndVerifyView(View):
 
         """
         url = None
-        course_kwargs = {'course_id': six.text_type(course_key)}
+        course_kwargs = {'course_id': unicode(course_key)}
 
         if already_verified and already_paid:
             # If they've already paid and verified, there's nothing else to do,
@@ -600,7 +597,7 @@ class PayAndVerifyView(View):
         return [
             {
                 'name': step,
-                'title': six.text_type(self.STEP_TITLES[step]),
+                'title': unicode(self.STEP_TITLES[step]),
             }
             for step in display_steps
             if step not in remove_steps
@@ -634,7 +631,7 @@ class PayAndVerifyView(View):
 
         display_steps = set(step['name'] for step in display_steps)
 
-        for step, step_requirements in six.iteritems(self.STEP_REQUIREMENTS):
+        for step, step_requirements in self.STEP_REQUIREMENTS.iteritems():
             if step in display_steps:
                 for requirement in step_requirements:
                     all_requirements[requirement] = True
@@ -714,12 +711,12 @@ class PayAndVerifyView(View):
 
         """
         if deadline_name not in [self.VERIFICATION_DEADLINE, self.UPGRADE_DEADLINE]:
-            log.error(u"Invalid deadline name %s.  Skipping check for whether the deadline passed.", deadline_name)
+            log.error("Invalid deadline name %s.  Skipping check for whether the deadline passed.", deadline_name)
             return None
 
         deadline_passed = (
             deadline_datetime is not None and
-            deadline_datetime < now()
+            deadline_datetime < datetime.datetime.now(UTC)
         )
         if deadline_passed:
             context = {
@@ -732,7 +729,7 @@ class PayAndVerifyView(View):
 
 def checkout_with_ecommerce_service(user, course_key, course_mode, processor):
     """ Create a new basket and trigger immediate checkout, using the E-Commerce API. """
-    course_id = six.text_type(course_key)
+    course_id = unicode(course_key)
     try:
         api = ecommerce_api_client(user)
         # Make an API call to create the order and retrieve the results
@@ -746,7 +743,7 @@ def checkout_with_ecommerce_service(user, course_key, course_mode, processor):
         return result.get('payment_data')
     except SlumberBaseException:
         params = {'username': user.username, 'mode': course_mode.slug, 'course_id': course_id}
-        log.exception(u'Failed to create order for %(username)s %(mode)s mode of %(course_id)s', params)
+        log.exception('Failed to create order for %(username)s %(mode)s mode of %(course_id)s', params)
         raise
     finally:
         audit_log(
@@ -784,7 +781,7 @@ def checkout_with_shoppingcart(request, user, course_key, course_mode, amount):
         'payment_form_data': get_signed_purchase_params(
             cart,
             callback_url=callback_url,
-            extra_data=[six.text_type(course_key), course_mode.slug]
+            extra_data=[unicode(course_key), course_mode.slug]
         ),
     }
     return payment_data
@@ -801,7 +798,7 @@ def create_order(request):
     course_id = request.POST['course_id']
     course_id = CourseKey.from_string(course_id)
     donation_for_course = request.session.get('donation_for_course', {})
-    contribution = request.POST.get("contribution", donation_for_course.get(six.text_type(course_id), 0))
+    contribution = request.POST.get("contribution", donation_for_course.get(unicode(course_id), 0))
     try:
         amount = decimal.Decimal(contribution).quantize(decimal.Decimal('.01'), rounding=decimal.ROUND_DOWN)
     except decimal.InvalidOperation:
@@ -954,7 +951,7 @@ class SubmitPhotosView(View):
         if "photo_id_image" not in params and not has_initial_verification:
             log.error(
                 (
-                    u"User %s does not have an initial verification attempt "
+                    "User %s does not have an initial verification attempt "
                     "and no photo ID image data was provided. "
                     "This most likely means that the JavaScript client is not "
                     "correctly constructing the request to submit photos."
@@ -996,7 +993,7 @@ class SubmitPhotosView(View):
             return HttpResponseBadRequest(_("No profile found for user"))
         except AccountValidationError:
             msg = _(
-                u"Name must be at least {min_length} character long."
+                "Name must be at least {min_length} characters long."
             ).format(min_length=NAME_MIN_LENGTH)
             return HttpResponseBadRequest(msg)
 
@@ -1074,7 +1071,7 @@ class SubmitPhotosView(View):
             'platform_name': configuration_helpers.get_value("PLATFORM_NAME", settings.PLATFORM_NAME)
         }
 
-        subject = _(u"{platform_name} ID Verification Photos Received").format(platform_name=context['platform_name'])
+        subject = _("{platform_name} ID Verification Photos Received").format(platform_name=context['platform_name'])
         message = render_to_string('emails/photo_submission_confirmation.txt', context)
         from_address = configuration_helpers.get_value('email_from_address', settings.DEFAULT_FROM_EMAIL)
         to_address = user.email
@@ -1085,7 +1082,7 @@ class SubmitPhotosView(View):
             # We catch all exceptions and log them.
             # It would be much, much worse to roll back the transaction due to an uncaught
             # exception than to skip sending the notification email.
-            log.exception(u"Could not send notification email for initial verification for user %s", user.id)
+            log.exception("Could not send notification email for initial verification for user %s", user.id)
 
     def _fire_event(self, user, event_name, parameters):
         """
@@ -1112,14 +1109,14 @@ def results_callback(request):
     body = request.body
 
     try:
-        body_dict = json.loads(body.decode('utf-8'))
+        body_dict = json.loads(body)
     except ValueError:
-        log.exception(u"Invalid JSON received from Software Secure:\n\n{}\n".format(body))
-        return HttpResponseBadRequest(u"Invalid JSON. Received:\n\n{}".format(body))
+        log.exception("Invalid JSON received from Software Secure:\n\n{}\n".format(body))
+        return HttpResponseBadRequest("Invalid JSON. Received:\n\n{}".format(body))
 
     if not isinstance(body_dict, dict):
-        log.error(u"Reply from Software Secure is not a dict:\n\n{}\n".format(body))
-        return HttpResponseBadRequest(u"JSON should be dict. Received:\n\n{}".format(body))
+        log.error("Reply from Software Secure is not a dict:\n\n{}\n".format(body))
+        return HttpResponseBadRequest("JSON should be dict. Received:\n\n{}".format(body))
 
     headers = {
         "Authorization": request.META.get("HTTP_AUTHORIZATION", ""),
@@ -1138,7 +1135,7 @@ def results_callback(request):
     access_key = access_key_and_sig.split(":")[0]
 
     # This is what we should be doing...
-    # if not sig_valid:
+    #if not sig_valid:
     #    return HttpResponseBadRequest("Signature is invalid")
 
     # This is what we're doing until we can figure out why we disagree on sigs
@@ -1153,38 +1150,23 @@ def results_callback(request):
     try:
         attempt = SoftwareSecurePhotoVerification.objects.get(receipt_id=receipt_id)
     except SoftwareSecurePhotoVerification.DoesNotExist:
-        log.error(u"Software Secure posted back for receipt_id %s, but not found", receipt_id)
-        return HttpResponseBadRequest(u"edX ID {} not found".format(receipt_id))
+        log.error("Software Secure posted back for receipt_id %s, but not found", receipt_id)
+        return HttpResponseBadRequest("edX ID {} not found".format(receipt_id))
 
     user = attempt.user
     verification_status_email_vars = {
         'platform_name': settings.PLATFORM_NAME,
     }
     if result == "PASS":
-        # If this verification is not an outdated version then make expiry date of previous approved verification NULL
-        # Setting expiry date to NULL is important so that it does not get filtered in the management command
-        # that sends email when verification expires : verify_student/send_verification_expiry_email
-        if attempt.status != 'approved':
-            verification = SoftwareSecurePhotoVerification.objects.filter(status='approved', user_id=attempt.user_id)
-            if verification:
-                log.info(u'Making expiry date of previous approved verification NULL for {}'.format(attempt.user_id))
-                # The updated_at field in sspv model has auto_now set to True, which means any time save() is called on
-                # the model instance, `updated_at` will change. Some of the existing functionality of verification
-                # (showing your verification has expired on dashboard) relies on updated_at.
-                # In case the attempt.approve() fails for some reason and to not cause any inconsistencies in existing
-                # functionality update() is called instead of save()
-                previous_verification = verification.latest('updated_at')
-                SoftwareSecurePhotoVerification.objects.filter(pk=previous_verification.pk
-                                                               ).update(expiry_date=None, expiry_email_date=None)
-        log.debug(u'Approving verification for {}'.format(receipt_id))
+        log.debug("Approving verification for %s", receipt_id)
         attempt.approve()
-        status = u"approved"
+        status = "approved"
         expiry_date = datetime.date.today() + datetime.timedelta(
             days=settings.VERIFY_STUDENT["DAYS_GOOD_FOR"]
         )
         verification_status_email_vars['expiry_date'] = expiry_date.strftime("%m/%d/%Y")
         verification_status_email_vars['full_name'] = user.profile.name
-        subject = _(u"Your {platform_name} ID Verification Approved").format(
+        subject = _("Your {platform_name} ID Verification Approved").format(
             platform_name=settings.PLATFORM_NAME
         )
         context = {
@@ -1196,14 +1178,14 @@ def results_callback(request):
         send_verification_status_email.delay(context)
 
     elif result == "FAIL":
-        log.debug(u"Denying verification for %s", receipt_id)
+        log.debug("Denying verification for %s", receipt_id)
         attempt.deny(json.dumps(reason), error_code=error_code)
         status = "denied"
         reverify_url = '{}{}'.format(settings.LMS_ROOT_URL, reverse("verify_student_reverify"))
         verification_status_email_vars['reasons'] = reason
         verification_status_email_vars['reverify_url'] = reverify_url
         verification_status_email_vars['faq_url'] = settings.ID_VERIFICATION_SUPPORT_LINK
-        subject = _(u"Your {platform_name} Verification Has Been Denied").format(
+        subject = _("Your {platform_name} Verification Has Been Denied").format(
             platform_name=settings.PLATFORM_NAME
         )
         context = {
@@ -1215,14 +1197,14 @@ def results_callback(request):
         send_verification_status_email.delay(context)
 
     elif result == "SYSTEM FAIL":
-        log.debug(u"System failure for %s -- resetting to must_retry", receipt_id)
+        log.debug("System failure for %s -- resetting to must_retry", receipt_id)
         attempt.system_error(json.dumps(reason), error_code=error_code)
         status = "error"
-        log.error(u"Software Secure callback attempt for %s failed: %s", receipt_id, reason)
+        log.error("Software Secure callback attempt for %s failed: %s", receipt_id, reason)
     else:
-        log.error(u"Software Secure returned unknown result %s", result)
+        log.error("Software Secure returned unknown result %s", result)
         return HttpResponseBadRequest(
-            u"Result {} not understood. Known results: PASS, FAIL, SYSTEM FAIL".format(result)
+            "Result {} not understood. Known results: PASS, FAIL, SYSTEM FAIL".format(result)
         )
 
     return HttpResponse("OK!")
@@ -1240,7 +1222,6 @@ class ReverifyView(View):
     the user submitted during initial verification.
 
     """
-
     @method_decorator(login_required)
     def get(self, request):
         """
