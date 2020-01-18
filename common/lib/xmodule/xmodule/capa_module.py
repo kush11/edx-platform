@@ -1,154 +1,52 @@
 """Implements basics of Capa, including class CapaModule."""
-
-
 import json
 import logging
 import re
 import sys
 
-import six
 from lxml import etree
 from pkg_resources import resource_string
-from web_fragments.fragment import Fragment
-from xblock.core import XBlock
 
 from capa import responsetypes
-from xmodule.contentstore.django import contentstore
-from xmodule.editing_module import EditingMixin
 from xmodule.exceptions import NotFoundError, ProcessingError
-from xmodule.raw_module import RawMixin
+from xmodule.raw_module import RawDescriptor
+from xmodule.contentstore.django import contentstore
 from xmodule.util.misc import escape_html_characters
 from xmodule.util.sandboxing import get_python_lib_zip
-from xmodule.util.xmodule_django import add_webpack_to_fragment
-from xmodule.x_module import (
-    HTMLSnippet,
-    ResourceTemplates,
-    XModuleDescriptorToXBlockMixin,
-    XModuleMixin,
-    XModuleToXBlockMixin,
-    shim_xmodule_js
-)
-from xmodule.xml_module import XmlMixin
+from xmodule.x_module import DEPRECATION_VSCOMPAT_EVENT, XModule, module_attr
 
-from .capa_base import CapaMixin, ComplexEncoder, _
+from .capa_base import CapaFields, CapaMixin, ComplexEncoder
 
 log = logging.getLogger("edx.courseware")
 
 
-@XBlock.wants('user')  # pylint: disable=abstract-method
-@XBlock.needs('i18n')
-class ProblemBlock(
-        CapaMixin, RawMixin, XmlMixin, EditingMixin,
-        XModuleDescriptorToXBlockMixin, XModuleToXBlockMixin, HTMLSnippet, ResourceTemplates, XModuleMixin):
+class CapaModule(CapaMixin, XModule):
     """
-    The XBlock for CAPA.
+    An XModule implementing LonCapa format problems, implemented by way of
+    capa.capa_problem.LoncapaProblem
+
+    CapaModule.__init__ takes the same arguments as xmodule.x_module:XModule.__init__
     """
-    INDEX_CONTENT_TYPE = 'CAPA'
-
-    resources_dir = None
-
-    has_score = True
-    show_in_read_only_mode = True
-    template_dir_name = 'problem'
-    mako_template = "widgets/problem-edit.html"
-    has_author_view = True
-
-    # The capa format specifies that what we call max_attempts in the code
-    # is the attribute `attempts`. This will do that conversion
-    metadata_translations = dict(XmlMixin.metadata_translations)
-    metadata_translations['attempts'] = 'max_attempts'
-
     icon_class = 'problem'
 
-    uses_xmodule_styles_setup = True
-    requires_per_student_anonymous_id = True
-
-    preview_view_js = {
+    js = {
         'js': [
             resource_string(__name__, 'js/src/javascript_loader.js'),
             resource_string(__name__, 'js/src/capa/display.js'),
             resource_string(__name__, 'js/src/collapsible.js'),
             resource_string(__name__, 'js/src/capa/imageinput.js'),
             resource_string(__name__, 'js/src/capa/schematic.js'),
-        ],
-        'xmodule_js': resource_string(__name__, 'js/src/xmodule.js')
-    }
-
-    preview_view_css = {
-        'scss': [
-            resource_string(__name__, 'css/capa/display.scss'),
-        ],
-    }
-
-    studio_view_js = {
-        'js': [
-            resource_string(__name__, 'js/src/problem/edit.js'),
-        ],
-        'xmodule_js': resource_string(__name__, 'js/src/xmodule.js'),
-    }
-
-    studio_view_css = {
-        'scss': [
-            resource_string(__name__, 'css/editor/edit.scss'),
-            resource_string(__name__, 'css/problem/edit.scss'),
         ]
     }
 
-    def bind_for_student(self, *args, **kwargs):
-        super(ProblemBlock, self).bind_for_student(*args, **kwargs)
-
-        # Capa was an XModule. When bind_for_student() was called on it with a new runtime, a new CapaModule object
-        # was initialized when XModuleDescriptor._xmodule() was called next. self.lcp was constructed in CapaModule
-        # init(). To keep the same behaviour, we delete self.lcp in bind_for_student().
-        if 'lcp' in self.__dict__:
-            del self.__dict__['lcp']
-
-    def student_view(self, _context, show_detailed_errors=False):
-        """
-        Return the student view.
-        """
-        # self.score is initialized in self.lcp but in this method is accessed before self.lcp so just call it first.
-        try:
-            self.lcp
-        except Exception as err:
-            html = self.handle_fatal_lcp_error(err if show_detailed_errors else None)
-        else:
-            html = self.get_html()
-        fragment = Fragment(html)
-        add_webpack_to_fragment(fragment, 'ProblemBlockPreview')
-        shim_xmodule_js(fragment, 'Problem')
-        return fragment
-
-    def public_view(self, context):
-        """
-        Return the view seen by users who aren't logged in or who aren't
-        enrolled in the course.
-        """
-        if getattr(self.runtime, 'suppports_state_for_anonymous_users', False):
-            # The new XBlock runtime can generally support capa problems for users who aren't logged in, so show the
-            # normal student_view. To prevent anonymous users from viewing specific problems, adjust course policies
-            # and/or content groups.
-            return self.student_view(context)
-        else:
-            # Show a message that this content requires users to login/enroll.
-            return super(ProblemBlock, self).public_view(context)
+    js_module_name = "Problem"
+    css = {'scss': [resource_string(__name__, 'css/capa/display.scss')]}
 
     def author_view(self, context):
         """
         Renders the Studio preview view.
         """
-        return self.student_view(context, show_detailed_errors=True)
-
-    def studio_view(self, _context):
-        """
-        Return the studio view.
-        """
-        fragment = Fragment(
-            self.system.render_template(self.mako_template, self.get_context())
-        )
-        add_webpack_to_fragment(fragment, 'ProblemBlockStudio')
-        shim_xmodule_js(fragment, 'MarkdownEditingDescriptor')
-        return fragment
+        return self.student_view(context)
 
     def handle_ajax(self, dispatch, data):
         """
@@ -161,8 +59,6 @@ class ProblemBlock(
           'progress' : 'none'/'in_progress'/'done',
           <other request-specific values here > }
         """
-        # self.score is initialized in self.lcp but in this method is accessed before self.lcp so just call it first.
-        self.lcp
         handlers = {
             'hint_button': self.hint_button,
             'problem_get': self.get_problem,
@@ -204,7 +100,7 @@ class ProblemBlock(
                 self.scope_ids.user_id
             )
             _, _, traceback_obj = sys.exc_info()  # pylint: disable=redefined-outer-name
-            six.reraise(ProcessingError, ProcessingError(not_found_error_message), traceback_obj)
+            raise ProcessingError(not_found_error_message), None, traceback_obj
 
         except Exception:
             log.exception(
@@ -214,7 +110,7 @@ class ProblemBlock(
                 self.scope_ids.user_id
             )
             _, _, traceback_obj = sys.exc_info()  # pylint: disable=redefined-outer-name
-            six.reraise(ProcessingError, ProcessingError(generic_error_message), traceback_obj)
+            raise ProcessingError(generic_error_message), None, traceback_obj
 
         after = self.get_progress()
         after_attempts = self.attempts
@@ -243,6 +139,36 @@ class ProblemBlock(
 
         return self.display_name
 
+
+class CapaDescriptor(CapaFields, RawDescriptor):
+    """
+    Module implementing problems in the LON-CAPA format,
+    as implemented by capa.capa_problem
+    """
+    INDEX_CONTENT_TYPE = 'CAPA'
+
+    module_class = CapaModule
+    resources_dir = None
+
+    has_score = True
+    show_in_read_only_mode = True
+    template_dir_name = 'problem'
+    mako_template = "widgets/problem-edit.html"
+    js = {'js': [resource_string(__name__, 'js/src/problem/edit.js')]}
+    js_module_name = "MarkdownEditingDescriptor"
+    has_author_view = True
+    css = {
+        'scss': [
+            resource_string(__name__, 'css/editor/edit.scss'),
+            resource_string(__name__, 'css/problem/edit.scss')
+        ]
+    }
+
+    # The capa format specifies that what we call max_attempts in the code
+    # is the attribute `attempts`. This will do that conversion
+    metadata_translations = dict(RawDescriptor.metadata_translations)
+    metadata_translations['attempts'] = 'max_attempts'
+
     @classmethod
     def filter_templates(cls, template, course):
         """
@@ -254,7 +180,7 @@ class ProblemBlock(
         return 'latex' not in template['template_id'] or course.use_latex_compiler
 
     def get_context(self):
-        _context = EditingMixin.get_context(self)
+        _context = RawDescriptor.get_context(self)
         _context.update({
             'markdown': self.markdown,
             'enable_markdown': self.markdown is not None,
@@ -274,14 +200,14 @@ class ProblemBlock(
 
     @property
     def non_editable_metadata_fields(self):
-        non_editable_fields = super(ProblemBlock, self).non_editable_metadata_fields
+        non_editable_fields = super(CapaDescriptor, self).non_editable_metadata_fields
         non_editable_fields.extend([
-            ProblemBlock.due,
-            ProblemBlock.graceperiod,
-            ProblemBlock.force_save_button,
-            ProblemBlock.markdown,
-            ProblemBlock.use_latex_compiler,
-            ProblemBlock.show_correctness,
+            CapaDescriptor.due,
+            CapaDescriptor.graceperiod,
+            CapaDescriptor.force_save_button,
+            CapaDescriptor.markdown,
+            CapaDescriptor.use_latex_compiler,
+            CapaDescriptor.show_correctness,
         ])
         return non_editable_fields
 
@@ -300,7 +226,7 @@ class ProblemBlock(
         """
         Return dictionary prepared with module content and type for indexing.
         """
-        xblock_body = super(ProblemBlock, self).index_dictionary()
+        xblock_body = super(CapaDescriptor, self).index_dictionary()
         # Removing solutions and hints, as well as script and style
         capa_content = re.sub(
             re.compile(
@@ -474,3 +400,37 @@ class ProblemBlock(
                 if correct_answer_text is not None:
                     report[_("Correct Answer")] = correct_answer_text
                 yield (user_state.username, report)
+
+    # Proxy to CapaModule for access to any of its attributes
+    answer_available = module_attr('answer_available')
+    submit_button_name = module_attr('submit_button_name')
+    submit_button_submitting_name = module_attr('submit_button_submitting_name')
+    submit_problem = module_attr('submit_problem')
+    choose_new_seed = module_attr('choose_new_seed')
+    closed = module_attr('closed')
+    get_answer = module_attr('get_answer')
+    get_problem = module_attr('get_problem')
+    get_problem_html = module_attr('get_problem_html')
+    get_state_for_lcp = module_attr('get_state_for_lcp')
+    handle_input_ajax = module_attr('handle_input_ajax')
+    hint_button = module_attr('hint_button')
+    handle_problem_html_error = module_attr('handle_problem_html_error')
+    handle_ungraded_response = module_attr('handle_ungraded_response')
+    has_submitted_answer = module_attr('has_submitted_answer')
+    is_attempted = module_attr('is_attempted')
+    is_correct = module_attr('is_correct')
+    is_past_due = module_attr('is_past_due')
+    is_submitted = module_attr('is_submitted')
+    lcp = module_attr('lcp')
+    make_dict_of_responses = module_attr('make_dict_of_responses')
+    new_lcp = module_attr('new_lcp')
+    publish_grade = module_attr('publish_grade')
+    rescore = module_attr('rescore')
+    reset_problem = module_attr('reset_problem')
+    save_problem = module_attr('save_problem')
+    set_score = module_attr('set_score')
+    set_state_from_lcp = module_attr('set_state_from_lcp')
+    should_show_submit_button = module_attr('should_show_submit_button')
+    should_show_reset_button = module_attr('should_show_reset_button')
+    should_show_save_button = module_attr('should_show_save_button')
+    update_score = module_attr('update_score')

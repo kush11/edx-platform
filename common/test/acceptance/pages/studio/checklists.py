@@ -2,7 +2,6 @@
 Course Checklists page.
 """
 
-
 from common.test.acceptance.pages.studio.course_page import CoursePage
 
 

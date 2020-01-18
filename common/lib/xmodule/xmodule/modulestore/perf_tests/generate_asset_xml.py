@@ -4,16 +4,13 @@
 """
 Generates fake XML for asset metadata.
 """
-
+from __future__ import print_function
 
 import random
-from datetime import datetime, timedelta
-
 from lxml import etree
-from opaque_keys.edx.keys import CourseKey
-from six.moves import range
-
+from datetime import datetime, timedelta
 from xmodule.assetstore import AssetMetadata
+from opaque_keys.edx.keys import CourseKey
 
 try:
     import click
@@ -55,7 +52,7 @@ def filename():
     Fake a filename.
     """
     fname = u''
-    for __ in range(random.randint(10, 30)):
+    for __ in xrange(random.randint(10, 30)):
         fname += random.choice(NAME_CHARS_W_UNICODE)
     fname += random.choice(('.jpg', '.pdf', '.png', '.txt'))
     return fname
@@ -66,8 +63,8 @@ def pathname():
     Fake a pathname.
     """
     pname = u''
-    for __ in range(random.randint(2, 3)):
-        for __ in range(random.randint(5, 10)):
+    for __ in xrange(random.randint(2, 3)):
+        for __ in xrange(random.randint(5, 10)):
             pname += random.choice(NAME_CHARS)
         pname += '/'
     return pname
@@ -152,7 +149,7 @@ def generate_random_asset_md():
     return AssetMetadata(
         asset_key,
         pathname=pathname(),
-        internal_name=str([filename() for __ in range(10)]),
+        internal_name=str([filename() for __ in xrange(10)]),
         locked=locked(),
         contenttype=contenttype(),
         thumbnail=filename(),
@@ -173,7 +170,7 @@ def make_asset_md(amount):
     Make a number of fake AssetMetadata objects.
     """
     all_asset_md = []
-    for __ in range(amount):
+    for __ in xrange(amount):
         all_asset_md.append(generate_random_asset_md())
     return all_asset_md
 

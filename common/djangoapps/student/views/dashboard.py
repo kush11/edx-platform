@@ -2,65 +2,72 @@
 Dashboard view and supporting methods
 """
 
-
 import datetime
 import logging
 from collections import defaultdict
 
+from completion.exceptions import UnavailableCompletionData
+from completion.utilities import get_key_to_last_completed_course_block
 from django.conf import settings
+from openedx.features.journals.api import get_journals_context
+from lms.djangoapps.courseware.courses import allow_public_access
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect
 from django.urls import reverse
+from django.shortcuts import redirect
 from django.utils.translation import ugettext as _
 from django.views.decorators.csrf import ensure_csrf_cookie
 from edx_django_utils import monitoring as monitoring_utils
 from opaque_keys.edx.keys import CourseKey
 from pytz import UTC
-from six import iteritems, text_type
+from six import text_type, iteritems
 
 import track.views
-from bulk_email.api import is_bulk_email_feature_enabled
-from bulk_email.models import Optout  # pylint: disable=import-error
+from bulk_email.models import BulkEmailFlag, Optout  # pylint: disable=import-error
 from course_modes.models import CourseMode
-from lms.djangoapps.courseware.access import has_access
+from courseware.access import has_access
 from edxmako.shortcuts import render_to_response, render_to_string
 from entitlements.models import CourseEntitlement
 from lms.djangoapps.commerce.utils import EcommerceService  # pylint: disable=import-error
-from lms.djangoapps.experiments.utils import get_dashboard_course_info
 from lms.djangoapps.verify_student.services import IDVerificationService
 from openedx.core.djangoapps.catalog.utils import (
     get_programs,
     get_pseudo_session_for_entitlement,
     get_visible_sessions_for_entitlement
 )
-from openedx.core.djangoapps.credit.email_utils import get_credit_provider_attribute_values, make_providers_strings
+from openedx.core.djangoapps.credit.email_utils import get_credit_provider_display_names, make_providers_strings
 from openedx.core.djangoapps.programs.models import ProgramsApiConfig
 from openedx.core.djangoapps.programs.utils import ProgramDataExtender, ProgramProgressMeter
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
-from openedx.core.djangoapps.user_api.accounts.utils import is_secondary_email_feature_enabled_for_user
-from openedx.core.djangoapps.user_authn.cookies import set_logged_in_cookies
 from openedx.core.djangoapps.util.maintenance_banner import add_maintenance_banner
 from openedx.core.djangoapps.waffle_utils import WaffleFlag, WaffleFlagNamespace
+from openedx.core.djangoapps.user_api.accounts.utils import is_secondary_email_feature_enabled_for_user
 from openedx.core.djangolib.markup import HTML, Text
 from openedx.features.enterprise_support.api import get_dashboard_consent_notification
+from openedx.features.enterprise_support.utils import is_enterprise_learner
+from openedx.features.journals.api import journals_enabled
 from shoppingcart.api import order_history
 from shoppingcart.models import CourseRegistrationCode, DonationConfiguration
-from student.helpers import cert_info, check_verify_status_by_course, get_resume_urls_for_enrollments
+from openedx.core.djangoapps.user_authn.cookies import set_logged_in_cookies
+from student.helpers import cert_info, check_verify_status_by_course
+from courseware.courses import(
+    get_courses
+)
 from student.models import (
     AccountRecovery,
     CourseEnrollment,
     CourseEnrollmentAttribute,
     DashboardConfiguration,
-    UserProfile
+    UserProfile,
+    UserRegistration
 )
 from util.milestones_helpers import get_pre_requisite_courses_not_completed
 from xmodule.modulestore.django import modulestore
 
 log = logging.getLogger("edx.student")
 
-experiments_namespace = WaffleFlagNamespace(name=u'student.experiments')
-
+userData = 'kush'
+userId = 'dsadsd'
 
 def get_org_black_and_whitelist_for_site():
     """
@@ -196,7 +203,7 @@ def _create_recent_enrollment_message(course_enrollments, course_modes):  # pyli
         )
 
 
-def get_course_enrollments(user, org_whitelist, org_blacklist, course_limit=None):
+def get_course_enrollments(user, org_whitelist, org_blacklist):
     """
     Given a user, return a filtered set of his or her course enrollments.
 
@@ -204,13 +211,12 @@ def get_course_enrollments(user, org_whitelist, org_blacklist, course_limit=None
         user (User): the user in question.
         org_whitelist (list[str]): If not None, ONLY courses of these orgs will be returned.
         org_blacklist (list[str]): Courses of these orgs will be excluded.
-        course_limit: Number courses to load in dashboard if set to None then all the courses would be load.
 
     Returns:
         generator[CourseEnrollment]: a sequence of enrollments to be displayed
         on the user's dashboard.
     """
-    for enrollment in CourseEnrollment.enrollments_for_user_with_overviews_preload(user, course_limit):
+    for enrollment in CourseEnrollment.enrollments_for_user_with_overviews_preload(user):
 
         # If the course is missing or broken, log an error and skip it.
         course_overview = enrollment.course_overview
@@ -466,7 +472,7 @@ def _credit_statuses(user, course_enrollments):
         for attribute in CourseEnrollmentAttribute.objects.filter(
             namespace="credit",
             name="provider_id",
-            enrollment__in=list(credit_enrollments.values())
+            enrollment__in=credit_enrollments.values()
         ).select_related("enrollment")
     }
 
@@ -478,7 +484,7 @@ def _credit_statuses(user, course_enrollments):
     statuses = {}
     for eligibility in credit_api.get_eligibilities_for_user(user.username):
         course_key = CourseKey.from_string(text_type(eligibility["course_key"]))
-        providers_names = get_credit_provider_attribute_values(course_key, 'display_name')
+        providers_names = get_credit_provider_display_names(course_key)
         status = {
             "course_key": text_type(course_key),
             "eligible": True,
@@ -512,40 +518,27 @@ def _credit_statuses(user, course_enrollments):
                 status["provider_status_url"] = provider_info.get("status_url")
                 status["provider_id"] = provider_id
 
-                if not status["provider_name"] and not status["provider_status_url"]:
-                    status["error"] = True
-                    log.error(
-                        u"Could not find credit provider info for [%s] in [%s]. The user will not "
-                        u"be able to see his or her credit request status on the student dashboard.",
-                        provider_id, provider_info_by_id
-                    )
-
         statuses[course_key] = status
 
     return statuses
 
 
-def show_load_all_courses_link(user, course_limit, course_enrollments):
-    """
-    By default dashboard will show limited courses based on the course limit
-    set in configuration.
-
-    A link would be provided provided at the bottom to load all the courses if there are any courses.
-    """
-
-    if course_limit is None:
-        return False
-
-    total_enrollments = CourseEnrollment.enrollments_for_user(user).count()
-    return len(course_enrollments) < total_enrollments
-
-
-def get_dashboard_course_limit():
-    """
-    get course limit from configuration
-    """
-    course_limit = getattr(settings, 'DASHBOARD_COURSE_LIMIT', None)
-    return course_limit
+def _get_urls_for_resume_buttons(user, enrollments):
+    '''
+    Checks whether a user has made progress in any of a list of enrollments.
+    '''
+    resume_button_urls = []
+    for enrollment in enrollments:
+        try:
+            block_key = get_key_to_last_completed_course_block(user, enrollment.course_id)
+            url_to_block = reverse(
+                'jump_to',
+                kwargs={'course_id': enrollment.course_id, 'location': block_key}
+            )
+        except UnavailableCompletionData:
+            url_to_block = ''
+        resume_button_urls.append(url_to_block)
+    return resume_button_urls
 
 
 @login_required
@@ -556,9 +549,7 @@ def student_dashboard(request):
     Provides the LMS dashboard view
 
     TODO: This is lms specific and does not belong in common code.
-    Note:
-        To load the all courses set course_limit=None as parameter in GET. If its not None then default course
-        limit will be used  that is set in configuration
+
     Arguments:
         request: The request object.
 
@@ -567,8 +558,10 @@ def student_dashboard(request):
 
     """
     user = request.user
+    userNewData = UserProfile.objects.filter(user=user)
     if not UserProfile.objects.filter(user=user).exists():
         return redirect(reverse('account_settings'))
+    
 
     platform_name = configuration_helpers.get_value("platform_name", settings.PLATFORM_NAME)
 
@@ -591,12 +584,9 @@ def student_dashboard(request):
         'EMPTY_DASHBOARD_MESSAGE', None
     )
 
-    disable_course_limit = request and 'course_limit' in request.GET
-    course_limit = get_dashboard_course_limit() if not disable_course_limit else None
-
     # Get the org whitelist or the org blacklist for the current site
     site_org_whitelist, site_org_blacklist = get_org_black_and_whitelist_for_site()
-    course_enrollments = list(get_course_enrollments(user, site_org_whitelist, site_org_blacklist, course_limit))
+    course_enrollments = list(get_course_enrollments(user, site_org_whitelist, site_org_blacklist))
 
     # Get the entitlements for the user and a mapping to all available sessions for that entitlement
     # If an entitlement has no available sessions, pass through a mock course overview object
@@ -662,7 +652,7 @@ def student_dashboard(request):
                     "Add a recovery email to retain access when single-sign on is not available. "
                     "Go to {link_start}your Account Settings{link_end}.")
             ).format(
-                link_start=HTML("<a href='{account_setting_page}'>").format(
+                link_start=HTML("<a target='_blank' href='{account_setting_page}'>").format(
                     account_setting_page=reverse('account_settings'),
                 ),
                 link_end=HTML("</a>")
@@ -707,15 +697,15 @@ def student_dashboard(request):
     inverted_programs = meter.invert_programs()
 
     urls, programs_data = {}, {}
-    bundles_on_dashboard_flag = WaffleFlag(experiments_namespace, u'bundles_on_dashboard')
+    bundles_on_dashboard_flag = WaffleFlag(WaffleFlagNamespace(name=u'student.experiments'), u'bundles_on_dashboard')
 
     # TODO: Delete this code and the relevant HTML code after testing LEARNER-3072 is complete
-    if bundles_on_dashboard_flag.is_enabled() and inverted_programs and list(inverted_programs.items()):
+    if bundles_on_dashboard_flag.is_enabled() and inverted_programs and inverted_programs.items():
         if len(course_enrollments) < 4:
             for program in inverted_programs.values():
                 try:
                     program_uuid = program[0]['uuid']
-                    program_data = get_programs(uuid=program_uuid)
+                    program_data = get_programs(request.site, uuid=program_uuid)
                     program_data = ProgramDataExtender(program_data, request.user).extend()
                     skus = program_data.get('skus')
                     checkout_page_url = ecommerce_service.get_checkout_page_url(*skus)
@@ -758,7 +748,7 @@ def student_dashboard(request):
     # only show email settings for Mongo course and when bulk email is turned on
     show_email_settings_for = frozenset(
         enrollment.course_id for enrollment in course_enrollments if (
-            is_bulk_email_feature_enabled(enrollment.course_id)
+            BulkEmailFlag.feature_enabled(enrollment.course_id)
         )
     )
 
@@ -832,7 +822,9 @@ def student_dashboard(request):
         ]
 
     context = {
-        'urls': urls,
+        'journal_info': get_journals_context(request),  # TODO: Course Listing Plugin required
+        'courses': get_courses(user),
+        'urls': urls,        
         'programs_data': programs_data,
         'enterprise_message': enterprise_message,
         'consent_required_courses': consent_required_courses,
@@ -856,7 +848,6 @@ def student_dashboard(request):
         'reverifications': reverifications,
         'verification_display': verification_status['should_display'],
         'verification_status': verification_status['status'],
-        'verification_expiry': verification_status['verification_expiry'],
         'verification_status_by_course': verify_status_by_course,
         'verification_errors': verification_errors,
         'block_courses': block_courses,
@@ -872,6 +863,7 @@ def student_dashboard(request):
         'nav_hidden': True,
         'inverted_programs': inverted_programs,
         'show_program_listing': ProgramsApiConfig.is_enabled(),
+        'show_journal_listing': journals_enabled(),  # TODO: Dashboard Plugin required
         'show_dashboard_tabs': True,
         'disable_courseware_js': True,
         'display_course_modes_on_dashboard': enable_verified_certificates and display_course_modes_on_dashboard,
@@ -881,10 +873,7 @@ def student_dashboard(request):
         'empty_dashboard_message': empty_dashboard_message,
         'recovery_email_message': recovery_email_message,
         'recovery_email_activation_message': recovery_email_activation_message,
-        'show_load_all_courses_link': show_load_all_courses_link(user, course_limit, course_enrollments),
-        # TODO START: clean up as part of REVEM-199 (START)
-        'course_info': get_dashboard_course_info(user, course_enrollments),
-        # TODO START: clean up as part of REVEM-199 (END)
+        'data':userNewData,
     }
 
     if ecommerce_service.is_enabled(request.user):
@@ -895,7 +884,7 @@ def student_dashboard(request):
 
     # Gather urls for course card resume buttons.
     resume_button_urls = ['' for entitlement in course_entitlements]
-    for url in get_resume_urls_for_enrollments(user, course_enrollments).values():
+    for url in _get_urls_for_resume_buttons(user, course_enrollments):
         resume_button_urls.append(url)
     # There must be enough urls for dashboard.html. Template creates course
     # cards for "enrollments + entitlements".
@@ -903,4 +892,90 @@ def student_dashboard(request):
         'resume_button_urls': resume_button_urls
     })
 
-    return render_to_response('dashboard.html', context)
+    response = render_to_response('dashboard.html', context)
+    set_logged_in_cookies(request, response, user)
+    return response
+
+@login_required
+@ensure_csrf_cookie
+@add_maintenance_banner
+def discoveryRegistration(request):
+    u = UserRegistration()
+    # courseAutoEnroll = CourseEnrollment()
+    u.firstName = request.POST.get('FirstName')    
+    u.middleName= request.POST.get('MiddelName')
+    u.lastName= request.POST.get('LastName')
+
+    u.gender = request.POST.get('Gender')
+    u.dateOfBirth = request.POST.get('DOB')    
+    u.contactNumber= request.POST.get('ContactNumber')    
+
+    u.emailId= request.POST.get('EmailId')
+    u.identyType= request.POST.get('IDProof')
+    u.identyNo= request.POST.get('IDNO')
+
+    u.percentage10= request.POST.get('TenthPercentage')
+    u.percentage12= request.POST.get('TwelvePercentage')
+
+    u.qualification= request.POST.get('Qualification')
+    u.stream= request.POST.get('StreamOrBranch')
+    u.collageName= request.POST.get('CollegeName')
+
+    u.yearOfPassing= request.POST.get('YearOfPassing')
+    u.gradPercentage = request.POST.get('GraduationPercentage')
+    u.postGradPercentage = request.POST.get('PostGraduationPercentage')
+
+    u.drive= request.POST.get('Drive')
+    u.informationSource= request.POST.get('SourceName')
+    u.backlogs = request.POST.get('Backlogs')    
+    
+    # courseAutoEnroll.course_id = 'course-v1:edX+DemoX+Demo_Course'
+    # courseAutoEnroll.is_active = 1
+    # courseAutoEnroll.mode = 'audit',
+    # courseAutoEnroll.user_id = 4
+    # u.GraduationPercentage= request.POST.get('GraduationPercentage')
+    # u.PostGraduationPercentage= request.POST.get('PostGraduationPercentage')
+
+    # ContextData = {  
+    #     FirstName ,
+    #     LastName,
+    #     middlename,
+    #     ContactNumber,
+    #     DOB,
+    #     EmailId,
+    #     IDProof,
+    #     IDNO,
+    #     CollegeName,
+    #     Drive,
+    #     SourceName,
+    #     InformationSource,
+    #     Qualification,
+    #     StreamOrBranch,
+    #     YearOfPassing,
+    #     Backlogs,
+    #     TenthPercentage,
+    #     TwelvePercentage,
+    #     GraduationPercentage,
+    #     PostGraduationPercentage,
+    # }
+    # res = num1+num2
+    userName = request.user
+    # dad = UserProfile()    
+    u.user = request.user
+    u.save()
+    #UserRegistration.objects.add(firstName='kush')?
+    UserProfile.objects.filter(user=userName).update(allow_assessment=1)
+    # courseAutoEnroll.save()
+
+    # auto enrollint the user to the course with the course id    
+    course_id = 'course-v1:edX+DemoX+Demo_Course'
+    enroll_mode = 'audit'
+    user = request.user
+    check_access = True    
+    course_key = CourseKey.from_string(course_id)
+    CourseEnrollment.enroll(user, course_key, check_access=check_access, mode=enroll_mode)
+    # CourseEnrollment.enroll(userName, course_id, check_access=True, mode=enroll_mode)
+
+
+    # UserProfile.objects.filter(user=userName).update(newData=num1)
+    return render_to_response('discoveryRegistration.html',{'post_data':'ContextData'})

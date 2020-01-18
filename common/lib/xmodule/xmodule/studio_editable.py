@@ -1,9 +1,6 @@
 """
 Mixin to support editing in Studio.
 """
-
-
-import six
 from xmodule.x_module import AUTHOR_VIEW, STUDENT_VIEW, module_attr
 
 
@@ -30,7 +27,7 @@ class StudioEditableBlock(object):
             fragment.add_fragment_resources(rendered_child)
 
             contents.append({
-                'id': six.text_type(child.location),
+                'id': unicode(child.location),
                 'content': rendered_child.content
             })
 

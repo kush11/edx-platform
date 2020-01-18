@@ -13,7 +13,6 @@ Main module which shows problems (of "capa" type).
 This is used by capa_module.
 """
 
-
 import logging
 import os.path
 import re
@@ -21,9 +20,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from xml.sax.saxutils import unescape
-from openedx.core.lib.edx_six import get_gettext
 
-import six
 from lxml import etree
 from pytz import UTC
 
@@ -34,8 +31,7 @@ import capa.xqueue_interface as xqueue_interface
 from capa.correctmap import CorrectMap
 from capa.safe_exec import safe_exec
 from capa.util import contextualize_text, convert_files_to_filenames
-from django.utils.encoding import python_2_unicode_compatible
-from openedx.core.djangolib.markup import HTML, Text
+from openedx.core.djangolib.markup import HTML
 from xmodule.stringify import stringify_children
 
 # extra things displayed after "show answers" is pressed
@@ -127,7 +123,6 @@ class LoncapaSystem(object):
         self.matlab_api_key = matlab_api_key
 
 
-@python_2_unicode_compatible
 class LoncapaProblem(object):
     """
     Main class for capa Problems.
@@ -184,9 +179,6 @@ class LoncapaProblem(object):
         self.problem_text = problem_text
 
         # parse problem XML file into an element tree
-        if isinstance(problem_text, six.text_type):
-            # etree chokes on Unicode XML with an encoding declaration
-            problem_text = problem_text.encode('utf-8')
         self.tree = etree.XML(problem_text)
 
         self.make_xml_compatible(self.tree)
@@ -216,7 +208,7 @@ class LoncapaProblem(object):
 
             # Run response late_transforms last (see MultipleChoiceResponse)
             # Sort the responses to be in *_1 *_2 ... order.
-            responses = list(self.responders.values())
+            responses = self.responders.values()
             responses = sorted(responses, key=lambda resp: int(resp.id[resp.id.rindex('_') + 1:]))
             for response in responses:
                 if hasattr(response, 'late_transforms'):
@@ -288,7 +280,7 @@ class LoncapaProblem(object):
 
         self.student_answers = initial_answers
 
-    def __str__(self):
+    def __unicode__(self):
         return u"LoncapaProblem ({0})".format(self.problem_id)
 
     def get_state(self):
@@ -456,7 +448,7 @@ class LoncapaProblem(object):
             # an earlier submission, so for now skip these entirely.
             # TODO: figure out where to get file submissions when rescoring.
             if 'filesubmission' in responder.allowed_inputfields and student_answers is None:
-                _ = get_gettext(self.capa_system.i18n)
+                _ = self.capa_system.i18n.ugettext
                 raise Exception(_(u"Cannot rescore problems with possible file submissions"))
 
             # use 'student_answers' only if it is provided, and if it might contain a file
@@ -484,7 +476,7 @@ class LoncapaProblem(object):
 
         # include solutions from <solution>...</solution> stanzas
         for entry in self.tree.xpath("//" + "|//".join(solution_tags)):
-            answer = etree.tostring(entry).decode('utf-8')
+            answer = etree.tostring(entry)
             if answer:
                 answer_map[entry.get('id')] = contextualize_text(answer, self.context)
 
@@ -500,7 +492,7 @@ class LoncapaProblem(object):
         answer_ids = []
         for response in self.responders.keys():
             results = self.responder_answers[response]
-            answer_ids.append(list(results.keys()))
+            answer_ids.append(results.keys())
         return answer_ids
 
     def find_correct_answer_text(self, answer_id):
@@ -542,7 +534,7 @@ class LoncapaProblem(object):
         Returns:
             a string with the question text
         """
-        _ = get_gettext(self.capa_system.i18n)
+        _ = self.capa_system.i18n.ugettext
         # Some questions define a prompt with this format:   >>This is a prompt<<
         prompt = self.problem_data[answer_id].get('label')
 
@@ -620,7 +612,7 @@ class LoncapaProblem(object):
                 self.find_answer_text(answer_id, answer) for answer in current_answer
             )
 
-        elif isinstance(current_answer, six.string_types) and current_answer.startswith('choice_'):
+        elif isinstance(current_answer, basestring) and current_answer.startswith('choice_'):
             # Many problem (e.g. checkbox) report "choice_0" "choice_1" etc.
             # Here we transform it
             elems = self.tree.xpath('//*[@id="{answer_id}"]//*[@name="{choice_number}"]'.format(
@@ -633,7 +625,7 @@ class LoncapaProblem(object):
             choices_map = dict(input_cls.extract_choices(choicegroup, self.capa_system.i18n, text_only=True))
             answer_text = choices_map[current_answer]
 
-        elif isinstance(current_answer, six.string_types):
+        elif isinstance(current_answer, basestring):
             # Already a string with the answer
             answer_text = current_answer
 
@@ -648,7 +640,7 @@ class LoncapaProblem(object):
         choice-level explanations shown to a student after submission.
         Does nothing if there is no targeted-feedback attribute.
         """
-        _ = get_gettext(self.capa_system.i18n)
+        _ = self.capa_system.i18n.ugettext
         # Note that the modifications has been done, avoiding problems if called twice.
         if hasattr(self, 'has_targeted'):
             return
@@ -733,10 +725,7 @@ class LoncapaProblem(object):
         Main method called externally to get the HTML to be rendered for this capa Problem.
         """
         self.do_targeted_feedback(self.tree)
-        html = contextualize_text(
-            etree.tostring(self._extract_html(self.tree)).decode('utf-8'),
-            self.context
-        )
+        html = contextualize_text(etree.tostring(self._extract_html(self.tree)), self.context)
         return html
 
     def handle_input_ajax(self, data):
@@ -764,7 +753,7 @@ class LoncapaProblem(object):
         """
         includes = self.tree.findall('.//include')
         for inc in includes:
-            filename = inc.get('file') if six.PY3 else inc.get('file').decode('utf-8')
+            filename = inc.get('file').decode('utf-8')
             if filename is not None:
                 try:
                     # open using LoncapaSystem OSFS filestore
@@ -895,7 +884,7 @@ class LoncapaProblem(object):
                 )
             except Exception as err:
                 log.exception("Error while execing script code: " + all_code)
-                msg = Text("Error while executing script code: %s" % str(err))
+                msg = "Error while executing script code: %s" % str(err).replace('<', '&lt;')
                 raise responsetypes.LoncapaProblemError(msg)
 
         # Store code source in context, along with the Python path needed to run it correctly.
@@ -914,7 +903,7 @@ class LoncapaProblem(object):
 
         Used by get_html.
         """
-        if not isinstance(problemtree.tag, six.string_types):
+        if not isinstance(problemtree.tag, basestring):
             # Comment and ProcessingInstruction nodes are not Elements,
             # and we're ok leaving those behind.
             # BTW: etree gives us no good way to distinguish these things
@@ -1130,7 +1119,7 @@ class LoncapaProblem(object):
             for inputfield in inputfields:
                 problem_data[inputfield.get('id')] = {
                     'group_label': group_label_tag_text,
-                    'label': HTML(inputfield.attrib.get('label', '')),
+                    'label': inputfield.attrib.get('label', ''),
                     'descriptions': {}
                 }
         else:

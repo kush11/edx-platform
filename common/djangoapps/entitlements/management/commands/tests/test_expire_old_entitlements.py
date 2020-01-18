@@ -1,13 +1,12 @@
 """Test Entitlements models"""
 
-
 import mock
+
 from django.core.management import call_command
 from django.test import TestCase
-from six.moves import range
 
-from entitlements.tests.factories import CourseEntitlementFactory
 from openedx.core.djangolib.testing.utils import skip_unless_lms
+from entitlements.tests.factories import CourseEntitlementFactory
 
 
 @skip_unless_lms

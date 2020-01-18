@@ -1,13 +1,11 @@
 """
 XBlock runtime services for LibraryContentModule
 """
-
-
-import six
 from django.core.exceptions import PermissionDenied
 from opaque_keys.edx.locator import LibraryLocator, LibraryUsageLocator
 from search.search_engine_base import SearchEngine
-from xmodule.capa_module import ProblemBlock
+
+from xmodule.capa_module import CapaDescriptor
 from xmodule.library_content_module import ANY_CAPA_TYPE_VALUE
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.exceptions import ItemNotFoundError
@@ -72,9 +70,9 @@ class LibraryToolsService(object):
             """ Basic information about the given block """
             orig_key, orig_version = self.store.get_block_original_usage(usage_key)
             return {
-                "usage_key": six.text_type(usage_key),
-                "original_usage_key": six.text_type(orig_key) if orig_key else None,
-                "original_usage_version": six.text_type(orig_version) if orig_version else None,
+                "usage_key": unicode(usage_key),
+                "original_usage_key": unicode(orig_key) if orig_key else None,
+                "original_usage_version": unicode(orig_version) if orig_version else None,
             }
 
         result_json = []
@@ -100,8 +98,8 @@ class LibraryToolsService(object):
         search_engine = SearchEngine.get_search_engine(index="library_index")
         if search_engine:
             filter_clause = {
-                "library": six.text_type(normalize_key_for_search(library.location.library_key)),
-                "content_type": ProblemBlock.INDEX_CONTENT_TYPE,
+                "library": unicode(normalize_key_for_search(library.location.library_key)),
+                "content_type": CapaDescriptor.INDEX_CONTENT_TYPE,
                 "problem_types": capa_type
             }
             search_result = search_engine.search(field_dictionary=filter_clause)
@@ -118,7 +116,7 @@ class LibraryToolsService(object):
             return False
 
         descriptor = self.store.get_item(usage_key, depth=0)
-        assert isinstance(descriptor, ProblemBlock)
+        assert isinstance(descriptor, CapaDescriptor)
         return capa_type in descriptor.problem_types
 
     def can_use_library_content(self, block):
@@ -163,7 +161,7 @@ class LibraryToolsService(object):
             source_blocks.extend(library.children)
 
         with self.store.bulk_operations(dest_block.location.course_key):
-            dest_block.source_library_version = six.text_type(library.location.library_key.version_guid)
+            dest_block.source_library_version = unicode(library.location.library_key.version_guid)
             self.store.update_item(dest_block, user_id)
             head_validation = not version
             dest_block.children = self.store.copy_from_template(

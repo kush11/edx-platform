@@ -3,33 +3,32 @@
 Tests of responsetypes
 """
 
-
-import io
+from cStringIO import StringIO
+from datetime import datetime
 import json
 import os
-import random2 as random
+import pyparsing
+import random
 import textwrap
 import unittest
 import zipfile
-from six import StringIO
-from datetime import datetime
 
 import mock
-import pyparsing
-import requests
-import six
 from pytz import UTC
 from six import text_type
+import requests
 
+from capa.tests.helpers import new_loncapa_problem, test_capa_system, load_fixture
 import calc
+
+from capa.responsetypes import LoncapaProblemError, \
+    StudentInputError, ResponseError
 from capa.correctmap import CorrectMap
-from capa.responsetypes import LoncapaProblemError, ResponseError, StudentInputError
-from capa.tests.helpers import load_fixture, new_loncapa_problem, test_capa_system
 from capa.tests.response_xml_factory import (
     AnnotationResponseXMLFactory,
     ChoiceResponseXMLFactory,
-    ChoiceTextResponseXMLFactory,
     CodeResponseXMLFactory,
+    ChoiceTextResponseXMLFactory,
     CustomResponseXMLFactory,
     FormulaResponseXMLFactory,
     ImageResponseXMLFactory,
@@ -39,7 +38,7 @@ from capa.tests.response_xml_factory import (
     SchematicResponseXMLFactory,
     StringResponseXMLFactory,
     SymbolicResponseXMLFactory,
-    TrueFalseResponseXMLFactory
+    TrueFalseResponseXMLFactory,
 )
 from capa.util import convert_files_to_filenames
 from capa.xqueue_interface import dateformat
@@ -66,9 +65,9 @@ class ResponseTest(unittest.TestCase):
         input_dict = {'1_2_1': submission}
         correct_map = problem.grade_answers(input_dict)
         if msg is None:
-            self.assertEqual(correct_map.get_correctness('1_2_1'), expected_correctness)
+            self.assertEquals(correct_map.get_correctness('1_2_1'), expected_correctness)
         else:
-            self.assertEqual(correct_map.get_correctness('1_2_1'), expected_correctness, msg)
+            self.assertEquals(correct_map.get_correctness('1_2_1'), expected_correctness, msg)
 
     def assert_answer_format(self, problem):  # pylint: disable=missing-docstring
         answers = problem.get_question_answers()
@@ -479,14 +478,14 @@ class FormulaResponseTest(ResponseTest):
         # Expect to receive a hint  if we add an extra y
         input_dict = {'1_2_1': "x + 2*y + y"}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'),
-                         'Check the coefficient of y')
+        self.assertEquals(correct_map.get_hint('1_2_1'),
+                          'Check the coefficient of y')
 
         # Expect to receive a hint if we leave out x
         input_dict = {'1_2_1': "2*y"}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'),
-                         'Try including the variable x')
+        self.assertEquals(correct_map.get_hint('1_2_1'),
+                          'Try including the variable x')
 
     def test_script(self):
         """
@@ -573,8 +572,8 @@ class FormulaResponseTest(ResponseTest):
             tolerance="1%",
             answer="x"
         )
-        self.assertTrue(list(problem.responders.values())[0].validate_answer('14*x'))
-        self.assertFalse(list(problem.responders.values())[0].validate_answer('3*y+2*x'))
+        self.assertTrue(problem.responders.values()[0].validate_answer('14*x'))
+        self.assertFalse(problem.responders.values()[0].validate_answer('3*y+2*x'))
 
 
 class StringResponseTest(ResponseTest):  # pylint: disable=missing-docstring
@@ -699,18 +698,18 @@ class StringResponseTest(ResponseTest):  # pylint: disable=missing-docstring
             b) regexp is saved to xml and is read in python as repr of that string
             So  a\d in front-end editor will become a\\\\d in xml,  so it will match a1 as student answer.
         """
-        problem = self.build_problem(answer=u"5\\\\æ", case_sensitive=False, regexp=True)
-        self.assert_grade(problem, u"5\\æ", "correct")
+        problem = self.build_problem(answer=ur"5\\æ", case_sensitive=False, regexp=True)
+        self.assert_grade(problem, ur"5\æ", "correct")
 
         problem = self.build_problem(answer=u"5\\\\æ", case_sensitive=False, regexp=True)
-        self.assert_grade(problem, u"5\\æ", "correct")
+        self.assert_grade(problem, ur"5\æ", "correct")
 
     def test_backslash(self):
         problem = self.build_problem(answer=u"a\\\\c1", case_sensitive=False, regexp=True)
-        self.assert_grade(problem, u"a\\c1", "correct")
+        self.assert_grade(problem, ur"a\c1", "correct")
 
     def test_special_chars(self):
-        problem = self.build_problem(answer=u"a \\s1", case_sensitive=False, regexp=True)
+        problem = self.build_problem(answer=ur"a \s1", case_sensitive=False, regexp=True)
         self.assert_grade(problem, u"a  1", "correct")
 
     def test_case_sensitive(self):
@@ -817,24 +816,24 @@ class StringResponseTest(ResponseTest):  # pylint: disable=missing-docstring
         # We should get a hint for Wisconsin
         input_dict = {'1_2_1': 'Wisconsin'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'),
-                         "The state capital of Wisconsin is Madison")
+        self.assertEquals(correct_map.get_hint('1_2_1'),
+                          "The state capital of Wisconsin is Madison")
 
         # We should get a hint for Minnesota
         input_dict = {'1_2_1': 'Minnesota'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'),
-                         "The state capital of Minnesota is St. Paul")
+        self.assertEquals(correct_map.get_hint('1_2_1'),
+                          "The state capital of Minnesota is St. Paul")
 
         # We should NOT get a hint for Michigan (the correct answer)
         input_dict = {'1_2_1': 'Michigan'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "")
 
         # We should NOT get a hint for any other string
         input_dict = {'1_2_1': 'California'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "")
 
     def test_hints_regexp_and_answer_regexp(self):
         different_student_answers = [
@@ -866,38 +865,38 @@ class StringResponseTest(ResponseTest):  # pylint: disable=missing-docstring
         # We should get a hint for Wisconsin
         input_dict = {'1_2_1': 'Wisconsin'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'),
-                         "The state capital of Wisconsin is Madison")
+        self.assertEquals(correct_map.get_hint('1_2_1'),
+                          "The state capital of Wisconsin is Madison")
 
         # We should get a hint for Minnesota
         input_dict = {'1_2_1': 'Minnesota'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'),
-                         "The state capital of Minnesota is St. Paul")
+        self.assertEquals(correct_map.get_hint('1_2_1'),
+                          "The state capital of Minnesota is St. Paul")
 
         # We should NOT get a hint for Michigan (the correct answer)
         input_dict = {'1_2_1': 'Michigan'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "")
 
         # We should NOT get a hint for any other string
         input_dict = {'1_2_1': 'California'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "")
 
         # We should get the same hint for each answer
         for answer in different_student_answers:
             input_dict = {'1_2_1': answer}
             correct_map = problem.grade_answers(input_dict)
-            self.assertEqual(correct_map.get_hint('1_2_1'), "First letter of correct answer is M.")
+            self.assertEquals(correct_map.get_hint('1_2_1'), "First letter of correct answer is M.")
 
         input_dict = {'1_2_1': '59'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "Should not end with 9.")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "Should not end with 9.")
 
         input_dict = {'1_2_1': '57'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "")
 
     def test_computed_hints(self):
         problem = self.build_problem(
@@ -913,7 +912,7 @@ class StringResponseTest(ResponseTest):  # pylint: disable=missing-docstring
 
         input_dict = {'1_2_1': 'Hello'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEqual(correct_map.get_hint('1_2_1'), "Hello??")
+        self.assertEquals(correct_map.get_hint('1_2_1'), "Hello??")
 
     def test_hint_function_randomization(self):
         # The hint function should get the seed from the problem.
@@ -970,7 +969,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
             cmap.update(CorrectMap(answer_id=answer_id, queuestate=None))
         self.problem.correct_map.update(cmap)
 
-        self.assertEqual(self.problem.is_queued(), False)
+        self.assertEquals(self.problem.is_queued(), False)
 
         # Now we queue the LCP
         cmap = CorrectMap()
@@ -979,7 +978,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
             cmap.update(CorrectMap(answer_id=answer_ids[i], queuestate=queuestate))
         self.problem.correct_map.update(cmap)
 
-        self.assertEqual(self.problem.is_queued(), True)
+        self.assertEquals(self.problem.is_queued(), True)
 
     def test_update_score(self):
         '''
@@ -1008,7 +1007,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
             self.problem.correct_map.update(old_cmap)  # Deep copy
 
             self.problem.update_score(xserver_msgs[correctness], queuekey=0)
-            self.assertEqual(self.problem.correct_map.get_dict(), old_cmap.get_dict())  # Deep comparison
+            self.assertEquals(self.problem.correct_map.get_dict(), old_cmap.get_dict())  # Deep comparison
 
             for answer_id in answer_ids:
                 self.assertTrue(self.problem.correct_map.is_queued(answer_id))  # Should be still queued, since message undelivered
@@ -1025,7 +1024,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
                 new_cmap.set(answer_id=answer_id, npoints=npoints, correctness=correctness, msg=grader_msg, queuestate=None)
 
                 self.problem.update_score(xserver_msgs[correctness], queuekey=1000 + i)
-                self.assertEqual(self.problem.correct_map.get_dict(), new_cmap.get_dict())
+                self.assertEquals(self.problem.correct_map.get_dict(), new_cmap.get_dict())
 
                 for j, test_id in enumerate(answer_ids):
                     if j == i:
@@ -1045,7 +1044,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
             cmap.update(CorrectMap(answer_id=answer_id, queuestate=None))
         self.problem.correct_map.update(cmap)
 
-        self.assertEqual(self.problem.get_recentmost_queuetime(), None)
+        self.assertEquals(self.problem.get_recentmost_queuetime(), None)
 
         # CodeResponse requires internal CorrectMap state. Build it now in the queued state
         cmap = CorrectMap()
@@ -1061,7 +1060,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
             datetime.strftime(latest_timestamp, dateformat), dateformat
         ).replace(tzinfo=UTC)
 
-        self.assertEqual(self.problem.get_recentmost_queuetime(), latest_timestamp)
+        self.assertEquals(self.problem.get_recentmost_queuetime(), latest_timestamp)
 
     def test_convert_files_to_filenames(self):
         '''
@@ -1073,9 +1072,9 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
                                  '1_3_1': ['answer1', 'answer2', 'answer3'],
                                  '1_4_1': [fp, fp]}
             answers_converted = convert_files_to_filenames(answers_with_file)
-            self.assertEqual(answers_converted['1_2_1'], 'String-based answer')
-            self.assertEqual(answers_converted['1_3_1'], ['answer1', 'answer2', 'answer3'])
-            self.assertEqual(answers_converted['1_4_1'], [fp.name, fp.name])
+            self.assertEquals(answers_converted['1_2_1'], 'String-based answer')
+            self.assertEquals(answers_converted['1_3_1'], ['answer1', 'answer2', 'answer3'])
+            self.assertEquals(answers_converted['1_4_1'], [fp.name, fp.name])
 
     def test_parse_score_msg_of_responder(self):
         """
@@ -1115,7 +1114,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
                 self.problem.correct_map = CorrectMap()
                 self.problem.correct_map.update(old_cmap)
                 output = self.problem.update_score(xserver_msgs['correct'], queuekey=1000 + i)
-                self.assertEqual(output[answer_id]['msg'], grader_msg)
+                self.assertEquals(output[answer_id]['msg'], grader_msg)
 
         for grader_msg in invalid_grader_msgs:
             correct_score_msg = json.dumps({'correct': True, 'score': 1, 'msg': grader_msg})
@@ -1127,7 +1126,7 @@ class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
                 self.problem.correct_map.update(old_cmap)
 
                 output = self.problem.update_score(xserver_msgs['correct'], queuekey=1000 + i)
-                self.assertEqual(output[answer_id]['msg'], u'Invalid grader reply. Please contact the course staff.')
+                self.assertEquals(output[answer_id]['msg'], u'Invalid grader reply. Please contact the course staff.')
 
 
 class ChoiceResponseTest(ResponseTest):  # pylint: disable=missing-docstring
@@ -1350,7 +1349,7 @@ class NumericalResponseTest(ResponseTest):  # pylint: disable=missing-docstring
         Test `get_score` is working for additional answers.
         """
         problem = self.build_problem(answer='100', additional_answers={'1': ''})
-        responder = list(problem.responders.values())[0]
+        responder = problem.responders.values()[0]
 
         # Check primary answer.
         new_cmap = responder.get_score({'1_2_1': '100'})
@@ -1568,7 +1567,7 @@ class NumericalResponseTest(ResponseTest):  # pylint: disable=missing-docstring
         problem = self.build_problem(answer=staff_ans, tolerance=1e-3)
 
         msg = "There was a problem with the staff answer to this problem"
-        with self.assertRaisesRegex(StudentInputError, msg):
+        with self.assertRaisesRegexp(StudentInputError, msg):
             self.assert_grade(problem, '1+j', 'correct')
 
         mock_log.debug.assert_called_once_with(
@@ -1588,11 +1587,9 @@ class NumericalResponseTest(ResponseTest):  # pylint: disable=missing-docstring
                 if text == "There was a problem with the staff answer to this problem.":
                     text = "TRANSLATED!"
                 return text
-            gettext = ugettext
-
         problem.capa_system.i18n = FakeTranslations()
 
-        with self.assertRaisesRegex(StudentInputError, "TRANSLATED!"):
+        with self.assertRaisesRegexp(StudentInputError, "TRANSLATED!"):
             self.assert_grade(problem, '1+j', 'correct')
 
     def test_grade_infinity(self):
@@ -1645,20 +1642,20 @@ class NumericalResponseTest(ResponseTest):  # pylint: disable=missing-docstring
                         raise err
                 mock_eval.side_effect = evaluator_side_effect
 
-                with self.assertRaisesRegex(StudentInputError, msg_regex):
+                with self.assertRaisesRegexp(StudentInputError, msg_regex):
                     problem.grade_answers({'1_2_1': 'foobar'})
 
     def test_compare_answer(self):
         """Tests the answer compare function."""
         problem = self.build_problem(answer="42")
-        responder = list(problem.responders.values())[0]
+        responder = problem.responders.values()[0]
         self.assertTrue(responder.compare_answer('48', '8*6'))
         self.assertFalse(responder.compare_answer('48', '9*5'))
 
     def test_validate_answer(self):
         """Tests the answer validation function."""
         problem = self.build_problem(answer="42")
-        responder = list(problem.responders.values())[0]
+        responder = problem.responders.values()[0]
         self.assertTrue(responder.validate_answer('23.5'))
         self.assertFalse(responder.validate_answer('fish'))
 
@@ -2296,7 +2293,7 @@ class CustomResponseTest(ResponseTest):  # pylint: disable=missing-docstring
         # Prove that we can import code from a zipfile passed down to us.
 
         # Make a zipfile with one module in it with one function.
-        zipstring = io.BytesIO()
+        zipstring = StringIO()
         zipf = zipfile.ZipFile(zipstring, "w")
         zipf.writestr("my_helper.py", textwrap.dedent("""\
             def seventeen():
@@ -2368,10 +2365,10 @@ class CustomResponseTest(ResponseTest):  # pylint: disable=missing-docstring
 
         correct_map = problem.grade_answers(input_dict)
 
-        self.assertNotEqual(list(problem.student_answers.keys()), correct_order)
+        self.assertNotEqual(problem.student_answers.keys(), correct_order)
 
         # euqal to correct order after sorting at get_score
-        self.assertListEqual(list(problem.responders.values())[0].context['idset'], correct_order)
+        self.assertListEqual(problem.responders.values()[0].context['idset'], correct_order)
 
         self.assertEqual(correct_map.get_correctness('1_2_1'), 'correct')
         self.assertEqual(correct_map.get_correctness('1_2_9'), 'correct')
@@ -2681,7 +2678,7 @@ class ChoiceTextResponseTest(ResponseTest):
             "checkboxtextgroup"
         )
 
-        with self.assertRaisesRegex(StudentInputError, "Could not interpret"):
+        with self.assertRaisesRegexp(StudentInputError, "Could not interpret"):
             # Test that error is raised for input in selected correct choice.
             self.assert_grade(
                 two_choice_two_input,
@@ -2689,7 +2686,7 @@ class ChoiceTextResponseTest(ResponseTest):
                 "correct"
             )
 
-        with self.assertRaisesRegex(StudentInputError, "Could not interpret"):
+        with self.assertRaisesRegexp(StudentInputError, "Could not interpret"):
             # Test that error is raised for input in selected incorrect choice.
             self.assert_grade(
                 two_choice_two_input,
@@ -2704,7 +2701,7 @@ class ChoiceTextResponseTest(ResponseTest):
              ],
             "checkboxtextgroup"
         )
-        with self.assertRaisesRegex(
+        with self.assertRaisesRegexp(
             StudentInputError,
             "The Staff answer could not be interpreted as a number."
         ):
@@ -2722,7 +2719,7 @@ class ChoiceTextResponseTest(ResponseTest):
         radiotextgroup.
         """
 
-        for name, inputs in six.iteritems(self.TEST_INPUTS):
+        for name, inputs in self.TEST_INPUTS.iteritems():
             # Turn submission into the form expected when grading this problem.
             submission = self._make_answer_dict(inputs)
             # Lookup the problem_name, and the whether this test problem
@@ -2802,7 +2799,7 @@ class ChoiceTextResponseTest(ResponseTest):
             "checkbox_2_choices_2_inputs": checkbox_two_choices_two_inputs
         }
 
-        for name, inputs in six.iteritems(inputs):
+        for name, inputs in inputs.iteritems():
             submission = self._make_answer_dict(inputs)
             # Load the test problem's name and desired correctness
             problem_name, correctness = scenarios[name]

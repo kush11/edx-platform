@@ -35,10 +35,9 @@ The functions are of the form:
 A further extension would be to provide a companion set of functions that
 resources that are provided to the Fragment
 """
-
-
-import lxml.etree
 import lxml.html
+import lxml.etree
+
 from singledispatch import singledispatch
 
 

@@ -1,8 +1,6 @@
 """
 Acceptance tests for Studio related to the textbooks.
 """
-
-
 from common.test.acceptance.pages.lms.textbook_view import TextbookViewPage
 from common.test.acceptance.pages.studio.textbook_upload import TextbookUploadPage
 from common.test.acceptance.tests.helpers import disable_animations
@@ -14,8 +12,6 @@ class TextbooksTest(StudioCourseTest):
     """
     Test that textbook functionality is working properly on studio side
     """
-    shard = 8
-
     def setUp(self, is_staff=True):  # pylint: disable=arguments-differ
         """
         Install a course with no content using a fixture.
@@ -85,7 +81,6 @@ class TextbooksTest(StudioCourseTest):
             'ignore': [
                 'section',  # AC-503
                 'aria-valid-attr',  # TODO: LEARNER-6611 & LEARNER-6865
-                'region',  # TODO: AC-932
             ],
         })
         self.textbook_view_page.a11y_audit.check_for_accessibility_errors()
@@ -100,21 +95,14 @@ class TextbooksTest(StudioCourseTest):
         self.textbook_view_page.visit()
 
         self.textbook_view_page.switch_to_pdf_frame(self)
-        self.textbook_view_page.a11y_audit.config.set_scope(
-            exclude=[
+        self.textbook_view_page.a11y_audit.config.set_scope({
+            'exclude': [
                 '#viewer',  # PDF viewer (vendor file)
             ]
-        )
+        })
         self.textbook_view_page.a11y_audit.config.set_rules({
             'ignore': [
-                'html-has-lang',  # TODO: AC-942
-                'label-title-only',  # TODO: AC-493
-                'landmark-one-main',  # TODO: AC-944
-                'page-has-heading-one',  # TODO: AC-945
-                'region',  # TODO: AC-932
-                'link-href',  # TODO: AC-559
-                'skip-link',  # TODO: AC-937
-                'bypass'  # Commented out for now because they reproducibly fail on Jenkins but not locally
+                'color-contrast',  # will always fail because pdf.js converts pdf to divs with transparent text
             ],
         })
         self.textbook_view_page.a11y_audit.check_for_accessibility_errors()

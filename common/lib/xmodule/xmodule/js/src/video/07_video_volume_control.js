@@ -46,8 +46,6 @@ function(HtmlUtils) {
                 '<button class="control" aria-disabled="false"',
                 '" aria-expanded="false" title="',
                 '{adjustVideoVolume}',
-                '" aria-label="',
-                '{adjustVideoVolume}',
                 '">',
                 '<span class="icon fa fa-volume-up" aria-hidden="true"></span>',
                 '</button>',

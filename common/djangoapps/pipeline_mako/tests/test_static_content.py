@@ -2,7 +2,6 @@
 Tests of pipeline_mako/templates/static_content.html
 """
 
-
 import unittest
 
 from edxmako.shortcuts import render_to_string
@@ -10,6 +9,7 @@ from edxmako.shortcuts import render_to_string
 
 class TestStaticContent(unittest.TestCase):
     """Tests for static_content.html"""
+    shard = 7
 
     def test_optional_include_mako(self):
         out = render_to_string("test_optional_include_mako.html", {})

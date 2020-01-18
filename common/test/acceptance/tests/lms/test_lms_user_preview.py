@@ -3,7 +3,6 @@
 Tests the "preview" selector in the LMS that allows changing between Staff, Learner, and Content Groups.
 """
 
-
 from textwrap import dedent
 
 from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc
@@ -427,7 +426,6 @@ class CourseWithContentGroupsTest(StaffViewTest):
                 'color-contrast',  # TODO: AC-559
                 'link-href',  # TODO: AC-559
                 'section',  # TODO: AC-559
-                'region',  # TODO: AC-932
             ]
         })
         course_page.a11y_audit.check_for_accessibility_errors()

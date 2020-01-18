@@ -1,12 +1,8 @@
 """
 Test dashboard search
 """
-
-
 import json
 import os
-
-import six
 
 from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc
 from common.test.acceptance.pages.common.auto_auth import AutoAuthPage
@@ -68,7 +64,7 @@ class DashboardSearchTest(AcceptanceTest):
         # generate course fixtures and outline pages
         self.studio_course_outlines = {}
         self.course_fixtures = {}
-        for key, course_info in six.iteritems(self.courses):
+        for key, course_info in self.courses.iteritems():
             studio_course_outline = StudioCourseOutlinePage(
                 self.browser,
                 course_info['org'],

@@ -1,47 +1,41 @@
-
-
-import codecs
-import glob
 import hashlib
-import io
 import itertools
 import json
 import logging
 import os
 import re
 import sys
-from collections import defaultdict
-from contextlib import contextmanager
-from importlib import import_module
+import glob
 
-import six
-from django.utils.encoding import python_2_unicode_compatible
+from collections import defaultdict
+from cStringIO import StringIO
 from fs.osfs import OSFS
-from lazy import lazy
+from importlib import import_module
 from lxml import etree
-from opaque_keys.edx.keys import CourseKey
-from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator, LibraryLocator
 from path import Path as path
-from xblock.field_data import DictFieldData
-from xblock.fields import ScopeIds
-from xblock.runtime import DictKeyValueStore
+from contextlib import contextmanager
+from lazy import lazy
 
 from xmodule.error_module import ErrorDescriptor
-from xmodule.errortracker import exc_info_to_str, make_error_tracker
+from xmodule.errortracker import make_error_tracker, exc_info_to_str
 from xmodule.mako_module import MakoDescriptorSystem
-from xmodule.modulestore import COURSE_ROOT, LIBRARY_ROOT, ModuleStoreEnum, ModuleStoreReadBase
-from xmodule.modulestore.xml_exporter import DEFAULT_CONTENT_FIELDS
-from xmodule.tabs import CourseTabList
 from xmodule.x_module import (
-    DEPRECATION_VSCOMPAT_EVENT,
-    AsideKeyGenerator,
-    OpaqueKeyReader,
-    XMLParsingSystem,
-    policy_key
+    XMLParsingSystem, policy_key,
+    OpaqueKeyReader, AsideKeyGenerator, DEPRECATION_VSCOMPAT_EVENT
 )
+from xmodule.modulestore.xml_exporter import DEFAULT_CONTENT_FIELDS
+from xmodule.modulestore import ModuleStoreEnum, ModuleStoreReadBase, LIBRARY_ROOT, COURSE_ROOT
+from xmodule.tabs import CourseTabList
+from opaque_keys.edx.keys import CourseKey
+from opaque_keys.edx.locator import CourseLocator, LibraryLocator, BlockUsageLocator
+
+from xblock.field_data import DictFieldData
+from xblock.runtime import DictKeyValueStore
+from xblock.fields import ScopeIds
 
 from .exceptions import ItemNotFoundError
-from .inheritance import InheritanceKeyValueStore, compute_inherited_metadata, inheriting_field_data
+from .inheritance import compute_inherited_metadata, inheriting_field_data, InheritanceKeyValueStore
+
 
 edx_xml_parser = etree.XMLParser(dtd_validation=False, load_dtd=False,
                                  remove_comments=True, remove_blank_text=True)
@@ -49,6 +43,16 @@ edx_xml_parser = etree.XMLParser(dtd_validation=False, load_dtd=False,
 etree.set_default_parser(edx_xml_parser)
 
 log = logging.getLogger(__name__)
+
+
+# VS[compat]
+# TODO (cpennington): Remove this once all fall 2012 courses have been imported
+# into the cms from xml
+def clean_out_mako_templating(xml_string):
+    orig_xml = xml_string
+    xml_string = xml_string.replace('%include', 'include')
+    xml_string = re.sub(r"(?m)^\s*%.*$", '', xml_string)
+    return xml_string
 
 
 class ImportSystem(XMLParsingSystem, MakoDescriptorSystem):
@@ -119,7 +123,7 @@ class ImportSystem(XMLParsingSystem, MakoDescriptorSystem):
                         orig_name = orig_name[len(tag) + 1:-12]
                     # append the hash of the content--the first 12 bytes should be plenty.
                     orig_name = "_" + orig_name if orig_name not in (None, "") else ""
-                    xml_bytes = xml if isinstance(xml, bytes) else xml.encode('utf-8')
+                    xml_bytes = xml.encode('utf8')
                     return tag + orig_name + "_" + hashlib.sha1(xml_bytes).hexdigest()[:12]
 
                 # Fallback if there was nothing we could use:
@@ -163,6 +167,10 @@ class ImportSystem(XMLParsingSystem, MakoDescriptorSystem):
                 xml_data.set('url_name', url_name)
 
             try:
+                # VS[compat]
+                # TODO (cpennington): Remove this once all fall 2012 courses
+                # have been imported into the cms from xml
+                xml = clean_out_mako_templating(xml)
                 xml_data = etree.fromstring(xml)
 
                 make_name_unique(xml_data)
@@ -182,14 +190,14 @@ class ImportSystem(XMLParsingSystem, MakoDescriptorSystem):
                 msg = "Error loading from xml. %s"
                 log.warning(
                     msg,
-                    six.text_type(err)[:200],
+                    unicode(err)[:200],
                     # Normally, we don't want lots of exception traces in our logs from common
                     # content problems.  But if you're debugging the xml loading code itself,
                     # uncomment the next line.
                     # exc_info=True
                 )
 
-                msg = msg % (six.text_type(err)[:200])
+                msg = msg % (unicode(err)[:200])
 
                 self.error_tracker(msg)
                 err_msg = msg + "\n" + exc_info_to_str(sys.exc_info())
@@ -269,7 +277,7 @@ class CourseLocationManager(OpaqueKeyReader, AsideKeyGenerator):
     def create_definition(self, block_type, slug=None):
         assert block_type is not None
         if slug is None:
-            slug = 'autogen_{}_{}'.format(block_type, next(self.autogen_ids))
+            slug = 'autogen_{}_{}'.format(block_type, self.autogen_ids.next())
         return self.course_id.make_usage_key(block_type, slug)
 
     def get_definition_id(self, usage_id):
@@ -303,7 +311,6 @@ class CourseImportLocationManager(CourseLocationManager):
         self.target_course_id = target_course_id
 
 
-@python_2_unicode_compatible
 class XMLModuleStore(ModuleStoreReadBase):
     """
     An XML backed ModuleStore
@@ -380,7 +387,7 @@ class XMLModuleStore(ModuleStoreReadBase):
             course_descriptor = self.load_course(course_dir, course_ids, errorlog.tracker, target_course_id)
         except Exception as exc:  # pylint: disable=broad-except
             msg = "ERROR: Failed to load courselike '{0}': {1}".format(
-                course_dir.encode("utf-8"), six.text_type(exc)
+                course_dir.encode("utf-8"), unicode(exc)
             )
             log.exception(msg)
             errorlog.tracker(msg)
@@ -397,7 +404,7 @@ class XMLModuleStore(ModuleStoreReadBase):
             course_id = self.id_from_descriptor(course_descriptor)
             self._course_errors[course_id] = errorlog
 
-    def __str__(self):
+    def __unicode__(self):
         '''
         String representation - for debugging
         '''
@@ -439,6 +446,12 @@ class XMLModuleStore(ModuleStoreReadBase):
         """
         log.debug('========> Starting courselike import from %s', course_dir)
         with open(self.data_dir / course_dir / self.parent_xml) as course_file:
+
+            # VS[compat]
+            # TODO (cpennington): Remove this once all fall 2012 courses have
+            # been imported into the cms from xml
+            course_file = StringIO(clean_out_mako_templating(course_file.read()))
+
             course_data = etree.parse(course_file, parser=edx_xml_parser).getroot()
 
             org = course_data.get('org')
@@ -627,7 +640,7 @@ class XMLModuleStore(ModuleStoreReadBase):
             if filepath.endswith('~'):  # skip *~ files
                 continue
 
-            with io.open(filepath) as f:
+            with open(filepath) as f:
                 try:
                     if filepath.find('.json') != -1:
                         # json file with json data content
@@ -638,7 +651,7 @@ class XMLModuleStore(ModuleStoreReadBase):
                             try:
                                 # get and update data field in xblock runtime
                                 module = system.load_item(loc)
-                                for key, value in six.iteritems(data_content):
+                                for key, value in data_content.iteritems():
                                     setattr(module, key, value)
                                 module.save()
                             except ItemNotFoundError:
@@ -649,7 +662,7 @@ class XMLModuleStore(ModuleStoreReadBase):
                         slug = os.path.splitext(os.path.basename(filepath))[0]
                         loc = course_descriptor.scope_ids.usage_id.replace(category=category, name=slug)
                         # html file with html data content
-                        html = f.read()
+                        html = f.read().decode('utf-8')
                         try:
                             module = system.load_item(loc)
                             module.data = html
@@ -681,8 +694,8 @@ class XMLModuleStore(ModuleStoreReadBase):
                         self.modules[course_descriptor.id][module.scope_ids.usage_id] = module
                 except Exception as exc:  # pylint: disable=broad-except
                     logging.exception("Failed to load %s. Skipping... \
-                            Exception: %s", filepath, six.text_type(exc))
-                    system.error_tracker("ERROR: " + six.text_type(exc))
+                            Exception: %s", filepath, unicode(exc))
+                    system.error_tracker("ERROR: " + unicode(exc))
 
     def has_item(self, usage_key):
         """
@@ -756,7 +769,7 @@ class XMLModuleStore(ModuleStoreReadBase):
                 for fields in [settings, content, qualifiers]
             )
 
-        for mod_loc, module in six.iteritems(self.modules[course_id]):
+        for mod_loc, module in self.modules[course_id].iteritems():
             if _block_matches_all(mod_loc, module):
                 items.append(module)
 
@@ -783,7 +796,7 @@ class XMLModuleStore(ModuleStoreReadBase):
         Returns a list of course descriptors.  If there were errors on loading,
         some of these may be ErrorDescriptors instead.
         """
-        return list(self.courses.values())
+        return self.courses.values()
 
     def get_course_summaries(self, **kwargs):
         """

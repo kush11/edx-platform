@@ -1,8 +1,3 @@
-"""
-Contains the Acceptance tests.
-"""
-
-
 import logging
 
 # Silence noisy loggers

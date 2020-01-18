@@ -25,7 +25,7 @@
 
         PlayPauseControl.prototype = {
             template: [
-                '<button class="control video_control play" aria-disabled="false" aria-label="',
+                '<button class="control video_control play" aria-disabled="false" title="',
                 gettext('Play'),
                 '">',
                 '<span class="icon fa fa-play" aria-hidden="true"></span>',
@@ -74,7 +74,7 @@
                 this.el
                 .addClass('pause')
                 .removeClass('play')
-                .attr({title: gettext('Pause'), 'aria-label': gettext('Pause')})
+                .attr('title', gettext('Pause'))
                 .find('.icon')
                     .removeClass('fa-play')
                     .addClass('fa-pause');
@@ -84,7 +84,7 @@
                 this.el
                 .removeClass('pause')
                 .addClass('play')
-                .attr({title: gettext('Play'), 'aria-label': gettext('Play')})
+                .attr('title', gettext('Play'))
                 .find('.icon')
                     .removeClass('fa-pause')
                     .addClass('fa-play');

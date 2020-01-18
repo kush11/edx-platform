@@ -9,8 +9,6 @@ samples.
 """
 
 # should this move to cms since it's really only for module crud?
-
-
 import logging
 from collections import defaultdict
 

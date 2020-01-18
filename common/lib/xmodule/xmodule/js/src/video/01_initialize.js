@@ -715,7 +715,6 @@ function(VideoPlayer, i18n, moment, _) {
             newSpeed = map[newSpeed];
             this.speed = _.contains(this.speeds, newSpeed) ? newSpeed : '1.0';
         }
-        this.speed = parseFloat(this.speed);
     }
 
     function setAutoAdvance(enabled) {
@@ -726,17 +725,23 @@ function(VideoPlayer, i18n, moment, _) {
         if (!(_.isString(url))) {
             url = this.videos['1.0'] || '';
         }
-        // Will hit the API URL to get the youtube video metadata.
-        return $.ajax({
-            url: [this.config.lmsRootURL, '/courses/yt_video_metadata', '?id=', url].join(''),
-            success: _.isFunction(callback) ? callback : null,
-            error: function() {
-                console.warn(
-                      'Unable to get youtube video metadata. Some video metadata may be unavailable.'
-              );
-            },
-            notifyOnError: false
-        });
+        // Will hit the API URL iF YT key is defined in settings.
+        if (this.config.ytKey) {
+            return $.ajax({
+                url: [this.config.ytMetadataUrl, '?id=', url, '&part=contentDetails&key=', this.config.ytKey].join(''),
+                timeout: this.config.ytTestTimeout,
+                success: _.isFunction(callback) ? callback : null,
+                error: function() {
+                    console.warn(
+                        'YouTube API request failed - usually this means the YouTube API key is invalid. ' +
+                            'Some video metadata may be unavailable.'
+                    );
+                },
+                notifyOnError: false
+            });
+        } else {
+            return $.Deferred().reject().promise();
+        }
     }
 
     function youtubeId(speed) {

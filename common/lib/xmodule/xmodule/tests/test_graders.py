@@ -2,24 +2,24 @@
 Grading tests
 """
 
-
 import unittest
 from datetime import datetime, timedelta
 
 import ddt
 from pytz import UTC
-import six
-from six import text_type
-
 from lms.djangoapps.grades.scores import compute_percent
+from six import text_type
 from xmodule import graders
-from xmodule.graders import AggregatedScore, ProblemScore, ShowCorrectness, aggregate_scores
+from xmodule.graders import (
+    AggregatedScore, ProblemScore, ShowCorrectness, aggregate_scores
+)
 
 
 class GradesheetTest(unittest.TestCase):
     """
     Tests the aggregate_scores method
     """
+    shard = 1
 
     def test_weighted_grading(self):
         scores = []
@@ -82,6 +82,7 @@ class GraderTest(unittest.TestCase):
     """
     Tests grader implementations
     """
+    shard = 1
 
     empty_gradesheet = {
     }
@@ -316,8 +317,7 @@ class GraderTest(unittest.TestCase):
         (
             # no drop_count
             {'type': "Homework", 'min_count': 0},
-            # pylint: disable=line-too-long
-            u"__init__() takes at least 4 arguments (3 given)" if six.PY2 else u"__init__() missing 1 required positional argument: 'drop_count'"
+            u"__init__() takes at least 4 arguments (3 given)"
         ),
     )
     @ddt.unpack
@@ -332,6 +332,7 @@ class ShowCorrectnessTest(unittest.TestCase):
     """
     Tests the correctness_available method
     """
+    shard = 1
 
     def setUp(self):
         super(ShowCorrectnessTest, self).setUp()
@@ -405,7 +406,7 @@ class ShowCorrectnessTest(unittest.TestCase):
             due_date = None
         else:
             due_date = getattr(self, due_date_str)
-        self.assertEqual(
+        self.assertEquals(
             ShowCorrectness.correctness_available(ShowCorrectness.PAST_DUE, due_date, has_staff_access),
             expected_result
         )

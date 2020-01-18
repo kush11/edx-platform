@@ -1,6 +1,4 @@
 """Admin forms for Course Entitlements"""
-
-
 from django import forms
 from django.contrib import admin
 from opaque_keys import InvalidKeyError

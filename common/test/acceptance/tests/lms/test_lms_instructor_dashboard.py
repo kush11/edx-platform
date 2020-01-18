@@ -3,10 +3,8 @@
 End-to-end tests for the LMS Instructor Dashboard.
 """
 
-
 import ddt
 from bok_choy.promise import EmptyPromise
-from six.moves import range
 
 from common.test.acceptance.fixtures.certificates import CertificateConfigFixture
 from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc
@@ -82,7 +80,6 @@ class LMSInstructorDashboardA11yTest(BaseInstructorDashboardTest):
         self.instructor_dashboard_page.a11y_audit.config.set_rules({
             "ignore": [
                 'aria-valid-attr',  # TODO: LEARNER-6611 & LEARNER-6865
-                'region',  # TODO: AC-932
             ]
         })
         self.instructor_dashboard_page.a11y_audit.check_for_accessibility_errors()
@@ -93,8 +90,6 @@ class BulkEmailTest(BaseInstructorDashboardTest):
     """
     End-to-end tests for bulk emailing from instructor dash.
     """
-    shard = 23
-
     def setUp(self):
         super(BulkEmailTest, self).setUp()
         self.course_fixture = CourseFixture(**self.course_info).install()
@@ -118,9 +113,6 @@ class BulkEmailTest(BaseInstructorDashboardTest):
         self.send_email_page.a11y_audit.config.set_rules({
             "ignore": [
                 'button-name',  # TODO: TNL-5830
-                'aria-allowed-role',  # TODO: AC-936
-                'color-contrast',  # TODO: AC-938
-                'listitem'  # TODO: AC-937
             ]
         })
         self.send_email_page.a11y_audit.check_for_accessibility_errors()
@@ -179,7 +171,7 @@ class AutoEnrollmentWithCSVTest(BaseInstructorDashboardTest):
             favorite_movie="Harry Potter",
         )
         course_names = self.dashboard_page.wait_for_page().available_courses
-        self.assertEqual(len(course_names), 1)
+        self.assertEquals(len(course_names), 1)
         self.assertIn(self.course_info["display_name"], course_names)
 
     def test_clicking_file_upload_button_without_file_shows_error(self):
@@ -238,7 +230,7 @@ class AutoEnrollmentWithCSVTest(BaseInstructorDashboardTest):
         Auto-enrollment with CSV accessibility tests
         """
         self.auto_enroll_section.a11y_audit.config.set_scope([
-            '#membership-list-widget-tpl'
+            '#member-list-widget-template'
         ])
         self.auto_enroll_section.a11y_audit.check_for_accessibility_errors()
 
@@ -247,7 +239,6 @@ class BatchBetaTestersTest(BaseInstructorDashboardTest):
     """
     End-to-end tests for Batch beta testers functionality.
     """
-    shard = 23
 
     def setUp(self):
         super(BatchBetaTestersTest, self).setUp()
@@ -616,7 +607,7 @@ class DataDownloadsTest(BaseInstructorDashboardTest):
         Verifies that a report can be downloaded and an event fired.
         """
         download_links = self.data_download_section.report_download_links
-        self.assertEqual(len(download_links), 1)
+        self.assertEquals(len(download_links), 1)
         download_links[0].click()
         expected_url = download_links.attrs('href')[0]
         self.assertIn(report_name, expected_url)
@@ -706,11 +697,36 @@ class DataDownloadsWithMultipleRoleTests(BaseInstructorDashboardTest):
     """
     Bok Choy tests for the "Data Downloads" tab with multiple user roles.
     """
-    shard = 23
-
     def setUp(self):
         super(DataDownloadsWithMultipleRoleTests, self).setUp()
         self.course_fixture = CourseFixture(**self.course_info).install()
+
+    @ddt.data(['staff'], ['instructor'])
+    def test_list_student_profile_information(self, role):
+        """
+        Scenario: List enrolled students' profile information
+        Given I am "<Role>" for a course
+        When I click "List enrolled students' profile information"
+            Then I see a table of student profiles
+            Examples:
+            | Role          |
+            | instructor    |
+            | staff         |
+        """
+        username, user_id, email, __ = self.log_in_as_instructor(
+            global_staff=False,
+            course_access_roles=role
+        )
+        instructor_dashboard_page = self.visit_instructor_dashboard()
+        data_download_section = instructor_dashboard_page.select_data_download()
+
+        data_download_section.enrolled_student_profile_button.click()
+        student_profile_info = data_download_section.student_profile_information
+
+        self.assertNotIn(student_profile_info, [u'', u'Loading'])
+        expected_data = [user_id, username, email]
+        for datum in expected_data:
+            self.assertIn(str(datum), student_profile_info[0].split('\n'))
 
     @ddt.data(['staff'], ['instructor'])
     def test_list_student_profile_information_for_large_course(self, role):
@@ -978,7 +994,7 @@ class CertificatesTest(BaseInstructorDashboardTest):
         self.certificates_section.add_certificate_exception(self.user_name, '')
 
         self.assertIn(
-            u'{user} already in exception list.'.format(user=self.user_name),
+            '{user} already in exception list.'.format(user=self.user_name),
             self.certificates_section.message.text
         )
 
@@ -1025,7 +1041,7 @@ class CertificatesTest(BaseInstructorDashboardTest):
         self.certificates_section.wait_for_ajax()
 
         self.assertIn(
-            u"{user} does not exist in the LMS. Please check your spelling and retry.".format(user=invalid_user),
+            "{user} does not exist in the LMS. Please check your spelling and retry.".format(user=invalid_user),
             self.certificates_section.message.text
         )
 
@@ -1058,7 +1074,7 @@ class CertificatesTest(BaseInstructorDashboardTest):
         self.certificates_section.wait_for_ajax()
 
         self.assertIn(
-            u"{user} is not enrolled in this course. Please check your spelling and retry.".format(user=new_user),
+            "{user} is not enrolled in this course. Please check your spelling and retry.".format(user=new_user),
             self.certificates_section.message.text
         )
 
@@ -1119,11 +1135,6 @@ class CertificatesTest(BaseInstructorDashboardTest):
         """
         Certificates page accessibility tests
         """
-        self.certificates_section.a11y_audit.config.set_rules({
-            "ignore": [
-                'aria-hidden-focus'  # TODO: AC-938
-            ]
-        })
         self.certificates_section.a11y_audit.config.set_scope([
             '.certificates-wrapper'
         ])
@@ -1201,7 +1212,7 @@ class CertificateInvalidationTest(BaseInstructorDashboardTest):
 
         # Validate success message
         self.assertIn(
-            u"Certificate has been successfully invalidated for {user}.".format(user=self.student_name),
+            "Certificate has been successfully invalidated for {user}.".format(user=self.student_name),
             self.certificates_section.certificate_invalidation_message.text
         )
 
@@ -1333,11 +1344,6 @@ class CertificateInvalidationTest(BaseInstructorDashboardTest):
         """
         Certificate invalidation accessibility tests
         """
-        self.certificates_section.a11y_audit.config.set_rules({
-            "ignore": [
-                'aria-hidden-focus'  # TODO: AC-938
-            ]
-        })
         self.certificates_section.a11y_audit.config.set_scope([
             '.certificates-wrapper'
         ])
@@ -1443,8 +1449,6 @@ class StudentAdminTest(BaseInstructorDashboardTest):
     SUBSECTION_NAME = 'Test Subsection 1'
     UNIT_NAME = 'Test Unit 1'
     PROBLEM_NAME = 'Test Problem 1'
-
-    shard = 23
 
     def setUp(self):
         super(StudentAdminTest, self).setUp()

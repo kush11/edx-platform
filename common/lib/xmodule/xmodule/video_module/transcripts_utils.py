@@ -2,30 +2,22 @@
 Utility functions for transcripts.
 ++++++++++++++++++++++++++++++++++
 """
-
-
-import copy
-import simplejson as json
-import logging
-import os
 from functools import wraps
-
-import requests
-import six
 from django.conf import settings
-from lxml import etree
-from pysrt import SubRipFile, SubRipItem, SubRipTime
+import os
+import copy
+import json
+import requests
+import logging
+from pysrt import SubRipTime, SubRipItem, SubRipFile
 from pysrt.srtexc import Error
+from lxml import etree
+from HTMLParser import HTMLParser
 from six import text_type
-from six.moves import range, zip
-from six.moves.html_parser import HTMLParser  # pylint: disable=import-error
 
-from opaque_keys.edx.locator import BundleDefinitionLocator
+from xmodule.exceptions import NotFoundError
 from xmodule.contentstore.content import StaticContent
 from xmodule.contentstore.django import contentstore
-from xmodule.exceptions import NotFoundError
-from openedx.core.djangolib import blockstore_cache
-from openedx.core.lib import blockstore_api
 
 from .bumper_utils import get_bumper_settings
 
@@ -128,7 +120,7 @@ def save_subs_to_store(subs, subs_id, item, language='en'):
 
     Returns: location of saved subtitles.
     """
-    filedata = json.dumps(subs, indent=2).encode('utf-8')
+    filedata = json.dumps(subs, indent=2)
     filename = subs_filename(subs_id, language)
     return save_to_store(filedata, filename, 'application/json', item.location)
 
@@ -147,7 +139,7 @@ def youtube_video_transcript_name(youtube_text_api):
     # http://video.google.com/timedtext?type=list&v={VideoId}
     youtube_response = requests.get('http://' + youtube_text_api['url'], params=transcripts_param)
     if youtube_response.status_code == 200 and youtube_response.text:
-        youtube_data = etree.fromstring(youtube_response.text.encode('utf-8'), parser=utf8_parser)
+        youtube_data = etree.fromstring(youtube_response.content, parser=utf8_parser)
         # iterate all transcripts information from youtube server
         for element in youtube_data:
             # search specific language code such as 'en' in transcripts info list
@@ -274,7 +266,7 @@ def generate_subs_from_source(speed_subs, subs_type, subs_filedata, item, langua
         'end': sub_ends,
         'text': sub_texts}
 
-    for speed, subs_id in six.iteritems(speed_subs):
+    for speed, subs_id in speed_subs.iteritems():
         save_subs_to_store(
             generate_subs(speed, 1, subs),
             subs_id,
@@ -308,7 +300,7 @@ def generate_srt_from_sjson(sjson_subs, speed):
             end=SubRipTime(milliseconds=sjson_speed_1['end'][i]),
             text=sjson_speed_1['text'][i]
         )
-        output += (six.text_type(item))
+        output += (unicode(item))
         output += '\n'
     return output
 
@@ -348,7 +340,7 @@ def copy_or_rename_transcript(new_name, old_name, item, delete_old=False, user=N
     """
     filename = u'subs_{0}.srt.sjson'.format(old_name)
     content_location = StaticContent.compute_location(item.location.course_key, filename)
-    transcripts = contentstore().find(content_location).data.decode('utf-8')
+    transcripts = contentstore().find(content_location).data
     save_subs_to_store(json.loads(transcripts), new_name, item)
     item.sub = new_name
     item.save_with_metadata(user)
@@ -447,7 +439,7 @@ def manage_video_subtitles_save(item, user, old_metadata=None, generate_translat
                 generate_sjson_for_all_speeds(
                     item,
                     item.transcripts[lang],
-                    {speed: subs_id for subs_id, speed in six.iteritems(youtube_speed_dict(item))},
+                    {speed: subs_id for subs_id, speed in youtube_speed_dict(item).iteritems()},
                     lang,
                 )
             except TranscriptException as ex:
@@ -545,13 +537,13 @@ def get_video_ids_info(edx_video_id, youtube_id_1_0, html5_sources):
     Returns:
         tuple: external or internal, video ids list
     """
-    clean = lambda item: item.strip() if isinstance(item, six.string_types) else item
+    clean = lambda item: item.strip() if isinstance(item, basestring) else item
     external = not bool(clean(edx_video_id))
 
     video_ids = [edx_video_id, youtube_id_1_0] + get_html5_ids(html5_sources)
 
     # video_ids cleanup
-    video_ids = [item for item in video_ids if bool(clean(item))]
+    video_ids = filter(lambda item: bool(clean(item)), video_ids)
 
     return external, video_ids
 
@@ -627,13 +619,13 @@ class Transcript(object):
     """
     Container for transcript methods.
     """
-    SRT = u'srt'
-    TXT = u'txt'
-    SJSON = u'sjson'
+    SRT = 'srt'
+    TXT = 'txt'
+    SJSON = 'sjson'
     mime_types = {
-        SRT: u'application/x-subrip; charset=utf-8',
-        TXT: u'text/plain; charset=utf-8',
-        SJSON: u'application/json',
+        SRT: 'application/x-subrip; charset=utf-8',
+        TXT: 'text/plain; charset=utf-8',
+        SJSON: 'application/json',
     }
 
     @staticmethod
@@ -654,16 +646,15 @@ class Transcript(object):
             return content
 
         if input_format == 'srt':
-            # Standardize content into bytes for later decoding.
-            if isinstance(content, text_type):
-                content = content.encode('utf-8')
 
             if output_format == 'txt':
-                text = SubRipFile.from_string(content.decode('utf-8')).text
+                text = SubRipFile.from_string(content.decode('utf8')).text
                 return HTMLParser().unescape(text)
 
             elif output_format == 'sjson':
                 try:
+                    # With error handling (set to 'ERROR_RAISE'), we will be getting
+                    # the exception if something went wrong in parsing the transcript.
                     srt_subs = SubRipFile.from_string(
                         # Skip byte order mark(BOM) character
                         content.decode('utf-8-sig'),
@@ -678,8 +669,7 @@ class Transcript(object):
 
             if output_format == 'txt':
                 text = json.loads(content)['text']
-                text_without_none = [line if line else '' for line in text]
-                return HTMLParser().unescape("\n".join(text_without_none))
+                return HTMLParser().unescape("\n".join(text))
 
             elif output_format == 'srt':
                 return generate_srt_from_sjson(json.loads(content), speed=1.0)
@@ -734,7 +724,7 @@ class Transcript(object):
 class VideoTranscriptsMixin(object):
     """Mixin class for transcript functionality.
 
-    This is necessary for VideoBlock.
+    This is necessary for both VideoModule and VideoDescriptor.
     """
 
     def available_translations(self, transcripts, verify_assets=None, is_bumper=False):
@@ -744,7 +734,7 @@ class VideoTranscriptsMixin(object):
         Arguments:
             verify_assets (boolean): If True, checks to ensure that the transcripts
                 really exist in the contentstore. If False, we just look at the
-                VideoBlock fields and do not query the contentstore. One reason
+                VideoDescriptor fields and do not query the contentstore. One reason
                 we might do this is to avoid slamming contentstore() with queries
                 when trying to make a listing of videos and their languages.
 
@@ -764,7 +754,7 @@ class VideoTranscriptsMixin(object):
             if sub:
                 all_langs.update({'en': sub})
 
-            for language, filename in six.iteritems(all_langs):
+            for language, filename in all_langs.iteritems():
                 try:
                     # for bumper videos, transcripts are stored in content store only
                     if is_bumper:
@@ -813,11 +803,11 @@ class VideoTranscriptsMixin(object):
                 log.debug("No subtitles for 'en' language")
                 raise ValueError
 
-            data = Transcript.asset(self.location, transcript_name, lang).data.decode('utf-8')
+            data = Transcript.asset(self.location, transcript_name, lang).data
             filename = u'{}.{}'.format(transcript_name, transcript_format)
             content = Transcript.convert(data, 'sjson', transcript_format)
         else:
-            data = Transcript.asset(self.location, None, None, other_lang[lang]).data.decode('utf-8')
+            data = Transcript.asset(self.location, None, None, other_lang[lang]).data
             filename = u'{}.{}'.format(os.path.splitext(other_lang[lang])[0], transcript_format)
             content = Transcript.convert(data, 'srt', transcript_format)
 
@@ -928,11 +918,11 @@ def get_transcript_for_video(video_location, subs_id, file_name, language):
     try:
         if subs_id is None:
             raise NotFoundError
-        content = Transcript.asset(video_location, subs_id, language).data.decode('utf-8')
+        content = Transcript.asset(video_location, subs_id, language).data
         base_name = subs_id
         input_format = Transcript.SJSON
     except NotFoundError:
-        content = Transcript.asset(video_location, None, language, file_name).data.decode('utf-8')
+        content = Transcript.asset(video_location, None, language, file_name).data
         base_name = os.path.splitext(file_name)[0]
         input_format = Transcript.SRT
 
@@ -997,77 +987,6 @@ def get_transcript_from_contentstore(video, language, output_format, transcripts
     return transcript_content, transcript_name, Transcript.mime_types[output_format]
 
 
-def get_transcript_from_blockstore(video_block, language, output_format, transcripts_info):
-    """
-    Get video transcript from Blockstore.
-
-    Blockstore expects video transcripts to be placed into the 'static/'
-    subfolder of the XBlock's folder in a Blockstore bundle. For example, if the
-    video XBlock's definition is in the standard location of
-        video/video1/definition.xml
-    Then the .srt files should be placed at e.g.
-        video/video1/static/video1-en.srt
-    This is the same place where other public static files are placed for other
-    XBlocks, such as image files used by HTML blocks.
-
-    Video XBlocks in Blockstore must set the 'transcripts' XBlock field to a
-    JSON dictionary listing the filename of the transcript for each language:
-        <video
-            youtube_id_1_0="3_yD_cEKoCk"
-            transcripts='{"en": "3_yD_cEKoCk-en.srt"}'
-            display_name="Welcome Video with Transcript"
-            download_track="true"
-        />
-
-    This method is tested in openedx/core/djangoapps/content_libraries/tests/test_static_assets.py
-
-    Arguments:
-        video_block (Video XBlock): The video XBlock
-        language (str): transcript language
-        output_format (str): transcript output format
-        transcripts_info (dict): transcript info for a video, from video_block.get_transcripts_info()
-
-    Returns:
-        tuple containing content, filename, mimetype
-    """
-    if output_format not in (Transcript.SRT, Transcript.SJSON, Transcript.TXT):
-        raise NotFoundError('Invalid transcript format `{output_format}`'.format(output_format=output_format))
-    transcripts = transcripts_info['transcripts']
-    if language not in transcripts:
-        raise NotFoundError("Video {} does not have a transcript file defined for the '{}' language in its OLX.".format(
-            video_block.scope_ids.usage_id,
-            language,
-        ))
-    filename = transcripts[language]
-    if not filename.endswith('.srt'):
-        # We want to standardize on .srt
-        raise NotFoundError("Video XBlocks in Blockstore only support .srt transcript files.")
-    # Try to load the transcript file out of Blockstore
-    # In lieu of an XBlock API for this (like block.runtime.resources_fs), we use the blockstore API directly.
-    bundle_uuid = video_block.scope_ids.def_id.bundle_uuid
-    path = video_block.scope_ids.def_id.olx_path.rpartition('/')[0] + '/static/' + filename
-    bundle_version = video_block.scope_ids.def_id.bundle_version  # Either bundle_version or draft_name will be set.
-    draft_name = video_block.scope_ids.def_id.draft_name
-    try:
-        content_binary = blockstore_cache.get_bundle_file_data_with_cache(bundle_uuid, path, bundle_version, draft_name)
-    except blockstore_api.BundleFileNotFound:
-        raise NotFoundError("Transcript file '{}' missing for video XBlock {}".format(
-            path,
-            video_block.scope_ids.usage_id,
-        ))
-    # Now convert the transcript data to the requested format:
-    filename_no_extension = os.path.splitext(filename)[0]
-    output_filename = '{}.{}'.format(filename_no_extension, output_format)
-    output_transcript = Transcript.convert(
-        content_binary.decode('utf-8'),
-        input_format=Transcript.SRT,
-        output_format=output_format,
-    )
-    if not output_transcript.strip():
-        raise NotFoundError('No transcript content')
-    return output_transcript, output_filename, Transcript.mime_types[output_format]
-
-
 def get_transcript(video, lang=None, output_format=Transcript.SRT, youtube_id=None):
     """
     Get video transcript from edx-val or content store.
@@ -1084,12 +1003,6 @@ def get_transcript(video, lang=None, output_format=Transcript.SRT, youtube_id=No
     transcripts_info = video.get_transcripts_info()
     if not lang:
         lang = video.get_default_transcript_language(transcripts_info)
-
-    if isinstance(video.scope_ids.def_id, BundleDefinitionLocator):
-        # This block is in Blockstore.
-        # For Blockstore, VAL is considered deprecated and we can load the transcript file
-        # directly using the Blockstore API:
-        return get_transcript_from_blockstore(video, lang, output_format, transcripts_info)
 
     try:
         edx_video_id = clean_video_id(video.edx_video_id)

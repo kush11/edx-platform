@@ -1,7 +1,4 @@
 """ Helper methods for CourseModes. """
-
-
-import six
 from django.utils.translation import ugettext_lazy as _
 
 from course_modes.models import CourseMode
@@ -51,10 +48,10 @@ def enrollment_mode_display(mode, verification_status, course_id):
         enrollment_value = _("Professional Ed")
 
     return {
-        'enrollment_title': six.text_type(enrollment_title),
-        'enrollment_value': six.text_type(enrollment_value),
+        'enrollment_title': unicode(enrollment_title),
+        'enrollment_value': unicode(enrollment_value),
         'show_image': show_image,
-        'image_alt': six.text_type(image_alt),
+        'image_alt': unicode(image_alt),
         'display_mode': _enrollment_mode_display(mode, verification_status, course_id)
     }
 

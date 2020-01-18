@@ -1,8 +1,3 @@
-"""
-Envirement setuo for studio video tests.
-"""
-
-
 import os
 
 # Get the URL of the instance under test

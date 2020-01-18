@@ -7,11 +7,11 @@ Event tracker backend that saves events to a Django database.
 # brought here for legacy support. It should be updated when the
 # schema changes or eventually deprecated.
 
+from __future__ import absolute_import
 
 import logging
 
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 
 from track.backends import BaseBackend
 
@@ -31,17 +31,10 @@ LOGFIELDS = [
 ]
 
 
-@python_2_unicode_compatible
 class TrackingLog(models.Model):
-    """
-    Defines the fields that are stored in the tracking log database.
+    """Defines the fields that are stored in the tracking log database."""
 
-    .. pii: Stores a great deal of PII as it is an event tracker of browsing history, unused and empty on edx.org
-    .. pii_types: username, ip, other
-    .. pii_retirement: retained
-    """
-
-    dtcreated = models.DateTimeField(u'creation date', auto_now_add=True)
+    dtcreated = models.DateTimeField('creation date', auto_now_add=True)
     username = models.CharField(max_length=32, blank=True)
     ip = models.CharField(max_length=32, blank=True)
     event_source = models.CharField(max_length=32)
@@ -49,14 +42,14 @@ class TrackingLog(models.Model):
     event = models.TextField(blank=True)
     agent = models.CharField(max_length=256, blank=True)
     page = models.CharField(max_length=512, blank=True, null=True)
-    time = models.DateTimeField(u'event time')
+    time = models.DateTimeField('event time')
     host = models.CharField(max_length=64, blank=True)
 
     class Meta(object):
         app_label = 'track'
         db_table = 'track_trackinglog'
 
-    def __str__(self):
+    def __unicode__(self):
         fmt = (
             u"[{self.time}] {self.username}@{self.ip}: "
             u"{self.event_source}| {self.event_type} | "

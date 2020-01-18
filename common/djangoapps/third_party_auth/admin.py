@@ -2,16 +2,13 @@
 """
 Admin site configuration for third party authentication
 """
-
-
 from config_models.admin import KeyedConfigurationModelAdmin
 from django import forms
 from django.contrib import admin
-from django.db import DatabaseError, transaction
 from django.urls import reverse
+from django.db import DatabaseError, transaction
 from django.utils.translation import ugettext_lazy as _
 
-from openedx.core.djangolib.markup import HTML
 from third_party_auth.provider import Registry
 
 from .models import (
@@ -25,6 +22,7 @@ from .models import (
     SAMLProviderData
 )
 from .tasks import fetch_saml_metadata
+from openedx.core.djangolib.markup import HTML
 
 
 class OAuth2ProviderConfigForm(forms.ModelForm):
@@ -153,10 +151,10 @@ class SAMLConfigurationAdmin(KeyedConfigurationModelAdmin):
         public_key = inst.get_setting('SP_PUBLIC_CERT')
         private_key = inst.get_setting('SP_PRIVATE_KEY')
         if not public_key or not private_key:
-            return HTML(u'<em>Key pair incomplete/missing</em>')
+            return u'<em>Key pair incomplete/missing</em>'
         pub1, pub2 = public_key[0:10], public_key[-10:]
         priv1, priv2 = private_key[0:10], private_key[-10:]
-        return HTML(u'Public: {}…{}<br>Private: {}…{}').format(pub1, pub2, priv1, priv2)
+        return u'Public: {}…{}<br>Private: {}…{}'.format(pub1, pub2, priv1, priv2)
     key_summary.allow_tags = True
 
 admin.site.register(SAMLConfiguration, SAMLConfigurationAdmin)
@@ -212,7 +210,7 @@ class ApiPermissionsAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(ApiPermissionsAdminForm, self).__init__(*args, **kwargs)
         self.fields['provider_id'].choices = (
-            (provider.provider_id, u"{} ({})".format(provider.name, provider.provider_id))
+            (provider.provider_id, "{} ({})".format(provider.name, provider.provider_id))
             for provider in Registry.enabled()
         )
 

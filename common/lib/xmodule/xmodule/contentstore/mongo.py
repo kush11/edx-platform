@@ -1,27 +1,22 @@
 """
 MongoDB/GridFS-level code for the contentstore.
 """
-
-
-import json
 import os
-
-import gridfs
+import json
 import pymongo
-import six
-from bson.son import SON
-from fs.osfs import OSFS
+import gridfs
 from gridfs.errors import NoFile
+from fs.osfs import OSFS
+from bson.son import SON
+
 from mongodb_proxy import autoretry_read
 from opaque_keys.edx.keys import AssetKey
-
 from xmodule.contentstore.content import XASSET_LOCATION_TAG
 from xmodule.exceptions import NotFoundError
 from xmodule.modulestore.django import ASSET_IGNORE_REGEX
-from xmodule.mongo_utils import connect_to_mongodb, create_collection_index
 from xmodule.util.misc import escape_invalid_characters
-
-from .content import ContentStore, StaticContent, StaticContentStream
+from xmodule.mongo_utils import connect_to_mongodb, create_collection_index
+from .content import StaticContent, ContentStore, StaticContentStream
 
 
 class MongoContentStore(ContentStore):
@@ -56,7 +51,7 @@ class MongoContentStore(ContentStore):
         """
         Closes any open connections to the underlying databases
         """
-        self.fs_files.database.client.close()
+        self.fs_files.database.connection.close()
 
     def _drop_database(self, database=True, collections=True, connections=True):
         """
@@ -70,10 +65,10 @@ class MongoContentStore(ContentStore):
 
         If connections is True, then close the connection to the database as well.
         """
-        connection = self.fs_files.database.client
+        connection = self.fs_files.database.connection
 
         if database:
-            connection.drop_database(self.fs_files.database.name)
+            connection.drop_database(self.fs_files.database)
         elif collections:
             self.fs_files.drop()
             self.chunks.drop()
@@ -93,27 +88,17 @@ class MongoContentStore(ContentStore):
         self.delete(content_id)  # delete is a noop if the entry doesn't exist; so, don't waste time checking
 
         thumbnail_location = content.thumbnail_location.to_deprecated_list_repr() if content.thumbnail_location else None
-        with self.fs.new_file(_id=content_id, filename=six.text_type(content.location), content_type=content.content_type,
+        with self.fs.new_file(_id=content_id, filename=unicode(content.location), content_type=content.content_type,
                               displayname=content.name, content_son=content_son,
                               thumbnail_location=thumbnail_location,
                               import_path=content.import_path,
                               # getattr b/c caching may mean some pickled instances don't have attr
                               locked=getattr(content, 'locked', False)) as fp:
-
-            # It seems that this code thought that only some specific object would have the `__iter__` attribute
-            # but many more objects have this in python3 and shouldn't be using the chunking logic. For string and
-            # byte streams we write them directly to gridfs and convert them to byetarrys if necessary.
-            if hasattr(content.data, '__iter__') and not isinstance(content.data, (six.binary_type, six.string_types)):
+            if hasattr(content.data, '__iter__'):
                 for chunk in content.data:
                     fp.write(chunk)
             else:
-                # Ideally we could just ensure that we don't get strings in here and only byte streams
-                # but being confident of that wolud be a lot more work than we have time for so we just
-                # handle both cases here.
-                if isinstance(content.data, six.text_type):
-                    fp.write(content.data.encode('utf-8'))
-                else:
-                    fp.write(content.data)
+                fp.write(content.data)
 
         return content
 
@@ -133,10 +118,6 @@ class MongoContentStore(ContentStore):
         try:
             if as_stream:
                 fp = self.fs.get(content_id)
-                # Need to replace dict IDs with SON for chunk lookup to work under Python 3
-                # because field order can be different and mongo cares about the order
-                if isinstance(fp._id, dict):
-                    fp._file['_id'] = content_id
                 thumbnail_location = getattr(fp, 'thumbnail_location', None)
                 if thumbnail_location:
                     thumbnail_location = location.course_key.make_asset_key(
@@ -152,10 +133,6 @@ class MongoContentStore(ContentStore):
                 )
             else:
                 with self.fs.get(content_id) as fp:
-                    # Need to replace dict IDs with SON for chunk lookup to work under Python 3
-                    # because field order can be different and mongo cares about the order
-                    if isinstance(fp._id, dict):
-                        fp._file['_id'] = content_id
                     thumbnail_location = getattr(fp, 'thumbnail_location', None)
                     if thumbnail_location:
                         thumbnail_location = location.course_key.make_asset_key(
@@ -217,7 +194,7 @@ class MongoContentStore(ContentStore):
             # When debugging course exports, this might be a good place
             # to look. -- pmitros
             self.export(asset['asset_key'], output_directory)
-            for attr, value in six.iteritems(asset):
+            for attr, value in asset.iteritems():
                 if attr not in ['_id', 'md5', 'uploadDate', 'length', 'chunkSize', 'asset_key']:
                     policy.setdefault(asset['asset_key'].block_id, {})[attr] = value
 
@@ -320,18 +297,15 @@ class MongoContentStore(ContentStore):
                 }
             })
 
-        cursor = self.fs_files.aggregate(pipeline_stages)
-        # Set values if result of query is empty
-        count = 0
-        assets = []
-        try:
-            result = cursor.next()
-            if result:
-                count = result['count']
-                assets = list(result['results'])
-        except StopIteration:
-            # Skip if no assets were returned
-            pass
+        items = self.fs_files.aggregate(pipeline_stages)
+        if items['result']:
+            result = items['result'][0]
+            count = result['count']
+            assets = list(result['results'])
+        else:
+            # no results
+            count = 0
+            assets = []
 
         # We're constructing the asset key immediately after retrieval from the database so that
         # callers are insulated from knowing how our identifiers are stored.
@@ -375,7 +349,7 @@ class MongoContentStore(ContentStore):
 
         :param location:  a c4x asset location
         """
-        for attr in six.iterkeys(attr_dict):
+        for attr in attr_dict.iterkeys():
             if attr in ['_id', 'md5', 'uploadDate', 'length']:
                 raise AttributeError("{} is a protected attribute.".format(attr))
         asset_db_key, __ = self.asset_db_key(location)
@@ -413,13 +387,9 @@ class MongoContentStore(ContentStore):
             asset_key = self.make_id_son(asset)
             # don't convert from string until fs access
             source_content = self.fs.get(asset_key)
-            if isinstance(asset_key, six.string_types):
+            if isinstance(asset_key, basestring):
                 asset_key = AssetKey.from_string(asset_key)
                 __, asset_key = self.asset_db_key(asset_key)
-            # Need to replace dict IDs with SON for chunk lookup to work under Python 3
-            # because field order can be different and mongo cares about the order
-            if isinstance(source_content._id, dict):
-                source_content._file['_id'] = asset_key.copy()
             asset_key['org'] = dest_course_key.org
             asset_key['course'] = dest_course_key.course
             if getattr(dest_course_key, 'deprecated', False):  # remove the run if exists
@@ -428,7 +398,7 @@ class MongoContentStore(ContentStore):
                 asset_id = asset_key
             else:  # add the run, since it's the last field, we're golden
                 asset_key['run'] = dest_course_key.run
-                asset_id = six.text_type(
+                asset_id = unicode(
                     dest_course_key.make_asset_key(asset_key['category'], asset_key['name']).for_branch(None)
                 )
 
@@ -482,7 +452,7 @@ class MongoContentStore(ContentStore):
             # NOTE, there's no need to state that run doesn't exist in the negative case b/c access via
             # SON requires equivalence (same keys and values in exact same order)
             dbkey['run'] = location.run
-            content_id = six.text_type(location.for_branch(None))
+            content_id = unicode(location.for_branch(None))
         return content_id, dbkey
 
     def make_id_son(self, fs_entry):
@@ -492,7 +462,7 @@ class MongoContentStore(ContentStore):
             fs_entry: the element returned by self.fs_files.find
         """
         _id_field = fs_entry.get('_id', fs_entry)
-        if isinstance(_id_field, six.string_types):
+        if isinstance(_id_field, basestring):
             return _id_field
         dbkey = SON((field_name, _id_field.get(field_name)) for field_name in self.ordered_key_fields)
         if 'run' in _id_field:
@@ -507,15 +477,15 @@ class MongoContentStore(ContentStore):
         # which can be `uploadDate`, `displayname`,
         # TODO: uncomment this line once this index in prod is cleaned up. See OPS-2863 for tracking clean up.
         #  create_collection_index(
-        #      self.fs_files,
-        #      [
-        #          ('_id.tag', pymongo.ASCENDING),
-        #          ('_id.org', pymongo.ASCENDING),
-        #          ('_id.course', pymongo.ASCENDING),
-        #          ('_id.category', pymongo.ASCENDING)
-        #      ],
-        #      sparse=True,
-        #      background=True
+            #  self.fs_files,
+            #  [
+                #  ('_id.tag', pymongo.ASCENDING),
+                #  ('_id.org', pymongo.ASCENDING),
+                #  ('_id.course', pymongo.ASCENDING),
+                #  ('_id.category', pymongo.ASCENDING)
+            #  ],
+            #  sparse=True,
+            #  background=True
         #  )
         create_collection_index(
             self.fs_files,

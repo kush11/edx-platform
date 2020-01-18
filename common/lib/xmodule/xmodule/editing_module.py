@@ -1,12 +1,11 @@
 """Descriptors for XBlocks/Xmodules, that provide editing of atrributes"""
 
-
 import logging
 
 from pkg_resources import resource_string
 from xblock.fields import Scope, String
 
-from xmodule.mako_module import MakoModuleDescriptor, MakoTemplateBlockBase
+from xmodule.mako_module import MakoModuleDescriptor
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ class EditingFields(object):
     data = String(scope=Scope.content, default='')
 
 
-class EditingMixin(EditingFields, MakoTemplateBlockBase):
+class EditingDescriptor(EditingFields, MakoModuleDescriptor):
     """
     Module that provides a raw editing view of its data and children.  It does not
     perform any validation on its definition---just passes it along to the browser.
@@ -32,7 +31,7 @@ class EditingMixin(EditingFields, MakoTemplateBlockBase):
         """
         `data` should not be editable in the Studio settings editor.
         """
-        non_editable_fields = super(EditingMixin, self).non_editable_metadata_fields
+        non_editable_fields = super(EditingDescriptor, self).non_editable_metadata_fields
         non_editable_fields.append(self.fields['data'])
         return non_editable_fields
 
@@ -40,21 +39,23 @@ class EditingMixin(EditingFields, MakoTemplateBlockBase):
     # here as with our parent class, let's call into it to get the basic fields
     # set and then add our additional fields. Trying to keep it DRY.
     def get_context(self):
-        _context = MakoTemplateBlockBase.get_context(self)
+        _context = MakoModuleDescriptor.get_context(self)
         # Add our specific template information (the raw data body)
         _context.update({'data': self.data})
         return _context
 
 
-class EditingDescriptor(EditingMixin, MakoModuleDescriptor):
-    pass
-
-
-class TabsEditingMixin(EditingFields, MakoTemplateBlockBase):
+class TabsEditingDescriptor(EditingFields, MakoModuleDescriptor):
     """
-    Common code between TabsEditingDescriptor and XBlocks converted from XModules.
-    """
+    Module that provides a raw editing view of its data and children.  It does not
+    perform any validation on its definition---just passes it along to the browser.
 
+    This class is intended to be used as a mixin.
+
+    Engine (module_edit.js) wants for metadata editor
+    template to be always loaded, so don't forget to include
+    settings tab in your module descriptor.
+    """
     mako_template = "widgets/tabs-aggregator.html"
     css = {'scss': [resource_string(__name__, 'css/tabs/tabs.scss')]}
     js = {'js': [resource_string(
@@ -63,7 +64,7 @@ class TabsEditingMixin(EditingFields, MakoTemplateBlockBase):
     tabs = []
 
     def get_context(self):
-        _context = MakoTemplateBlockBase.get_context(self)
+        _context = super(TabsEditingDescriptor, self).get_context()
         _context.update({
             'tabs': self.tabs,
             'html_id': self.location.html_id(),  # element_id
@@ -82,20 +83,6 @@ class TabsEditingMixin(EditingFields, MakoTemplateBlockBase):
                 else:
                     cls.css[css_type] = css_content
         return cls.css
-
-
-class TabsEditingDescriptor(TabsEditingMixin, MakoModuleDescriptor):
-    """
-    Module that provides a raw editing view of its data and children.  It does not
-    perform any validation on its definition---just passes it along to the browser.
-
-    This class is intended to be used as a mixin.
-
-    Engine (module_edit.js) wants for metadata editor
-    template to be always loaded, so don't forget to include
-    settings tab in your module descriptor.
-    """
-    pass
 
 
 class XMLEditingDescriptor(EditingDescriptor):

@@ -2,7 +2,6 @@
 Tests for course_modes views.
 """
 
-
 import decimal
 import unittest
 from datetime import datetime, timedelta
@@ -11,7 +10,6 @@ import ddt
 import freezegun
 import httpretty
 import pytz
-import six
 from django.conf import settings
 from django.urls import reverse
 from mock import patch
@@ -22,7 +20,6 @@ from lms.djangoapps.commerce.tests import test_utils as ecomm_test_utils
 from openedx.core.djangoapps.catalog.tests.mixins import CatalogIntegrationMixin
 from openedx.core.djangoapps.embargo.test_utils import restrict_course
 from openedx.core.djangoapps.theming.tests.test_util import with_comprehensive_theme
-from openedx.core.djangoapps.waffle_utils.testutils import override_waffle_flag
 from student.models import CourseEnrollment
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
 from util.testing import UrlResetMixin
@@ -38,6 +35,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
     """
     Course Mode View tests
     """
+    shard = 5
     URLCONF_MODULES = ['course_modes.urls']
 
     @patch.dict(settings.FEATURES, {'MODE_CREATION_FOR_TESTING': True})
@@ -87,7 +85,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             )
 
         # Configure whether we're upgrading or not
-        url = reverse('course_modes_choose', args=[six.text_type(course.id)])
+        url = reverse('course_modes_choose', args=[unicode(course.id)])
         response = self.client.get(url)
 
         # Check whether we were correctly redirected
@@ -99,7 +97,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             else:
                 self.assertRedirects(response, reverse('dashboard'))
         else:
-            self.assertEqual(response.status_code, 200)
+            self.assertEquals(response.status_code, 200)
 
     def test_no_id_redirect(self):
         # Create the course modes
@@ -114,11 +112,11 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         )
 
         # Configure whether we're upgrading or not
-        url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         response = self.client.get(url)
         # Check whether we were correctly redirected
         purchase_workflow = "?purchase_workflow=single"
-        start_flow_url = reverse('verify_student_start_flow', args=[six.text_type(self.course.id)]) + purchase_workflow
+        start_flow_url = reverse('verify_student_start_flow', args=[unicode(self.course.id)]) + purchase_workflow
         self.assertRedirects(response, start_flow_url)
 
     def test_no_id_redirect_otto(self):
@@ -135,7 +133,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             user=self.user
         )
         # Configure whether we're upgrading or not
-        url = reverse('course_modes_choose', args=[six.text_type(prof_course.id)])
+        url = reverse('course_modes_choose', args=[unicode(prof_course.id)])
         response = self.client.get(url)
         self.assertRedirects(response, 'http://testserver/test_basket/add/?sku=TEST', fetch_redirect_response=False)
         ecomm_test_utils.update_commerce_config(enabled=False)
@@ -169,11 +167,11 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
 
         # Verify that the prices render correctly
         response = self.client.get(
-            reverse('course_modes_choose', args=[six.text_type(self.course.id)]),
+            reverse('course_modes_choose', args=[unicode(self.course.id)]),
             follow=False,
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEquals(response.status_code, 200)
         # TODO: Fix it so that response.templates works w/ mako templates, and then assert
         # that the right template rendered
 
@@ -190,7 +188,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
 
         # Check whether credit upsell is shown on the page
         # This should *only* be shown when a credit mode is available
-        url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         response = self.client.get(url)
 
         if show_upsell:
@@ -198,42 +196,19 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         else:
             self.assertNotContains(response, "Credit")
 
-    @httpretty.activate
-    @ddt.data(True, False)
-    def test_congrats_on_enrollment_message(self, create_enrollment):
-        # Create the course mode
-        CourseModeFactory.create(mode_slug='verified', course_id=self.course.id)
-
-        if create_enrollment:
-            CourseEnrollmentFactory(
-                is_active=True,
-                course_id=self.course.id,
-                user=self.user
-            )
-
-        # Check whether congratulations message is shown on the page
-        # This should *only* be shown when an enrollment exists
-        url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
-        response = self.client.get(url)
-
-        if create_enrollment:
-            self.assertContains(response, "Congratulations!  You are now enrolled in")
-        else:
-            self.assertNotContains(response, "Congratulations!  You are now enrolled in")
-
     @ddt.data('professional', 'no-id-professional')
     def test_professional_enrollment(self, mode):
         # The only course mode is professional ed
         CourseModeFactory.create(mode_slug=mode, course_id=self.course.id, min_price=1)
 
         # Go to the "choose your track" page
-        choose_track_url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        choose_track_url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         response = self.client.get(choose_track_url)
 
         # Since the only available track is professional ed, expect that
         # we're redirected immediately to the start of the payment flow.
         purchase_workflow = "?purchase_workflow=single"
-        start_flow_url = reverse('verify_student_start_flow', args=[six.text_type(self.course.id)]) + purchase_workflow
+        start_flow_url = reverse('verify_student_start_flow', args=[unicode(self.course.id)]) + purchase_workflow
         self.assertRedirects(response, start_flow_url)
 
         # Now enroll in the course
@@ -241,7 +216,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             user=self.user,
             is_active=True,
             mode=mode,
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
         )
 
         # Expect that this time we're redirected to the dashboard (since we're already registered)
@@ -270,7 +245,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             CourseModeFactory.create(mode_slug=mode, course_id=self.course.id, min_price=min_price)
 
         # Choose the mode (POST request)
-        choose_track_url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        choose_track_url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         response = self.client.post(choose_track_url, self.POST_PARAMS_FOR_COURSE_MODE[course_mode])
 
         # Verify the redirect
@@ -279,7 +254,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         elif expected_redirect == 'start-flow':
             redirect_url = reverse(
                 'verify_student_start_flow',
-                kwargs={'course_id': six.text_type(self.course.id)}
+                kwargs={'course_id': unicode(self.course.id)}
             )
         else:
             self.fail("Must provide a valid redirect URL name")
@@ -299,7 +274,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         self.assertIsNone(is_active)
 
         # Choose the audit mode (POST request)
-        choose_track_url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        choose_track_url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         self.client.post(choose_track_url, self.POST_PARAMS_FOR_COURSE_MODE[audit_mode])
 
         # Assert learner is enrolled in Audit track post-POST
@@ -327,14 +302,14 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         CourseModeFactory.create(mode_slug='verified', course_id=self.course.id, min_price=1)
 
         # Choose the mode (POST request)
-        choose_track_url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        choose_track_url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         self.client.post(choose_track_url, self.POST_PARAMS_FOR_COURSE_MODE['verified'])
 
         # Expect that the contribution amount is stored in the user's session
         self.assertIn('donation_for_course', self.client.session)
-        self.assertIn(six.text_type(self.course.id), self.client.session['donation_for_course'])
+        self.assertIn(unicode(self.course.id), self.client.session['donation_for_course'])
 
-        actual_amount = self.client.session['donation_for_course'][six.text_type(self.course.id)]
+        actual_amount = self.client.session['donation_for_course'][unicode(self.course.id)]
         expected_amount = decimal.Decimal(self.POST_PARAMS_FOR_COURSE_MODE['verified']['contribution'])
         self.assertEqual(actual_amount, expected_amount)
 
@@ -347,12 +322,12 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         # automatic enrollment
         params = {
             'enrollment_action': 'enroll',
-            'course_id': six.text_type(self.course.id)
+            'course_id': unicode(self.course.id)
         }
         self.client.post(reverse('change_enrollment'), params)
 
         # Explicitly select the honor mode (POST request)
-        choose_track_url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        choose_track_url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         self.client.post(choose_track_url, self.POST_PARAMS_FOR_COURSE_MODE[CourseMode.DEFAULT_MODE_SLUG])
 
         # Verify that the user's enrollment remains unchanged
@@ -366,7 +341,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             CourseModeFactory.create(mode_slug=mode, course_id=self.course.id)
 
         # Choose an unsupported mode (POST request)
-        choose_track_url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        choose_track_url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         response = self.client.post(choose_track_url, self.POST_PARAMS_FOR_COURSE_MODE['unsupported'])
 
         self.assertEqual(400, response.status_code)
@@ -374,15 +349,15 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
     @unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
     def test_default_mode_creation(self):
         # Hit the mode creation endpoint with no querystring params, to create an honor mode
-        url = reverse('create_mode', args=[six.text_type(self.course.id)])
+        url = reverse('create_mode', args=[unicode(self.course.id)])
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEquals(response.status_code, 200)
 
         expected_mode = [Mode(u'honor', u'Honor Code Certificate', 0, '', 'usd', None, None, None, None)]
         course_mode = CourseMode.modes_for_course(self.course.id)
 
-        self.assertEqual(course_mode, expected_mode)
+        self.assertEquals(course_mode, expected_mode)
 
     @unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
     @ddt.data(
@@ -398,10 +373,10 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         parameters['suggested_prices'] = suggested_prices
         parameters['currency'] = currency
 
-        url = reverse('create_mode', args=[six.text_type(self.course.id)])
+        url = reverse('create_mode', args=[unicode(self.course.id)])
         response = self.client.get(url, parameters)
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEquals(response.status_code, 200)
 
         expected_mode = [
             Mode(
@@ -418,12 +393,12 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         ]
         course_mode = CourseMode.modes_for_course(self.course.id)
 
-        self.assertEqual(course_mode, expected_mode)
+        self.assertEquals(course_mode, expected_mode)
 
     @unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
     def test_multiple_mode_creation(self):
         # Create an honor mode
-        base_url = reverse('create_mode', args=[six.text_type(self.course.id)])
+        base_url = reverse('create_mode', args=[unicode(self.course.id)])
         self.client.get(base_url)
 
         # Excluding the currency parameter implicitly tests the mode creation endpoint's ability to
@@ -435,7 +410,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         parameters['suggested_prices'] = '10,20'
 
         # Create a verified mode
-        url = reverse('create_mode', args=[six.text_type(self.course.id)])
+        url = reverse('create_mode', args=[unicode(self.course.id)])
         self.client.get(url, parameters)
 
         honor_mode = Mode(u'honor', u'Honor Code Certificate', 0, '', 'usd', None, None, None, None)
@@ -443,7 +418,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
         expected_modes = [honor_mode, verified_mode]
         course_modes = CourseMode.modes_for_course(self.course.id)
 
-        self.assertEqual(course_modes, expected_modes)
+        self.assertEquals(course_modes, expected_modes)
 
     @unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
     @with_comprehensive_theme("edx.org")
@@ -454,7 +429,7 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             CourseModeFactory.create(mode_slug=mode, course_id=self.course.id)
 
         # Load the track selection page
-        url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        url = reverse('course_modes_choose', args=[unicode(self.course.id)])
         response = self.client.get(url)
 
         # Verify that the header navigation links are hidden for the edx.org version
@@ -468,10 +443,10 @@ class CourseModeViewTest(CatalogIntegrationMixin, UrlResetMixin, ModuleStoreTest
             for mode in ["honor", "verified"]:
                 CourseModeFactory(mode_slug=mode, course_id=self.course.id)
 
-            self.course.enrollment_end = datetime(2015, 1, 1)
+            self.course.enrollment_end = datetime(2015, 01, 01)
             modulestore().update_item(self.course, self.user.id)
 
-            url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+            url = reverse('course_modes_choose', args=[unicode(self.course.id)])
             response = self.client.get(url)
             # URL-encoded version of 1/1/15, 12:00 AM
             redirect_url = reverse('dashboard') + '?course_closed=1%2F1%2F15%2C+12%3A00+AM'
@@ -498,7 +473,7 @@ class TrackSelectionEmbargoTest(UrlResetMixin, ModuleStoreTestCase):
         self.client.login(username=self.user.username, password="edx")
 
         # Construct the URL for the track selection page
-        self.url = reverse('course_modes_choose', args=[six.text_type(self.course.id)])
+        self.url = reverse('course_modes_choose', args=[unicode(self.course.id)])
 
     @patch.dict(settings.FEATURES, {'EMBARGO': True})
     def test_embargo_restrict(self):

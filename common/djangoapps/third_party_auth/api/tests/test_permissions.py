@@ -1,16 +1,14 @@
 """
 Tests for the Third Party Auth permissions
 """
-
-
 import unittest
-
 import ddt
-from django.conf import settings
 from mock import Mock
-from rest_framework.test import APITestCase
 
+from rest_framework.test import APITestCase
+from django.conf import settings
 from third_party_auth.api.permissions import ThirdPartyAuthProviderApiPermission
+
 from third_party_auth.tests.testutil import ThirdPartyAuthTestMixin
 
 IDP_SLUG_TESTSHIB = 'testshib'

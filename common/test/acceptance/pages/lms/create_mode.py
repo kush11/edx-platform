@@ -1,10 +1,9 @@
 """Mode creation page (used to add modes to courses during testing)."""
 
-
 import re
+import urllib
 
 from bok_choy.page_object import PageObject
-import six.moves.urllib.parse  # pylint: disable=import-error
 
 from common.test.acceptance.pages.lms import BASE_URL
 
@@ -66,7 +65,7 @@ class ModeCreationPage(PageObject):
             course_id=self._course_id
         )
 
-        query_string = six.moves.urllib.parse.urlencode(self._parameters)
+        query_string = urllib.urlencode(self._parameters)
         if query_string:
             url += '?' + query_string
 

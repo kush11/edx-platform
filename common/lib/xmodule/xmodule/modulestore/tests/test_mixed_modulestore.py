@@ -1,70 +1,58 @@
 """
 Unit tests for the Mixed Modulestore, with DDT for the various stores (Split, Draft, XML)
 """
-
-
-import datetime
-import itertools
-import logging
-import mimetypes
 from collections import namedtuple
-from contextlib import contextmanager
-from shutil import rmtree
-from tempfile import mkdtemp
-from uuid import uuid4
-
+import datetime
+import logging
 import ddt
-import pymongo
+import itertools
+import mimetypes
+from uuid import uuid4
+from contextlib import contextmanager
 import pytest
-import six
+from mock import patch, Mock, call
+
 # Mixed modulestore depends on django, so we'll manually configure some django settings
 # before importing the module
 # TODO remove this import and the configuration -- xmodule should not depend on django!
 from django.conf import settings
-from mock import Mock, call, patch
-from opaque_keys.edx.keys import CourseKey
-from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator, LibraryLocator
+import pymongo
 from pytz import UTC
-from six.moves import range
+from shutil import rmtree
+from tempfile import mkdtemp
 from web_fragments.fragment import Fragment
+
+from xmodule.x_module import XModuleMixin
+from xmodule.modulestore.edit_info import EditInfoMixin
+from xmodule.modulestore.inheritance import InheritanceMixin
+from xmodule.modulestore.tests.utils import MongoContentstoreBuilder
+from xmodule.contentstore.content import StaticContent
+from xmodule.modulestore.xml_importer import import_course_from_xml
+from xmodule.modulestore.xml_exporter import export_course_to_xml
+from xmodule.modulestore.tests.test_asides import AsideTestType
 from xblock.core import XBlockAside
-from xblock.fields import Scope, ScopeIds, String
+from xblock.fields import Scope, String, ScopeIds
 from xblock.runtime import DictKeyValueStore, KvsFieldData
 from xblock.test.tools import TestRuntime
-
-from openedx.core.lib.tests import attr
-from xmodule.contentstore.content import StaticContent
-from xmodule.exceptions import InvalidVersionError
-from xmodule.modulestore import ModuleStoreEnum
-from xmodule.modulestore.draft_and_published import DIRECT_ONLY_CATEGORIES, UnsupportedRevisionError
-from xmodule.modulestore.edit_info import EditInfoMixin
-from xmodule.modulestore.exceptions import (
-    DuplicateCourseError,
-    ItemNotFoundError,
-    NoPathToItem,
-    ReferentialIntegrityError
-)
-from xmodule.modulestore.inheritance import InheritanceMixin
-from xmodule.modulestore.mixed import MixedModuleStore
-from xmodule.modulestore.search import navigation_index, path_to_location
-from xmodule.modulestore.store_utilities import DETACHED_XBLOCK_TYPES
-from xmodule.modulestore.tests.factories import check_exact_number_of_calls, check_mongo_calls, mongo_uses_error_check
-from xmodule.modulestore.tests.mongo_connection import MONGO_HOST, MONGO_PORT_NUM
-from xmodule.modulestore.tests.test_asides import AsideTestType
-from xmodule.modulestore.tests.utils import (
-    LocationMixin,
-    MongoContentstoreBuilder,
-    create_modulestore_instance,
-    mock_tab_from_json
-)
-from xmodule.modulestore.xml_exporter import export_course_to_xml
-from xmodule.modulestore.xml_importer import import_course_from_xml
-from xmodule.tests import DATA_DIR, CourseComparisonTest
-from xmodule.x_module import XModuleMixin
 
 if not settings.configured:
     settings.configure()
 
+from opaque_keys.edx.keys import CourseKey
+from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator, LibraryLocator
+from openedx.core.lib.tests import attr
+from xmodule.exceptions import InvalidVersionError
+from xmodule.modulestore import ModuleStoreEnum
+from xmodule.modulestore.draft_and_published import UnsupportedRevisionError, DIRECT_ONLY_CATEGORIES
+from xmodule.modulestore.exceptions import ItemNotFoundError, DuplicateCourseError, ReferentialIntegrityError, NoPathToItem
+from xmodule.modulestore.mixed import MixedModuleStore
+from xmodule.modulestore.search import path_to_location, navigation_index
+from xmodule.modulestore.store_utilities import DETACHED_XBLOCK_TYPES
+from xmodule.modulestore.tests.factories import check_mongo_calls, check_exact_number_of_calls, \
+    mongo_uses_error_check
+from xmodule.modulestore.tests.utils import create_modulestore_instance, LocationMixin, mock_tab_from_json
+from xmodule.modulestore.tests.mongo_connection import MONGO_PORT_NUM, MONGO_HOST
+from xmodule.tests import DATA_DIR, CourseComparisonTest
 
 log = logging.getLogger(__name__)
 
@@ -121,7 +109,7 @@ class CommonMixedModuleStoreSetup(CourseComparisonTest):
         AssertEqual replacement for CourseLocator
         """
         if loc1.for_branch(None) != loc2.for_branch(None):
-            self.fail(self._formatMessage(msg, u"{} != {}".format(six.text_type(loc1), six.text_type(loc2))))
+            self.fail(self._formatMessage(msg, u"{} != {}".format(unicode(loc1), unicode(loc2))))
 
     def setUp(self):
         """
@@ -284,7 +272,7 @@ class CommonMixedModuleStoreSetup(CourseComparisonTest):
         ).make_usage_key('vertical', 'fake')
         self._create_course(test_course_key)
 
-        self.assertEqual(default, self.store.get_modulestore_type(self.course.id))
+        self.assertEquals(default, self.store.get_modulestore_type(self.course.id))
 
 
 class AsideFoo(XBlockAside):
@@ -462,9 +450,9 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
 
         blocks = self.store.get_items(self.course.id, qualifiers={'category': 'problem'})
         blocks.append(self.store.get_item(self.problem_x1a_1))
-        self.assertEqual(len(blocks), 7)
+        self.assertEquals(len(blocks), 7)
         for block in blocks:
-            self.assertEqual(block.course_version, course_version)
+            self.assertEquals(block.course_version, course_version)
             # ensure that when the block is retrieved from the runtime cache,
             # the course version is still present
             cached_block = course.runtime.load_item(block.location)
@@ -1069,7 +1057,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
             draft_courses = self.store.get_courses(remove_branch=True)
         with self.store.branch_setting(ModuleStoreEnum.Branch.published_only):
             published_courses = self.store.get_courses(remove_branch=True)
-        self.assertEqual([c.id for c in draft_courses], [c.id for c in published_courses])
+        self.assertEquals([c.id for c in draft_courses], [c.id for c in published_courses])
 
     @ddt.data(ModuleStoreEnum.Type.mongo, ModuleStoreEnum.Type.split)
     def test_create_child_detached_tabs(self, default_ms):
@@ -1626,7 +1614,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
         # add another parent (unit) "vertical_x1b" for problem "problem_x1a_1"
         mongo_store.collection.update(
             self.vertical_x1b.to_deprecated_son('_id.'),
-            {'$push': {'definition.children': six.text_type(self.problem_x1a_1)}}
+            {'$push': {'definition.children': unicode(self.problem_x1a_1)}}
         )
 
         # convert first parent (unit) "vertical_x1a" of problem "problem_x1a_1" to draft
@@ -1651,7 +1639,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
     #    8-9. get vertical, compute inheritance
     #    10-11. get other vertical_x1b (why?) and compute inheritance
     # Split: active_versions & structure
-    @ddt.data((ModuleStoreEnum.Type.mongo, [12, 3], 0), (ModuleStoreEnum.Type.split, [3, 2], 0))
+    @ddt.data((ModuleStoreEnum.Type.mongo, [12, 3], 0), (ModuleStoreEnum.Type.split, [2, 2], 0))
     @ddt.unpack
     def test_path_to_location(self, default_ms, num_finds, num_sends):
         """
@@ -1836,7 +1824,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
 
         with check_mongo_calls(max_find, max_send):
             found_orphans = self.store.get_orphans(self.course_locations[self.MONGO_COURSEID].course_key)
-        six.assertCountEqual(self, found_orphans, orphan_locations)
+        self.assertItemsEqual(found_orphans, orphan_locations)
 
     @ddt.data(ModuleStoreEnum.Type.mongo)
     def test_get_non_orphan_parents(self, default_ms):
@@ -1876,11 +1864,11 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
         # add orphan vertical and sequential as another parents of problem "problem_x1a_1"
         mongo_store.collection.update(
             orphan_sequential.to_deprecated_son('_id.'),
-            {'$push': {'definition.children': six.text_type(self.problem_x1a_1)}}
+            {'$push': {'definition.children': unicode(self.problem_x1a_1)}}
         )
         mongo_store.collection.update(
             orphan_vertical.to_deprecated_son('_id.'),
-            {'$push': {'definition.children': six.text_type(self.problem_x1a_1)}}
+            {'$push': {'definition.children': unicode(self.problem_x1a_1)}}
         )
         # test that "get_parent_location" method of published branch still returns the correct non-orphan parent for
         # problem "problem_x1a_1" since the two other parents are orphans
@@ -1891,7 +1879,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
         # now add valid published vertical as another parent of problem
         mongo_store.collection.update(
             self.sequential_x1.to_deprecated_son('_id.'),
-            {'$push': {'definition.children': six.text_type(self.problem_x1a_1)}}
+            {'$push': {'definition.children': unicode(self.problem_x1a_1)}}
         )
         # now check that "get_parent_location" method of published branch raises "ReferentialIntegrityError" for
         # problem "problem_x1a_1" since it has now 2 valid published parents
@@ -2326,7 +2314,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
             """
             Asserts the number of problems with the given display name is the given expected number.
             """
-            self.assertEqual(
+            self.assertEquals(
                 len(self.store.get_items(course_key.for_branch(None), settings={'display_name': display_name})),
                 expected_number
             )
@@ -2337,7 +2325,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
             """
             # check the display_name of the problem
             problem = self.store.get_item(problem_location)
-            self.assertEqual(problem.display_name, expected_display_name)
+            self.assertEquals(problem.display_name, expected_display_name)
 
             # there should be only 1 problem with the expected_display_name
             assertNumProblems(expected_display_name, 1)
@@ -2392,25 +2380,25 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
 
         # verify branch setting is published-only in manager
         with self.store.branch_setting(ModuleStoreEnum.Branch.published_only):
-            self.assertEqual(self.store.get_branch_setting(), ModuleStoreEnum.Branch.published_only)
+            self.assertEquals(self.store.get_branch_setting(), ModuleStoreEnum.Branch.published_only)
 
         # verify branch setting is draft-preferred in manager
         with self.store.branch_setting(ModuleStoreEnum.Branch.draft_preferred):
-            self.assertEqual(self.store.get_branch_setting(), ModuleStoreEnum.Branch.draft_preferred)
+            self.assertEquals(self.store.get_branch_setting(), ModuleStoreEnum.Branch.draft_preferred)
 
     def verify_default_store(self, store_type):
         """
         Verifies the default_store property
         """
-        self.assertEqual(self.store.default_modulestore.get_modulestore_type(), store_type)
+        self.assertEquals(self.store.default_modulestore.get_modulestore_type(), store_type)
 
         # verify internal helper method
         store = self.store._get_modulestore_for_courselike()  # pylint: disable=protected-access
-        self.assertEqual(store.get_modulestore_type(), store_type)
+        self.assertEquals(store.get_modulestore_type(), store_type)
 
         # verify store used for creating a course
         course = self.store.create_course("org", "course{}".format(uuid4().hex[:5]), "run", self.user_id)
-        self.assertEqual(course.system.modulestore.get_modulestore_type(), store_type)
+        self.assertEquals(course.system.modulestore.get_modulestore_type(), store_type)
 
     @ddt.data(ModuleStoreEnum.Type.mongo, ModuleStoreEnum.Type.split)
     def test_default_store(self, default_ms):
@@ -2444,7 +2432,7 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
         self._initialize_mixed(mappings={})
 
         fake_store = "fake"
-        with self.assertRaisesRegex(Exception, "Cannot find store of type {}".format(fake_store)):
+        with self.assertRaisesRegexp(Exception, "Cannot find store of type {}".format(fake_store)):
             with self.store.default_store(fake_store):
                 pass  # pragma: no cover
 
@@ -2783,6 +2771,12 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
                     signal_handler.send.assert_not_called()
 
                     self.store.publish(unit.location, self.user_id)
+                    signal_handler.send.assert_not_called()
+
+                    self.store.unpublish(unit.location, self.user_id)
+                    signal_handler.send.assert_not_called()
+
+                    self.store.delete_item(unit.location, self.user_id)
                     signal_handler.send.assert_not_called()
 
                 signal_handler.send.assert_called_with('course_published', course_key=course.id)
@@ -3420,7 +3414,7 @@ class TestPublishOverExportImport(CommonMixedModuleStoreSetup):
                     raise_on_failure=True,
                 )
 
-                self.assertEqual(1, len(courses2))
+                self.assertEquals(1, len(courses2))
 
                 # check that the imported blocks have the right asides and values
                 def check_block(block):
@@ -3518,11 +3512,11 @@ class TestPublishOverExportImport(CommonMixedModuleStoreSetup):
                     raise_on_failure=True,
                 )
 
-                self.assertEqual(1, len(courses2))
+                self.assertEquals(1, len(courses2))
 
                 # check that aside for the new chapter was exported/imported properly
                 chapters = courses2[0].get_children()
-                self.assertEqual(2, len(chapters))
+                self.assertEquals(2, len(chapters))
                 self.assertIn(new_chapter_display_name, [item.display_name for item in chapters])
 
                 found = False
@@ -3533,14 +3527,14 @@ class TestPublishOverExportImport(CommonMixedModuleStoreSetup):
                         self.assertEqual(len(asides), 1)
                         child_aside = asides[0]
                         self.assertIsInstance(child_aside, AsideTestType)
-                        self.assertEqual(child_aside.data_field, 'new value')
+                        self.assertEquals(child_aside.data_field, 'new value')
                         break
 
                 self.assertTrue(found, "new_chapter not found")
 
                 # check that aside for the new problem was exported/imported properly
                 sequence_children = courses2[0].get_children()[0].get_children()[0].get_children()
-                self.assertEqual(2, len(sequence_children))
+                self.assertEquals(2, len(sequence_children))
                 self.assertIn(new_problem_display_name, [item.display_name for item in sequence_children])
 
                 found = False
@@ -3551,8 +3545,8 @@ class TestPublishOverExportImport(CommonMixedModuleStoreSetup):
                         self.assertEqual(len(asides), 1)
                         child_aside = asides[0]
                         self.assertIsInstance(child_aside, AsideTestType)
-                        self.assertEqual(child_aside.data_field, 'new problem value')
-                        self.assertEqual(child_aside.content, 'new content value')
+                        self.assertEquals(child_aside.data_field, 'new problem value')
+                        self.assertEquals(child_aside.content, 'new content value')
                         break
 
                 self.assertTrue(found, "new_chapter not found")
@@ -3716,8 +3710,8 @@ class TestAsidesWithMixedModuleStore(CommonMixedModuleStoreSetup):
         )
 
         asides = published_xblock.runtime.get_asides(published_xblock)
-        self.assertEqual(asides[0].field11, 'new_value11')
-        self.assertEqual(asides[0].field12, 'new_value12')
+        self.assertEquals(asides[0].field11, 'new_value11')
+        self.assertEquals(asides[0].field12, 'new_value12')
 
         # remove item
         self.store.delete_item(published_xblock.location, self.user_id)
@@ -3732,8 +3726,8 @@ class TestAsidesWithMixedModuleStore(CommonMixedModuleStoreSetup):
 
         # check that aside has default values
         asides2 = published_xblock2.runtime.get_asides(published_xblock2)
-        self.assertEqual(asides2[0].field11, 'aside1_default_value1')
-        self.assertEqual(asides2[0].field12, 'aside1_default_value2')
+        self.assertEquals(asides2[0].field11, 'aside1_default_value1')
+        self.assertEquals(asides2[0].field12, 'aside1_default_value2')
 
     @ddt.data((ModuleStoreEnum.Type.mongo, 1, 0), (ModuleStoreEnum.Type.split, 2, 0))
     @XBlockAside.register_temp_plugin(AsideFoo, 'test_aside1')
@@ -3760,8 +3754,8 @@ class TestAsidesWithMixedModuleStore(CommonMixedModuleStoreSetup):
         def _check_asides(item):
             """ Helper function to check asides """
             asides = item.runtime.get_asides(item)
-            self.assertEqual(asides[0].field11, 'new_value11')
-            self.assertEqual(asides[0].field12, 'new_value12')
+            self.assertEquals(asides[0].field11, 'new_value11')
+            self.assertEquals(asides[0].field12, 'new_value12')
 
         # start off as Private
         item = self.store.create_child(self.user_id, self.writable_chapter_location, 'problem',

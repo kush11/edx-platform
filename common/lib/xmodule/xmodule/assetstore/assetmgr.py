@@ -13,11 +13,10 @@ Note: Hotfix (PLAT-734) No asset calls find_asset_metadata, and directly accesse
 
 """
 
-
 from contracts import contract, new_contract
 from opaque_keys.edx.keys import AssetKey
-
 from xmodule.contentstore.django import contentstore
+
 
 new_contract('AssetKey', AssetKey)
 

@@ -1,13 +1,10 @@
 """Tests that tracking data are successfully logged"""
-
-
 import unittest
 
 import mock
 from django.conf import settings
-from django.test import TestCase
 from django.urls import reverse
-from six import unichr
+from django.test import TestCase
 
 from track.models import TrackingLog
 from track.views import user_track

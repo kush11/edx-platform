@@ -5,40 +5,39 @@ Tests of the Capa XModule
 # pylint: disable=missing-docstring
 # pylint: disable=invalid-name
 
-
 import datetime
 import json
-import os
 import random
+import requests
+import os
 import textwrap
 import unittest
 
 import ddt
-import requests
-import six
-import webob
 from django.utils.encoding import smart_text
 from edx_user_state_client.interface import XBlockUserState
 from lxml import etree
-from mock import DEFAULT, Mock, patch
-from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator
-from pytz import UTC
-from six.moves import range, zip
+from mock import Mock, patch, DEFAULT
+import six
+import webob
 from webob.multidict import MultiDict
+
+import xmodule
+from xmodule.tests import DATA_DIR
+from capa import responsetypes
+from capa.responsetypes import (StudentInputError, LoncapaProblemError,
+                                ResponseError)
+from capa.xqueue_interface import XQueueInterface
+from xmodule.capa_module import CapaModule, CapaDescriptor, ComplexEncoder
+from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator
 from xblock.field_data import DictFieldData
 from xblock.fields import ScopeIds
 from xblock.scorable import Score
 
-import xmodule
-from capa import responsetypes
-from capa.correctmap import CorrectMap
-from capa.responsetypes import LoncapaProblemError, ResponseError, StudentInputError
-from capa.xqueue_interface import XQueueInterface
-from xmodule.capa_module import ComplexEncoder, ProblemBlock
-from xmodule.tests import DATA_DIR
-
-from ..capa_base import RANDOMIZATION, SHOWANSWER
 from . import get_test_system
+from pytz import UTC
+from capa.correctmap import CorrectMap
+from ..capa_base_constants import RANDOMIZATION, SHOWANSWER
 
 
 class CapaFactory(object):
@@ -77,8 +76,13 @@ class CapaFactory(object):
         """
         Return the key stored in the capa problem answer dict
         """
-        return ("%s_%d_%d" % ("-".join(['i4x', 'edX', 'capa_test', 'problem', 'SampleProblem%d' % cls.num]),
-                              response_num, input_num))
+        return (
+            "%s_%d_%d" % (
+                "-".join(['i4x', 'edX', 'capa_test', 'problem', 'SampleProblem%d' % cls.num]),
+                response_num,
+                input_num
+            )
+        )
 
     @classmethod
     def create(cls, attempts=None, problem_state=None, correct=False, xml=None, override_get_score=True, **kwargs):
@@ -108,6 +112,7 @@ class CapaFactory(object):
             xml = cls.sample_problem_xml
         field_data = {'data': xml}
         field_data.update(kwargs)
+        descriptor = Mock(weight="1")
         if problem_state is not None:
             field_data.update(problem_state)
         if attempts is not None:
@@ -115,15 +120,14 @@ class CapaFactory(object):
             # since everything else is a string.
             field_data['attempts'] = int(attempts)
 
-        system = get_test_system(course_id=location.course_key)
-        system.user_is_staff = kwargs.get('user_is_staff', False)
+        system = get_test_system()
         system.render_template = Mock(return_value="<div>Test Template HTML</div>")
-        module = ProblemBlock(
+        module = CapaModule(
+            descriptor,
             system,
             DictFieldData(field_data),
-            ScopeIds(None, 'problem', location, location),
+            ScopeIds(None, None, location, location),
         )
-        assert module.lcp
 
         if override_get_score:
             if correct:
@@ -133,7 +137,6 @@ class CapaFactory(object):
                 module.score = Score(raw_earned=0, raw_possible=1)
 
         module.graded = 'False'
-        module.weight = 1
         return module
 
 
@@ -179,10 +182,11 @@ if submission[0] == '':
 
 
 @ddt.ddt
-class ProblemBlockTest(unittest.TestCase):
+class CapaModuleTest(unittest.TestCase):
+    shard = 1
 
     def setUp(self):
-        super(ProblemBlockTest, self).setUp()
+        super(CapaModuleTest, self).setUp()
 
         now = datetime.datetime.now(UTC)
         day_delta = datetime.timedelta(days=1)
@@ -224,7 +228,7 @@ class ProblemBlockTest(unittest.TestCase):
         module.lcp.correct_map = correct_map
         module.lcp.student_answers = student_answers
         self.assertEqual(module.get_score().raw_earned, 0.0)
-        module.set_score(module.score_from_lcp(module.lcp))
+        module.set_score(module.score_from_lcp())
         self.assertEqual(module.get_score().raw_earned, 0.9)
 
         other_correct_map = CorrectMap(answer_id='1_2_1', correctness="incorrect", npoints=0.1)
@@ -232,7 +236,7 @@ class ProblemBlockTest(unittest.TestCase):
         other_module.lcp.correct_map = other_correct_map
         other_module.lcp.student_answers = student_answers
         self.assertEqual(other_module.get_score().raw_earned, 0.0)
-        other_module.set_score(other_module.score_from_lcp(other_module.lcp))
+        other_module.set_score(other_module.score_from_lcp())
         self.assertEqual(other_module.get_score().raw_earned, 0.1)
 
     def test_showanswer_default(self):
@@ -268,18 +272,34 @@ class ProblemBlockTest(unittest.TestCase):
 
     @ddt.data(
         # If show_correctness=always, Answer is visible after attempted
-        ({'showanswer': 'attempted', 'max_attempts': '1', 'show_correctness': 'always', }, False, True),
+        ({
+            'showanswer': 'attempted',
+            'max_attempts': '1',
+            'show_correctness': 'always',
+        }, False, True),
         # If show_correctness=never, Answer is never visible
-        ({'showanswer': 'attempted', 'max_attempts': '1', 'show_correctness': 'never', }, False, False),
+        ({
+            'showanswer': 'attempted',
+            'max_attempts': '1',
+            'show_correctness': 'never',
+        }, False, False),
         # If show_correctness=past_due, answer is not visible before due date
-        ({'showanswer': 'attempted', 'show_correctness': 'past_due', 'max_attempts': '1', 'due': 'tomorrow_str', },
-         False, False),
+        ({
+            'showanswer': 'attempted',
+            'show_correctness': 'past_due',
+            'max_attempts': '1',
+            'due': 'tomorrow_str',
+        }, False, False),
         # If show_correctness=past_due, answer is visible after due date
-        ({'showanswer': 'attempted', 'show_correctness': 'past_due', 'max_attempts': '1', 'due': 'yesterday_str', },
-         True, True))
+        ({
+            'showanswer': 'attempted',
+            'show_correctness': 'past_due',
+            'max_attempts': '1',
+            'due': 'yesterday_str',
+        }, True, True),
+    )
     @ddt.unpack
-    def test_showanswer_hide_correctness(self, problem_data, answer_available_no_attempt,
-                                         answer_available_after_attempt):
+    def test_showanswer_hide_correctness(self, problem_data, answer_available_no_attempt, answer_available_after_attempt):
         """
         Ensure that the answer will not be shown when correctness is being hidden.
         """
@@ -395,115 +415,6 @@ class ProblemBlockTest(unittest.TestCase):
                                             graceperiod=self.two_day_delta_str)
         self.assertFalse(still_in_grace.answer_available())
 
-    def test_showanswer_after_attempts_with_max(self):
-        """
-        Button should not be visible when attempts < required attempts.
-
-        Even with max attempts set, the show answer button should only
-        show up after the user has attempted answering the question for
-        the requisite number of times, i.e `attempts_before_showanswer_button`
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            attempts='2',
-            attempts_before_showanswer_button='3',
-            max_attempts='5',
-        )
-        self.assertFalse(problem.answer_available())
-
-    def test_showanswer_after_attempts_no_max(self):
-        """
-        Button should not be visible when attempts < required attempts.
-
-        Even when max attempts is NOT set, the answer should still
-        only be available after the student has attempted the
-        problem at least `attempts_before_showanswer_button` times
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            attempts='2',
-            attempts_before_showanswer_button='3',
-        )
-        self.assertFalse(problem.answer_available())
-
-    def test_showanswer_after_attempts_used_all_attempts(self):
-        """
-        Button should be visible even after all attempts are used up.
-
-        As long as the student has attempted  the question for
-        the requisite number of times, then the show ans. button is
-        visible even after they have exhausted their attempts.
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            attempts_before_showanswer_button='2',
-            max_attempts='3',
-            attempts='3',
-            due=self.tomorrow_str,
-        )
-        self.assertTrue(problem.answer_available())
-
-    def test_showanswer_after_attempts_past_due_date(self):
-        """
-        Show Answer button should be visible even after the due date.
-
-        As long as the student has attempted the problem for the requisite
-        number of times, the answer should be available past the due date.
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            attempts_before_showanswer_button='2',
-            attempts='2',
-            due=self.yesterday_str,
-        )
-        self.assertTrue(problem.answer_available())
-
-    def test_showanswer_after_attempts_still_in_grace(self):
-        """
-        If attempts > required attempts, ans. is available in grace period.
-
-        As long as the user has attempted for the requisite # of times,
-        the show answer button is visible throughout the grace period.
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            after_attempts='3',
-            attempts='4',
-            due=self.yesterday_str,
-            graceperiod=self.two_day_delta_str,
-        )
-        self.assertTrue(problem.answer_available())
-
-    def test_showanswer_after_attempts_large(self):
-        """
-        If required attempts > max attempts then required attempts = max attempts.
-
-        Ensure that if attempts_before_showanswer_button > max_attempts,
-        the button should show up after all attempts are used up,
-        i.e after_attempts falls back to max_attempts
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            attempts_before_showanswer_button='5',
-            max_attempts='3',
-            attempts='3',
-        )
-        self.assertTrue(problem.answer_available())
-
-    def test_showanswer_after_attempts_zero(self):
-        """
-        Button should always be visible if required min attempts = 0.
-
-        If attempts_before_showanswer_button = 0, then the show answer
-        button should be visible at all times.
-        """
-        problem = CapaFactory.create(
-            showanswer='after_attempts',
-            attempts_before_showanswer_button='0',
-            attempts='0',
-        )
-        self.assertTrue(problem.answer_available())
-
     def test_showanswer_finished(self):
         """
         With showanswer="finished" should show answer after the problem is closed,
@@ -598,15 +509,36 @@ class ProblemBlockTest(unittest.TestCase):
 
     @ddt.data(
         # Correctness not visible if due date in the future, even after using up all attempts
-        ({'show_correctness': 'past_due', 'max_attempts': '1', 'attempts': '1', 'due': 'tomorrow_str', }, False),
+        ({
+            'show_correctness': 'past_due',
+            'max_attempts': '1',
+            'attempts': '1',
+            'due': 'tomorrow_str',
+        }, False),
         # Correctness visible if due date in the past
-        ({'show_correctness': 'past_due', 'max_attempts': '1', 'attempts': '0', 'due': 'yesterday_str', }, True),
+        ({
+            'show_correctness': 'past_due',
+            'max_attempts': '1',
+            'attempts': '0',
+            'due': 'yesterday_str',
+        }, True),
         # Correctness not visible if due date in the future
-        ({'show_correctness': 'past_due', 'max_attempts': '1', 'attempts': '0', 'due': 'tomorrow_str', }, False),
+        ({
+            'show_correctness': 'past_due',
+            'max_attempts': '1',
+            'attempts': '0',
+            'due': 'tomorrow_str',
+        }, False),
         # Correctness not visible because grace period hasn't expired,
         # even after using up all attempts
-        ({'show_correctness': 'past_due', 'max_attempts': '1', 'attempts': '1', 'due': 'yesterday_str',
-          'graceperiod': 'two_day_delta_str', }, False))
+        ({
+            'show_correctness': 'past_due',
+            'max_attempts': '1',
+            'attempts': '1',
+            'due': 'yesterday_str',
+            'graceperiod': 'two_day_delta_str',
+        }, False),
+    )
     @ddt.unpack
     def test_show_correctness_past_due(self, problem_data, expected_result):
         """
@@ -659,7 +591,7 @@ class ProblemBlockTest(unittest.TestCase):
             'input_6': 5
         })
 
-        result = ProblemBlock.make_dict_of_responses(valid_get_dict)
+        result = CapaModule.make_dict_of_responses(valid_get_dict)
 
         # Expect that we get a dict with "input" stripped from key names
         # and that we get the same values back
@@ -671,20 +603,20 @@ class ProblemBlockTest(unittest.TestCase):
         # Valid GET param dict with list keys
         # Each tuple represents a single parameter in the query string
         valid_get_dict = MultiDict((('input_2[]', 'test1'), ('input_2[]', 'test2')))
-        result = ProblemBlock.make_dict_of_responses(valid_get_dict)
+        result = CapaModule.make_dict_of_responses(valid_get_dict)
         self.assertIn('2', result)
         self.assertEqual(['test1', 'test2'], result['2'])
 
         # If we use [] at the end of a key name, we should always
         # get a list, even if there's just one value
         valid_get_dict = MultiDict({'input_1[]': 'test'})
-        result = ProblemBlock.make_dict_of_responses(valid_get_dict)
+        result = CapaModule.make_dict_of_responses(valid_get_dict)
         self.assertEqual(result['1'], ['test'])
 
         # If we have no underscores in the name, then the key is invalid
         invalid_get_dict = MultiDict({'input': 'test'})
         with self.assertRaises(ValueError):
-            result = ProblemBlock.make_dict_of_responses(invalid_get_dict)
+            result = CapaModule.make_dict_of_responses(invalid_get_dict)
 
         # Two equivalent names (one list, one non-list)
         # One of the values would overwrite the other, so detect this
@@ -692,7 +624,7 @@ class ProblemBlockTest(unittest.TestCase):
         invalid_get_dict = MultiDict({'input_1[]': 'test 1',
                                       'input_1': 'test 2'})
         with self.assertRaises(ValueError):
-            result = ProblemBlock.make_dict_of_responses(invalid_get_dict)
+            result = CapaModule.make_dict_of_responses(invalid_get_dict)
 
     def test_submit_problem_correct(self):
 
@@ -702,7 +634,7 @@ class ProblemBlockTest(unittest.TestCase):
         # what the input is, by patching CorrectMap.is_correct()
         # Also simulate rendering the HTML
         with patch('capa.correctmap.CorrectMap.is_correct') as mock_is_correct:
-            with patch('xmodule.capa_module.ProblemBlock.get_problem_html') as mock_html:
+            with patch('xmodule.capa_module.CapaModule.get_problem_html') as mock_html:
                 mock_is_correct.return_value = True
                 mock_html.return_value = "Test HTML"
 
@@ -745,8 +677,8 @@ class ProblemBlockTest(unittest.TestCase):
         module = CapaFactory.create(attempts=3)
 
         # Problem closed -- cannot submit
-        # Simulate that ProblemBlock.closed() always returns True
-        with patch('xmodule.capa_module.ProblemBlock.closed') as mock_closed:
+        # Simulate that CapaModule.closed() always returns True
+        with patch('xmodule.capa_module.CapaModule.closed') as mock_closed:
             mock_closed.return_value = True
             with self.assertRaises(xmodule.exceptions.NotFoundError):
                 get_request_dict = {CapaFactory.input_key(): '3.14'}
@@ -862,8 +794,8 @@ class ProblemBlockTest(unittest.TestCase):
 
         self.assertEqual(xqueue_interface._http_post.call_count, 1)
         _, kwargs = xqueue_interface._http_post.call_args  # pylint: disable=unpacking-non-sequence
-        six.assertCountEqual(self, fpaths, list(kwargs['files'].keys()))
-        for fpath, fileobj in six.iteritems(kwargs['files']):
+        self.assertItemsEqual(fpaths, kwargs['files'].keys())
+        for fpath, fileobj in kwargs['files'].iteritems():
             self.assertEqual(fpath, fileobj.name)
 
     def test_submit_problem_with_files_as_xblock(self):
@@ -895,8 +827,8 @@ class ProblemBlockTest(unittest.TestCase):
 
         self.assertEqual(xqueue_interface._http_post.call_count, 1)
         _, kwargs = xqueue_interface._http_post.call_args  # pylint: disable=unpacking-non-sequence
-        six.assertCountEqual(self, fnames, list(kwargs['files'].keys()))
-        for fpath, fileobj in six.iteritems(kwargs['files']):
+        self.assertItemsEqual(fnames, kwargs['files'].keys())
+        for fpath, fileobj in kwargs['files'].iteritems():
             self.assertEqual(fpath, fileobj.name)
 
     def test_submit_problem_error(self):
@@ -906,8 +838,12 @@ class ProblemBlockTest(unittest.TestCase):
                              LoncapaProblemError,
                              ResponseError]
         for exception_class in exception_classes:
+
             # Create the module
-            module = CapaFactory.create(attempts=1, user_is_staff=False)
+            module = CapaFactory.create(attempts=1)
+
+            # Ensure that the user is NOT staff
+            module.system.user_is_staff = False
 
             # Simulate answering a problem that raises the exception
             with patch('capa.capa_problem.LoncapaProblem.grade_answers') as mock_grade:
@@ -935,7 +871,10 @@ class ProblemBlockTest(unittest.TestCase):
         for exception_class in exception_classes:
 
             # Create the module
-            module = CapaFactory.create(attempts=1, user_is_staff=False)
+            module = CapaFactory.create(attempts=1)
+
+            # Ensure that the user is NOT staff
+            module.system.user_is_staff = False
 
             # Simulate a codejail exception "Exception: Couldn't execute jailed code"
             with patch('capa.capa_problem.LoncapaProblem.grade_answers') as mock_grade:
@@ -946,7 +885,7 @@ class ProblemBlockTest(unittest.TestCase):
                         '  File "jailed_code", line 15, in <module>\\n'
                         '    exec code in g_dict\\n  File "<string>", line 67, in <module>\\n'
                         '  File "<string>", line 65, in check_func\\n'
-                        'Exception: Couldn\'t execute jailed code\\n\' with status code: 1', )
+                        'Exception: Couldn\'t execute jailed code\\n\' with status code: 1',)
                 except ResponseError as err:
                     mock_grade.side_effect = exception_class(six.text_type(err))
                 get_request_dict = {CapaFactory.input_key(): '3.14'}
@@ -968,7 +907,10 @@ class ProblemBlockTest(unittest.TestCase):
         See also `test_submit_problem_error` for the "expected kinds" or errors.
         """
         # Create the module
-        module = CapaFactory.create(attempts=1, user_is_staff=False)
+        module = CapaFactory.create(attempts=1)
+
+        # Ensure that the user is NOT staff
+        module.system.user_is_staff = False
 
         # Ensure that DEBUG is on
         module.system.DEBUG = True
@@ -1005,8 +947,12 @@ class ProblemBlockTest(unittest.TestCase):
                              LoncapaProblemError,
                              ResponseError]
         for exception_class in exception_classes:
+
             # Create the module
-            module = CapaFactory.create(attempts=1, user_is_staff=False)
+            module = CapaFactory.create(attempts=1)
+
+            # Ensure that the user is NOT staff
+            module.system.user_is_staff = False
 
             # Simulate answering a problem that raises the exception
             with patch('capa.capa_problem.LoncapaProblem.grade_answers') as mock_grade:
@@ -1031,8 +977,12 @@ class ProblemBlockTest(unittest.TestCase):
         for exception_class in [StudentInputError,
                                 LoncapaProblemError,
                                 ResponseError]:
+
             # Create the module
-            module = CapaFactory.create(attempts=1, user_is_staff=True)
+            module = CapaFactory.create(attempts=1)
+
+            # Ensure that the user IS staff
+            module.system.user_is_staff = True
 
             # Simulate answering a problem that raises an exception
             with patch('capa.capa_problem.LoncapaProblem.grade_answers') as mock_grade:
@@ -1089,7 +1039,7 @@ class ProblemBlockTest(unittest.TestCase):
         module.choose_new_seed = Mock(wraps=module.choose_new_seed)
 
         # Stub out HTML rendering
-        with patch('xmodule.capa_module.ProblemBlock.get_problem_html') as mock_html:
+        with patch('xmodule.capa_module.CapaModule.get_problem_html') as mock_html:
             mock_html.return_value = "<div>Test HTML</div>"
 
             # Reset the problem
@@ -1111,7 +1061,7 @@ class ProblemBlockTest(unittest.TestCase):
         module = CapaFactory.create(rerandomize=RANDOMIZATION.ALWAYS)
 
         # Simulate that the problem is closed
-        with patch('xmodule.capa_module.ProblemBlock.closed') as mock_closed:
+        with patch('xmodule.capa_module.CapaModule.closed') as mock_closed:
             mock_closed.return_value = True
 
             # Try to reset the problem
@@ -1186,7 +1136,7 @@ class ProblemBlockTest(unittest.TestCase):
 
         with patch('capa.correctmap.CorrectMap.is_correct') as mock_is_correct:
             mock_is_correct.return_value = True
-            module.set_score(module.score_from_lcp(module.lcp))
+            module.set_score(module.score_from_lcp())
             with patch('capa.responsetypes.NumericalResponse.get_staff_ans') as get_staff_ans:
                 get_staff_ans.return_value = 1 + 0j
                 module.rescore(only_if_higher=True)
@@ -1278,7 +1228,7 @@ class ProblemBlockTest(unittest.TestCase):
         module = CapaFactory.create(done=False)
 
         # Simulate that the problem is closed
-        with patch('xmodule.capa_module.ProblemBlock.closed') as mock_closed:
+        with patch('xmodule.capa_module.CapaModule.closed') as mock_closed:
             mock_closed.return_value = True
 
             # Try to save the problem
@@ -1641,7 +1591,7 @@ class ProblemBlockTest(unittest.TestCase):
 
         # check to make sure that the input_state and the keys have the same values
         module1.set_state_from_lcp()
-        self.assertEqual(list(module1.lcp.inputs.keys()), list(module1.input_state.keys()))
+        self.assertEqual(module1.lcp.inputs.keys(), module1.input_state.keys())
 
         module2.set_state_from_lcp()
 
@@ -1833,7 +1783,6 @@ class ProblemBlockTest(unittest.TestCase):
         """
         Run the test for each possible rerandomize value
         """
-
         def _reset_and_get_seed(module):
             """
             Reset the XModule and return the module's seed
@@ -1853,7 +1802,7 @@ class ProblemBlockTest(unittest.TestCase):
         seed = module.seed
         self.assertIsNotNone(seed)
 
-        # the seed should never change because the student hasn't finished the problem
+        #the seed should never change because the student hasn't finished the problem
         self.assertEqual(seed, _reset_and_get_seed(module))
 
     @ddt.data(
@@ -1947,7 +1896,7 @@ class ProblemBlockTest(unittest.TestCase):
         Check that get_problem() returns the expected dictionary.
         """
         module = CapaFactory.create()
-        self.assertEqual(module.get_problem("data"), {'html': module.get_problem_html(encapsulate=False)})
+        self.assertEquals(module.get_problem("data"), {'html': module.get_problem_html(encapsulate=False)})
 
     # Standard question with shuffle="true" used by a few tests
     common_shuffle_xml = textwrap.dedent("""
@@ -1976,9 +1925,9 @@ class ProblemBlockTest(unittest.TestCase):
             event_info = mock_call[1][2]
             self.assertEqual(event_info['answers'][CapaFactory.answer_key()], 'choice_3')
             # 'permutation' key added to record how problem was shown
-            self.assertEqual(event_info['permutation'][CapaFactory.answer_key()],
-                             ('shuffle', ['choice_3', 'choice_1', 'choice_2', 'choice_0']))
-            self.assertEqual(event_info['success'], 'correct')
+            self.assertEquals(event_info['permutation'][CapaFactory.answer_key()],
+                              ('shuffle', ['choice_3', 'choice_1', 'choice_2', 'choice_0']))
+            self.assertEquals(event_info['success'], 'correct')
 
     @unittest.skip("masking temporarily disabled")
     def test_save_unmask(self):
@@ -1989,7 +1938,7 @@ class ProblemBlockTest(unittest.TestCase):
             module.save_problem(get_request_dict)
             mock_call = mock_track_function.mock_calls[0]
             event_info = mock_call[1][1]
-            self.assertEqual(event_info['answers'][CapaFactory.answer_key()], 'choice_2')
+            self.assertEquals(event_info['answers'][CapaFactory.answer_key()], 'choice_2')
             self.assertIsNotNone(event_info['permutation'][CapaFactory.answer_key()])
 
     @unittest.skip("masking temporarily disabled")
@@ -2003,8 +1952,8 @@ class ProblemBlockTest(unittest.TestCase):
             module.reset_problem(None)
             mock_call = mock_track_function.mock_calls[0]
             event_info = mock_call[1][1]
-            self.assertEqual(mock_call[1][0], 'reset_problem')
-            self.assertEqual(event_info['old_state']['student_answers'][CapaFactory.answer_key()], 'choice_2')
+            self.assertEquals(mock_call[1][0], 'reset_problem')
+            self.assertEquals(event_info['old_state']['student_answers'][CapaFactory.answer_key()], 'choice_2')
             self.assertIsNotNone(event_info['permutation'][CapaFactory.answer_key()])
 
     @unittest.skip("masking temporarily disabled")
@@ -2018,8 +1967,8 @@ class ProblemBlockTest(unittest.TestCase):
             module.rescore_problem(only_if_higher=False)
             mock_call = mock_track_function.mock_calls[0]
             event_info = mock_call[1][1]
-            self.assertEqual(mock_call[1][0], 'problem_rescore')
-            self.assertEqual(event_info['state']['student_answers'][CapaFactory.answer_key()], 'choice_2')
+            self.assertEquals(mock_call[1][0], 'problem_rescore')
+            self.assertEquals(event_info['state']['student_answers'][CapaFactory.answer_key()], 'choice_2')
             self.assertIsNotNone(event_info['permutation'][CapaFactory.answer_key()])
 
     def test_check_unmask_answerpool(self):
@@ -2044,9 +1993,9 @@ class ProblemBlockTest(unittest.TestCase):
             event_info = mock_call[1][2]
             self.assertEqual(event_info['answers'][CapaFactory.answer_key()], 'choice_2')
             # 'permutation' key added to record how problem was shown
-            self.assertEqual(event_info['permutation'][CapaFactory.answer_key()],
-                             ('answerpool', ['choice_1', 'choice_3', 'choice_2', 'choice_0']))
-            self.assertEqual(event_info['success'], 'incorrect')
+            self.assertEquals(event_info['permutation'][CapaFactory.answer_key()],
+                              ('answerpool', ['choice_1', 'choice_3', 'choice_2', 'choice_0']))
+            self.assertEquals(event_info['success'], 'incorrect')
 
     @ddt.unpack
     @ddt.data(
@@ -2078,7 +2027,9 @@ class ProblemBlockTest(unittest.TestCase):
 
 
 @ddt.ddt
-class ProblemBlockXMLTest(unittest.TestCase):
+class CapaDescriptorTest(unittest.TestCase):
+    shard = 1
+
     sample_checkbox_problem_xml = textwrap.dedent("""
         <problem>
             <p>Title</p>
@@ -2433,22 +2384,22 @@ class ProblemBlockXMLTest(unittest.TestCase):
     """)
 
     def _create_descriptor(self, xml, name=None):
-        """ Creates a ProblemBlock to run test against """
-        descriptor = CapaFactory.create()
+        """ Creates a CapaDescriptor to run test against """
+        descriptor = CapaDescriptor(get_test_system(), scope_ids=1)
         descriptor.data = xml
         if name:
             descriptor.display_name = name
         return descriptor
 
-    @ddt.data(*sorted(responsetypes.registry.registered_tags()))
+    @ddt.data(*responsetypes.registry.registered_tags())
     def test_all_response_types(self, response_tag):
         """ Tests that every registered response tag is correctly returned """
         xml = "<problem><{response_tag}></{response_tag}></problem>".format(response_tag=response_tag)
         name = "Some Capa Problem"
         descriptor = self._create_descriptor(xml, name=name)
-        self.assertEqual(descriptor.problem_types, {response_tag})
-        self.assertEqual(descriptor.index_dictionary(), {
-            'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+        self.assertEquals(descriptor.problem_types, {response_tag})
+        self.assertEquals(descriptor.index_dictionary(), {
+            'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
             'problem_types': [response_tag],
             'content': {
                 'display_name': name,
@@ -2473,9 +2424,9 @@ class ProblemBlockXMLTest(unittest.TestCase):
         """)
         name = "Test Capa Problem"
         descriptor = self._create_descriptor(xml, name=name)
-        self.assertEqual(descriptor.problem_types, {"multiplechoiceresponse"})
-        self.assertEqual(descriptor.index_dictionary(), {
-            'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+        self.assertEquals(descriptor.problem_types, {"multiplechoiceresponse"})
+        self.assertEquals(descriptor.index_dictionary(), {
+            'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
             'problem_types': ["multiplechoiceresponse"],
             'content': {
                 'display_name': name,
@@ -2505,10 +2456,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
         """)
         name = "Other Test Capa Problem"
         descriptor = self._create_descriptor(xml, name=name)
-        self.assertEqual(descriptor.problem_types, {"multiplechoiceresponse", "optionresponse"})
-        six.assertCountEqual(
-            self, descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+        self.assertEquals(descriptor.problem_types, {"multiplechoiceresponse", "optionresponse"})
+        self.assertEquals(
+            descriptor.index_dictionary(), {
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["optionresponse", "multiplechoiceresponse"],
                 'content': {
                     'display_name': name,
@@ -2543,9 +2494,9 @@ class ProblemBlockXMLTest(unittest.TestCase):
         """)
         name = "Blank Common Capa Problem"
         descriptor = self._create_descriptor(xml, name=name)
-        self.assertEqual(
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': [],
                 'content': {
                     'display_name': name,
@@ -2569,11 +2520,11 @@ class ProblemBlockXMLTest(unittest.TestCase):
             Hungarian
             Note: Make sure you select all of the correct options—there may be more than one!
         """)
-        self.assertEqual(descriptor.problem_types, {"choiceresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"choiceresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(),
             {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["choiceresponse"],
                 'content': {
                     'display_name': name,
@@ -2591,10 +2542,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             You can use the following example problem as a model.
             Which of the following countries celebrates its independence on August 15?
         """)
-        self.assertEqual(descriptor.problem_types, {"optionresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"optionresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["optionresponse"],
                 'content': {
                     'display_name': name,
@@ -2616,10 +2567,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             Indonesia
             Russia
         """)
-        self.assertEqual(descriptor.problem_types, {"multiplechoiceresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"multiplechoiceresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["multiplechoiceresponse"],
                 'content': {
                     'display_name': name,
@@ -2644,10 +2595,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             How many miles away from Earth is the sun? Use scientific notation to answer.
             The square of what number is -100?
         """)
-        self.assertEqual(descriptor.problem_types, {"numericalresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"numericalresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["numericalresponse"],
                 'content': {
                     'display_name': name,
@@ -2669,10 +2620,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             You can use the following example problem as a model.
             What was the first post-secondary school in China to allow both male and female students?
         """)
-        self.assertEqual(descriptor.problem_types, {"stringresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"stringresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["stringresponse"],
                 'content': {
                     'display_name': name,
@@ -2693,7 +2644,7 @@ class ProblemBlockXMLTest(unittest.TestCase):
         capa_content = " FX1_VAL='Καλημέρα' Δοκιμή με μεταβλητές με Ελληνικούς χαρακτήρες μέσα σε python: $FX1_VAL "
 
         descriptor_dict = descriptor.index_dictionary()
-        self.assertEqual(
+        self.assertEquals(
             descriptor_dict['content']['capa_content'], smart_text(capa_content)
         )
 
@@ -2715,10 +2666,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             potato
             tomato
         """)
-        self.assertEqual(descriptor.problem_types, {"choiceresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"choiceresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["choiceresponse"],
                 'content': {
                     'display_name': name,
@@ -2741,10 +2692,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             potato
             tomato
         """)
-        self.assertEqual(descriptor.problem_types, {"optionresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"optionresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["optionresponse"],
                 'content': {
                     'display_name': name,
@@ -2767,10 +2718,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             potato
             tomato
         """)
-        self.assertEqual(descriptor.problem_types, {"multiplechoiceresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"multiplechoiceresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["multiplechoiceresponse"],
                 'content': {
                     'display_name': name,
@@ -2791,10 +2742,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             Use the following example problem as a model.
             What is the arithmetic mean for the following set of numbers? (1, 5, 6, 3, 5)
         """)
-        self.assertEqual(descriptor.problem_types, {"numericalresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"numericalresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["numericalresponse"],
                 'content': {
                     'display_name': name,
@@ -2815,10 +2766,10 @@ class ProblemBlockXMLTest(unittest.TestCase):
             Use the following example problem as a model.
             Which U.S. state has the largest land area?
         """)
-        self.assertEqual(descriptor.problem_types, {"stringresponse"})
-        self.assertEqual(
+        self.assertEquals(descriptor.problem_types, {"stringresponse"})
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': ["stringresponse"],
                 'content': {
                     'display_name': name,
@@ -2848,9 +2799,9 @@ class ProblemBlockXMLTest(unittest.TestCase):
             This has HTML comment in it.
             HTML end.
         """)
-        self.assertEqual(
+        self.assertEquals(
             descriptor.index_dictionary(), {
-                'content_type': ProblemBlock.INDEX_CONTENT_TYPE,
+                'content_type': CapaDescriptor.INDEX_CONTENT_TYPE,
                 'problem_types': [],
                 'content': {
                     'display_name': name,
@@ -2873,6 +2824,7 @@ class ProblemBlockXMLTest(unittest.TestCase):
 
 
 class ComplexEncoderTest(unittest.TestCase):
+    shard = 1
 
     def test_default(self):
         """
@@ -2884,13 +2836,14 @@ class ComplexEncoderTest(unittest.TestCase):
         self.assertEqual(expected_str, json_str[1:-1])  # ignore quotes
 
 
-class ProblemCheckTrackingTest(unittest.TestCase):
+class TestProblemCheckTracking(unittest.TestCase):
     """
     Ensure correct tracking information is included in events emitted during problem checks.
     """
+    shard = 1
 
     def setUp(self):
-        super(ProblemCheckTrackingTest, self).setUp()
+        super(TestProblemCheckTracking, self).setUp()
         self.maxDiff = None
 
     def test_choice_answer_text(self):
@@ -2935,7 +2888,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         }
         event = self.get_event_for_answers(module, answer_input_dict)
 
-        self.assertEqual(event['submission'], {
+        self.assertEquals(event['submission'], {
             factory.answer_key(2): {
                 'question': 'What color is the open ocean on a sunny day?',
                 'answer': 'blue',
@@ -2994,7 +2947,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         }
 
         event = self.get_event_for_answers(module, answer_input_dict)
-        self.assertEqual(event['submission'], {
+        self.assertEquals(event['submission'], {
             factory.answer_key(2): {
                 'question': '',
                 'answer': '3.14',
@@ -3026,7 +2979,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         }
 
         event = self.get_event_for_answers(module, answer_input_dict)
-        self.assertEqual(event['submission'], {
+        self.assertEquals(event['submission'], {
             factory.answer_key(2, 1): {
                 'group_label': group_label,
                 'question': input1_label,
@@ -3096,7 +3049,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         }
 
         event = self.get_event_for_answers(module, answer_input_dict)
-        self.assertEqual(event['submission'], {
+        self.assertEquals(event['submission'], {
             factory.answer_key(2, 1): {
                 'group_label': group_label,
                 'question': input1_label,
@@ -3126,7 +3079,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         }
 
         event = self.get_event_for_answers(module, answer_input_dict)
-        self.assertEqual(event['submission'], {
+        self.assertEquals(event['submission'], {
             factory.answer_key(2): {
                 'question': '',
                 'answer': '3.14',
@@ -3159,7 +3112,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         }
 
         event = self.get_event_for_answers(module, answer_input_dict)
-        self.assertEqual(event['submission'], {
+        self.assertEquals(event['submission'], {
             factory.answer_key(2): {
                 'question': '',
                 'answer': fpaths,
@@ -3207,7 +3160,7 @@ class ProblemCheckTrackingTest(unittest.TestCase):
         self.assertTrue(problem.runtime.replace_jump_to_id_urls.called)
 
 
-class ProblemBlockReportGenerationTest(unittest.TestCase):
+class TestCapaDescriptorReportGeneration(unittest.TestCase):
     """
     Ensure that Capa report generation works correctly
     """
@@ -3248,21 +3201,21 @@ class ProblemBlockReportGenerationTest(unittest.TestCase):
 
     def _get_descriptor(self):
         scope_ids = Mock(block_type='problem')
-        descriptor = ProblemBlock(get_test_system(), scope_ids=scope_ids)
+        descriptor = CapaDescriptor(get_test_system(), scope_ids=scope_ids)
         descriptor.runtime = Mock()
         descriptor.data = '<problem/>'
         return descriptor
 
     def test_generate_report_data_not_implemented(self):
         scope_ids = Mock(block_type='noproblem')
-        descriptor = ProblemBlock(get_test_system(), scope_ids=scope_ids)
+        descriptor = CapaDescriptor(get_test_system(), scope_ids=scope_ids)
         with self.assertRaises(NotImplementedError):
             next(descriptor.generate_report_data(iter([])))
 
     def test_generate_report_data_limit_responses(self):
         descriptor = self._get_descriptor()
         report_data = list(descriptor.generate_report_data(self._mock_user_state_generator(), 2))
-        self.assertEqual(2, len(report_data))
+        self.assertEquals(2, len(report_data))
 
     def test_generate_report_data_dont_limit_responses(self):
         descriptor = self._get_descriptor()
@@ -3274,10 +3227,10 @@ class ProblemBlockReportGenerationTest(unittest.TestCase):
                 response_count=response_count,
             )
         ))
-        self.assertEqual(user_count * response_count, len(report_data))
+        self.assertEquals(user_count * response_count, len(report_data))
 
     def test_generate_report_data_skip_dynamath(self):
         descriptor = self._get_descriptor()
         iterator = iter([self._user_state(suffix='_dynamath')])
         report_data = list(descriptor.generate_report_data(iterator))
-        self.assertEqual(0, len(report_data))
+        self.assertEquals(0, len(report_data))

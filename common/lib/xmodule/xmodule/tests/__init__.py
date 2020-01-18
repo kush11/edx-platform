@@ -7,7 +7,6 @@ Run like this:
 
 """
 
-
 import inspect
 import json
 import os
@@ -15,19 +14,17 @@ import pprint
 import sys
 import traceback
 import unittest
-from contextlib import contextmanager
-from functools import wraps
 
-import six
+from contextlib import contextmanager, nested
 from django.test import TestCase
-from django.utils.encoding import python_2_unicode_compatible
+from functools import wraps
 from mock import Mock
-from opaque_keys.edx.keys import CourseKey
 from path import Path as path
 from six import text_type
-from xblock.field_data import DictFieldData
-from xblock.fields import Reference, ReferenceList, ReferenceValueDict, ScopeIds
 
+from opaque_keys.edx.keys import CourseKey
+from xblock.field_data import DictFieldData
+from xblock.fields import ScopeIds, Reference, ReferenceList, ReferenceValueDict
 from xmodule.assetstore import AssetMetadata
 from xmodule.error_module import ErrorDescriptor
 from xmodule.mako_module import MakoDescriptorSystem
@@ -56,7 +53,7 @@ class TestModuleSystem(ModuleSystem):  # pylint: disable=abstract-method
 
     def handler_url(self, block, handler, suffix='', query='', thirdparty=False):
         return '{usage_id}/{handler}{suffix}?{query}'.format(
-            usage_id=six.text_type(block.scope_ids.usage_id),
+            usage_id=unicode(block.scope_ids.usage_id),
             handler=handler,
             suffix=suffix,
             query=query,
@@ -64,7 +61,7 @@ class TestModuleSystem(ModuleSystem):  # pylint: disable=abstract-method
 
     def local_resource_url(self, block, uri):
         return 'resource/{usage_id}/{uri}'.format(
-            usage_id=six.text_type(block.scope_ids.usage_id),
+            usage_id=unicode(block.scope_ids.usage_id),
             uri=uri,
         )
 
@@ -176,19 +173,21 @@ def mock_render_template(*args, **kwargs):
     Allows us to not depend on any actual template rendering mechanism,
     while still returning a unicode object
     """
-    return pprint.pformat((args, kwargs)).encode().decode()
+    return pprint.pformat((args, kwargs)).decode()
 
 
 class ModelsTest(unittest.TestCase):
+    shard = 1
 
     def test_load_class(self):
-        vc = XModuleDescriptor.load_class('sequential')
-        vc_str = "<class 'xmodule.seq_module.SequenceDescriptor'>"
+        vc = XModuleDescriptor.load_class('video')
+        vc_str = "<class 'xmodule.video_module.video_module.VideoDescriptor'>"
         self.assertEqual(str(vc), vc_str)
 
 
 class LogicTest(unittest.TestCase):
     """Base class for testing xmodule logic."""
+    shard = 1
     descriptor_class = None
     raw_field_data = {}
 
@@ -221,11 +220,158 @@ def map_references(value, field, actual_course_key):
     if isinstance(field, ReferenceList):
         return [sub.map_into_course(actual_course_key) for sub in value]
     if isinstance(field, ReferenceValueDict):
-        return {key: ele.map_into_course(actual_course_key) for key, ele in six.iteritems(value)}
+        return {key: ele.map_into_course(actual_course_key) for key, ele in value.iteritems()}
     return value
 
 
-@python_2_unicode_compatible
+class BulkAssertionError(AssertionError):
+    """
+    An AssertionError that contains many sub-assertions.
+    """
+    def __init__(self, assertion_errors):
+        self.errors = assertion_errors
+        super(BulkAssertionError, self).__init__("The following assertions were raised:\n{}".format(
+            "\n\n".join(self.errors)
+        ))
+
+
+class _BulkAssertionManager(object):
+    """
+    This provides a facility for making a large number of assertions, and seeing all of
+    the failures at once, rather than only seeing single failures.
+    """
+    def __init__(self, test_case):
+        self._assertion_errors = []
+        self._test_case = test_case
+
+    def log_error(self, formatted_exc):
+        """
+        Record ``formatted_exc`` in the set of exceptions captured by this assertion manager.
+        """
+        self._assertion_errors.append(formatted_exc)
+
+    def raise_assertion_errors(self):
+        """
+        Raise a BulkAssertionError containing all of the captured AssertionErrors,
+        if there were any.
+        """
+        if self._assertion_errors:
+            raise BulkAssertionError(self._assertion_errors)
+
+
+class BulkAssertionTest(TestCase):
+    """
+    This context manager provides a _BulkAssertionManager to assert with,
+    and then calls `raise_assertion_errors` at the end of the block to validate all
+    of the assertions.
+    """
+
+    def setUp(self, *args, **kwargs):
+        super(BulkAssertionTest, self).setUp(*args, **kwargs)
+        # Use __ to not pollute the namespace of subclasses with what could be a fairly generic name.
+        self.__manager = None
+
+    @contextmanager
+    def bulk_assertions(self):
+        """
+        A context manager that will capture all assertion failures made by self.assert*
+        methods within its context, and raise a single combined assertion error at
+        the end of the context.
+        """
+        if self.__manager:
+            yield
+        else:
+            try:
+                self.__manager = _BulkAssertionManager(self)
+                yield
+            except Exception:
+                raise
+            else:
+                manager = self.__manager
+                self.__manager = None
+                manager.raise_assertion_errors()
+
+    @contextmanager
+    def _capture_assertion_errors(self):
+        """
+        A context manager that captures any AssertionError raised within it,
+        and, if within a ``bulk_assertions`` context, records the captured
+        assertion to the bulk assertion manager. If not within a ``bulk_assertions``
+        context, just raises the original exception.
+        """
+        try:
+            # Only wrap the first layer of assert functions by stashing away the manager
+            # before executing the assertion.
+            manager = self.__manager
+            self.__manager = None
+            yield
+        except AssertionError:  # pylint: disable=broad-except
+            if manager is not None:
+                # Reconstruct the stack in which the error was thrown (so that the traceback)
+                # isn't cut off at `assertion(*args, **kwargs)`.
+                exc_type, exc_value, exc_tb = sys.exc_info()
+
+                # Count the number of stack frames before you get to a
+                # unittest context (walking up the stack from here).
+                relevant_frames = 0
+                for frame_record in inspect.stack():
+                    # This is the same criterion used by unittest to decide if a
+                    # stack frame is relevant to exception printing.
+                    frame = frame_record[0]
+                    if '__unittest' in frame.f_globals:
+                        break
+                    relevant_frames += 1
+
+                stack_above = traceback.extract_stack()[-relevant_frames:-1]
+
+                stack_below = traceback.extract_tb(exc_tb)
+                formatted_stack = traceback.format_list(stack_above + stack_below)
+                formatted_exc = traceback.format_exception_only(exc_type, exc_value)
+                manager.log_error(
+                    "".join(formatted_stack + formatted_exc)
+                )
+            else:
+                raise
+        finally:
+            self.__manager = manager
+
+    def _wrap_assertion(self, assertion):
+        """
+        Wraps an assert* method to capture an immediate exception,
+        or to generate a new assertion capturing context (in the case of assertRaises
+        and assertRaisesRegexp).
+        """
+        @wraps(assertion)
+        def assert_(*args, **kwargs):
+            """
+            Execute a captured assertion, and catch any assertion errors raised.
+            """
+            context = None
+
+            # Run the assertion, and capture any raised assertionErrors
+            with self._capture_assertion_errors():
+                context = assertion(*args, **kwargs)
+
+            # Handle the assertRaises family of functions by returning
+            # a context manager that surrounds the assertRaises
+            # with our assertion capturing context manager.
+            if context is not None:
+                return nested(self._capture_assertion_errors(), context)
+
+        return assert_
+
+    def __getattribute__(self, name):
+        """
+        Wrap all assert* methods of this class using self._wrap_assertion,
+        to capture all assertion errors in bulk.
+        """
+        base_attr = super(BulkAssertionTest, self).__getattribute__(name)
+        if name.startswith('assert'):
+            return self._wrap_assertion(base_attr)
+        else:
+            return base_attr
+
+
 class LazyFormat(object):
     """
     An stringy object that delays formatting until it's put into a string context.
@@ -238,25 +384,26 @@ class LazyFormat(object):
         self.kwargs = kwargs
         self._message = None
 
-    def __str__(self):
+    def __unicode__(self):
         if self._message is None:
             self._message = self.template.format(*self.args, **self.kwargs)
         return self._message
 
     def __repr__(self):
-        return six.text_type(self)
+        return unicode(self)
 
     def __len__(self):
-        return len(six.text_type(self))
+        return len(unicode(self))
 
     def __getitem__(self, index):
-        return six.text_type(self)[index]
+        return unicode(self)[index]
 
 
-class CourseComparisonTest(TestCase):
+class CourseComparisonTest(BulkAssertionTest):
     """
     Mixin that has methods for comparing courses for equality.
     """
+    shard = 1
 
     def setUp(self):
         super(CourseComparisonTest, self).setUp()
@@ -302,8 +449,8 @@ class CourseComparisonTest(TestCase):
             expected = [extract_key(key) for key in expected]
             actual = [extract_key(key) for key in actual]
         elif isinstance(reference_field, ReferenceValueDict):
-            expected = {key: extract_key(val) for (key, val) in six.iteritems(expected)}
-            actual = {key: extract_key(val) for (key, val) in six.iteritems(actual)}
+            expected = {key: extract_key(val) for (key, val) in expected.iteritems()}
+            actual = {key: extract_key(val) for (key, val) in actual.iteritems()}
         self.assertEqual(
             expected,
             actual,
@@ -385,62 +532,72 @@ class CourseComparisonTest(TestCase):
         """
         Actual algorithm to compare courses.
         """
+        with self.bulk_assertions():
+            self.assertEqual(len(expected_items), len(actual_items))
 
-        self.assertEqual(len(expected_items), len(actual_items))
+            def map_key(usage_key):
+                return (usage_key.block_type, usage_key.block_id)
 
-        def map_key(usage_key):
-            return (usage_key.block_type, usage_key.block_id)
-        actual_item_map = {
-            map_key(item.location): item
-            for item in actual_items
-        }
-        # Split Mongo and Old-Mongo disagree about what the block_id of courses is, so skip those in
-        # this comparison
-        six.assertCountEqual(
-            self,
-            [map_key(item.location) for item in expected_items if item.scope_ids.block_type != 'course'],
-            [key for key in actual_item_map.keys() if key[0] != 'course'],
-        )
-        for expected_item in expected_items:
-            actual_item_location = actual_course_key.make_usage_key(expected_item.category, expected_item.location.block_id)
-            # split and old mongo use different names for the course root but we don't know which
-            # modulestore actual's come from here; so, assume old mongo and if that fails, assume split
-            if expected_item.location.block_type == 'course':
-                actual_item_location = actual_item_location.replace(name=actual_item_location.run)
-            actual_item = actual_item_map.get(map_key(actual_item_location))
-            # must be split
-            if actual_item is None and expected_item.location.block_type == 'course':
-                actual_item_location = actual_item_location.replace(name='course')
+            actual_item_map = {
+                map_key(item.location): item
+                for item in actual_items
+            }
+
+            # Split Mongo and Old-Mongo disagree about what the block_id of courses is, so skip those in
+            # this comparison
+            self.assertItemsEqual(
+                [map_key(item.location) for item in expected_items if item.scope_ids.block_type != 'course'],
+                [key for key in actual_item_map.keys() if key[0] != 'course'],
+            )
+
+            for expected_item in expected_items:
+                actual_item_location = actual_course_key.make_usage_key(expected_item.category, expected_item.location.block_id)
+                # split and old mongo use different names for the course root but we don't know which
+                # modulestore actual's come from here; so, assume old mongo and if that fails, assume split
+                if expected_item.location.block_type == 'course':
+                    actual_item_location = actual_item_location.replace(name=actual_item_location.run)
                 actual_item = actual_item_map.get(map_key(actual_item_location))
-            # Formatting the message slows down tests of large courses significantly, so only do it if it would be used
-            self.assertIn(map_key(actual_item_location), list(actual_item_map.keys()))
-            if actual_item is None:
-                continue
-            # compare fields
-            self.assertEqual(expected_item.fields, actual_item.fields)
-            for field_name, field in six.iteritems(expected_item.fields):
-                if (expected_item.scope_ids.usage_id, field_name) in self.field_exclusions:
+                # must be split
+                if actual_item is None and expected_item.location.block_type == 'course':
+                    actual_item_location = actual_item_location.replace(name='course')
+                    actual_item = actual_item_map.get(map_key(actual_item_location))
+
+                # Formatting the message slows down tests of large courses significantly, so only do it if it would be used
+                self.assertIn(map_key(actual_item_location), actual_item_map.keys())
+
+                if actual_item is None:
                     continue
-                if (None, field_name) in self.field_exclusions:
-                    continue
-                # Children are handled specially
-                if field_name == 'children':
-                    continue
-                self.assertFieldEqual(field, expected_item, actual_item)
-            # compare children
-            self.assertEqual(expected_item.has_children, actual_item.has_children)
-            if expected_item.has_children:
-                expected_children = [
-                    (expected_item_child.location.block_type, expected_item_child.location.block_id)
-                    # get_children() rather than children to strip privates from public parents
-                    for expected_item_child in expected_item.get_children()
-                ]
-                actual_children = [
-                    (item_child.location.block_type, item_child.location.block_id)
-                    # get_children() rather than children to strip privates from public parents
-                    for item_child in actual_item.get_children()
-                ]
-                self.assertEqual(expected_children, actual_children)
+
+                # compare fields
+                self.assertEqual(expected_item.fields, actual_item.fields)
+
+                for field_name, field in expected_item.fields.iteritems():
+                    if (expected_item.scope_ids.usage_id, field_name) in self.field_exclusions:
+                        continue
+
+                    if (None, field_name) in self.field_exclusions:
+                        continue
+
+                    # Children are handled specially
+                    if field_name == 'children':
+                        continue
+
+                    self.assertFieldEqual(field, expected_item, actual_item)
+
+                # compare children
+                self.assertEqual(expected_item.has_children, actual_item.has_children)
+                if expected_item.has_children:
+                    expected_children = [
+                        (expected_item_child.location.block_type, expected_item_child.location.block_id)
+                        # get_children() rather than children to strip privates from public parents
+                        for expected_item_child in expected_item.get_children()
+                    ]
+                    actual_children = [
+                        (item_child.location.block_type, item_child.location.block_id)
+                        # get_children() rather than children to strip privates from public parents
+                        for item_child in actual_item.get_children()
+                    ]
+                    self.assertEqual(expected_children, actual_children)
 
     def assertAssetEqual(self, expected_course_key, expected_asset, actual_course_key, actual_asset):
         """
@@ -483,11 +640,15 @@ class CourseComparisonTest(TestCase):
         expected_content, expected_count = expected_store.get_all_content_for_course(expected_course_key)
         actual_content, actual_count = actual_store.get_all_content_for_course(actual_course_key)
 
-        self.assertEqual(expected_count, actual_count)
-        self._assertAssetsEqual(expected_course_key, expected_content, actual_course_key, actual_content)
-        expected_thumbs = expected_store.get_all_content_thumbnails_for_course(expected_course_key)
-        actual_thumbs = actual_store.get_all_content_thumbnails_for_course(actual_course_key)
-        self._assertAssetsEqual(expected_course_key, expected_thumbs, actual_course_key, actual_thumbs)
+        with self.bulk_assertions():
+
+            self.assertEqual(expected_count, actual_count)
+            self._assertAssetsEqual(expected_course_key, expected_content, actual_course_key, actual_content)
+
+            expected_thumbs = expected_store.get_all_content_thumbnails_for_course(expected_course_key)
+            actual_thumbs = actual_store.get_all_content_thumbnails_for_course(actual_course_key)
+
+            self._assertAssetsEqual(expected_course_key, expected_thumbs, actual_course_key, actual_thumbs)
 
     def assertAssetsMetadataEqual(self, expected_modulestore, expected_course_key, actual_modulestore, actual_course_key):
         """
@@ -500,10 +661,10 @@ class CourseComparisonTest(TestCase):
         actual_course_assets = actual_modulestore.get_all_asset_metadata(
             actual_course_key, None, sort=('displayname', ModuleStoreEnum.SortOrder.descending)
         )
-        self.assertEqual(len(expected_course_assets), len(actual_course_assets))
+        self.assertEquals(len(expected_course_assets), len(actual_course_assets))
         for idx, __ in enumerate(expected_course_assets):
             for attr in AssetMetadata.ATTRS_ALLOWED_TO_UPDATE:
                 if attr in ('edited_on',):
                     # edited_on is updated upon import.
                     continue
-                self.assertEqual(getattr(expected_course_assets[idx], attr), getattr(actual_course_assets[idx], attr))
+                self.assertEquals(getattr(expected_course_assets[idx], attr), getattr(actual_course_assets[idx], attr))

@@ -1,8 +1,6 @@
 """
 Staff views of various tabs (e.g. courseware, course home)
 """
-
-
 from bok_choy.page_object import PageObject
 
 from common.test.acceptance.pages.lms.courseware import CoursewarePage

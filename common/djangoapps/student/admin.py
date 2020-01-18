@@ -1,22 +1,13 @@
 """ Django admin pages for student app """
-
-
-from functools import wraps
-
 from config_models.admin import ConfigurationModelAdmin
 from django import forms
 from django.contrib import admin
 from django.contrib.admin.sites import NotRegistered
-from django.contrib.admin.utils import unquote
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.contrib.auth.forms import ReadOnlyPasswordHashField
-from django.contrib.auth.forms import UserChangeForm as BaseUserChangeForm
-from django.db import models, router, transaction
-from django.http import HttpResponseRedirect
+from django.contrib.auth.forms import ReadOnlyPasswordHashField, UserChangeForm as BaseUserChangeForm
+from django.db import models
 from django.http.request import QueryDict
-from django.urls import reverse
-from django.utils.translation import ngettext
 from django.utils.translation import ugettext_lazy as _
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
@@ -26,20 +17,17 @@ from openedx.core.lib.courses import clean_course_id
 from student import STUDENT_WAFFLE_NAMESPACE
 from student.models import (
     AccountRecovery,
-    AllowedAuthUser,
     CourseAccessRole,
     CourseEnrollment,
     CourseEnrollmentAllowed,
     DashboardConfiguration,
     LinkedInAddToProfileConfiguration,
-    LoginFailures,
     PendingNameChange,
     Registration,
     RegistrationCookieConfiguration,
     UserAttribute,
     UserProfile,
-    UserTestGroup,
-    BulkUnenrollConfiguration
+    UserTestGroup
 )
 from student.roles import REGISTERED_ACCESS_ROLES
 from xmodule.modulestore.django import modulestore
@@ -161,6 +149,7 @@ class LinkedInAddToProfileConfigurationAdmin(admin.ModelAdmin):
 
 
 class CourseEnrollmentForm(forms.ModelForm):
+
     def __init__(self, *args, **kwargs):
         # If args is a QueryDict, then the ModelForm addition request came in as a POST with a course ID string.
         # Change the course ID string to a CourseLocator object by copying the QueryDict to make it mutable.
@@ -195,15 +184,6 @@ class CourseEnrollmentForm(forms.ModelForm):
 
         return course_key
 
-    def save(self, *args, **kwargs):
-        course_enrollment = super(CourseEnrollmentForm, self).save(commit=False)
-        user = self.cleaned_data['user']
-        course_overview = self.cleaned_data['course']
-        enrollment = CourseEnrollment.get_or_create_enrollment(user, course_overview.id)
-        course_enrollment.id = enrollment.id
-        course_enrollment.created = enrollment.created
-        return course_enrollment
-
     class Meta:
         model = CourseEnrollment
         fields = '__all__'
@@ -214,7 +194,7 @@ class CourseEnrollmentAdmin(admin.ModelAdmin):
     """ Admin interface for the CourseEnrollment model. """
     list_display = ('id', 'course_id', 'mode', 'user', 'is_active',)
     list_filter = ('mode', 'is_active',)
-    raw_id_fields = ('user', 'course')
+    raw_id_fields = ('user',)
     search_fields = ('course__id', 'mode', 'user__username',)
     form = CourseEnrollmentForm
 
@@ -336,160 +316,11 @@ class CourseEnrollmentAllowedAdmin(admin.ModelAdmin):
         model = CourseEnrollmentAllowed
 
 
-@admin.register(LoginFailures)
-class LoginFailuresAdmin(admin.ModelAdmin):
-    """Admin interface for the LoginFailures model. """
-    list_display = ('user', 'failure_count', 'lockout_until')
-    raw_id_fields = ('user',)
-    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
-    actions = ['unlock_student_accounts']
-    change_form_template = 'admin/student/loginfailures/change_form_template.html'
-
-    class _Feature(object):
-        """
-        Inner feature class to implement decorator.
-        """
-        @classmethod
-        def is_enabled(cls, func):
-            """
-            Check if feature is enabled.
-            """
-            @wraps(func)
-            def decorator(*args, **kwargs):
-                """Decorator class to return"""
-                if not LoginFailures.is_feature_enabled():
-                    return False
-                return func(*args, **kwargs)
-            return decorator
-
-    @_Feature.is_enabled
-    def has_module_permission(self, request):
-        """
-        Only enabled if feature is enabled.
-        """
-        return super(LoginFailuresAdmin, self).has_module_permission(request)
-
-    @_Feature.is_enabled
-    def has_delete_permission(self, request, obj=None):
-        """
-        Only enabled if feature is enabled.
-        """
-        return super(LoginFailuresAdmin, self).has_delete_permission(request, obj)
-
-    @_Feature.is_enabled
-    def has_change_permission(self, request, obj=None):
-        """
-        Only enabled if feature is enabled.
-        """
-        return super(LoginFailuresAdmin, self).has_change_permission(request, obj)
-
-    @_Feature.is_enabled
-    def has_add_permission(self, request):
-        """
-        Only enabled if feature is enabled.
-        """
-        return super(LoginFailuresAdmin, self).has_add_permission(request)
-
-    def unlock_student_accounts(self, request, queryset):
-        """
-        Unlock student accounts with login failures.
-        """
-        count = 0
-        with transaction.atomic(using=router.db_for_write(self.model)):
-            for obj in queryset:
-                self.unlock_student(request, obj=obj)
-                count += 1
-        self.message_user(
-            request,
-            ngettext(
-                '%(count)d student account was unlocked.',
-                '%(count)d student accounts were unlocked.',
-                count
-            ) % {
-                'count': count
-            }
-        )
-
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        """
-        Change View.
-
-        This is overridden so we can add a custom button to unlock an account in the record's details.
-        """
-        if '_unlock' in request.POST:
-            with transaction.atomic(using=router.db_for_write(self.model)):
-                self.unlock_student(request, object_id=object_id)
-                url = reverse('admin:student_loginfailures_changelist', current_app=self.admin_site.name)
-                return HttpResponseRedirect(url)
-        return super(LoginFailuresAdmin, self).change_view(request, object_id, form_url, extra_context)
-
-    def get_actions(self, request):
-        """
-        Get actions for model admin and remove delete action.
-        """
-        actions = super(LoginFailuresAdmin, self).get_actions(request)
-        if 'delete_selected' in actions:
-            del actions['delete_selected']
-        return actions
-
-    def unlock_student(self, request, object_id=None, obj=None):
-        """
-        Unlock student account.
-        """
-        if object_id:
-            obj = self.get_object(request, unquote(object_id))
-
-        self.model.clear_lockout_counter(obj.user)
-
-
-class AllowedAuthUserForm(forms.ModelForm):
-    """Model Form for AllowedAuthUser model's admin interface."""
-
-    class Meta(object):
-        model = AllowedAuthUser
-        fields = ('site', 'email', )
-
-    def clean_email(self):
-        """
-        Validate the email field.
-        """
-        email = self.cleaned_data['email']
-        email_domain = email.split('@')[-1]
-        allowed_site_email_domain = self.cleaned_data['site'].configuration.get_value('THIRD_PARTY_AUTH_ONLY_DOMAIN')
-
-        if not allowed_site_email_domain:
-            raise forms.ValidationError(
-                _("Please add a key/value 'THIRD_PARTY_AUTH_ONLY_DOMAIN/{site_email_domain}' in SiteConfiguration "
-                  "model's values field.")
-            )
-        elif email_domain != allowed_site_email_domain:
-            raise forms.ValidationError(
-                _("Email doesn't have {domain_name} domain name.".format(domain_name=allowed_site_email_domain))
-            )
-        elif not User.objects.filter(email=email).exists():
-            raise forms.ValidationError(_("User with this email doesn't exist in system."))
-        else:
-            return email
-
-
-@admin.register(AllowedAuthUser)
-class AllowedAuthUserAdmin(admin.ModelAdmin):
-    """ Admin interface for the AllowedAuthUser model. """
-    form = AllowedAuthUserForm
-    list_display = ('email', 'site',)
-    search_fields = ('email',)
-    ordering = ('-created',)
-
-    class Meta(object):
-        model = AllowedAuthUser
-
-
 admin.site.register(UserTestGroup)
 admin.site.register(Registration)
 admin.site.register(PendingNameChange)
 admin.site.register(DashboardConfiguration, ConfigurationModelAdmin)
 admin.site.register(RegistrationCookieConfiguration, ConfigurationModelAdmin)
-admin.site.register(BulkUnenrollConfiguration, ConfigurationModelAdmin)
 
 
 # We must first un-register the User model since it may also be registered by the auth app.

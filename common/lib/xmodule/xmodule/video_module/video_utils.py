@@ -3,16 +3,14 @@
 Module contains utils specific for video_module but not for transcripts.
 """
 
-
-import logging
 from collections import OrderedDict
+import logging
+from urllib import urlencode
+from urlparse import parse_qs, urlsplit, urlunsplit, urlparse
 
-import six
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from six.moves import zip
-from six.moves.urllib.parse import parse_qs, urlencode, urlparse, urlsplit, urlunsplit  # pylint: disable=import-error
+from django.core.exceptions import ValidationError
 
 log = logging.getLogger(__name__)
 
@@ -102,11 +100,11 @@ def get_poster(video):
 
 def format_xml_exception_message(location, key, value):
     """
-    Generate exception message for VideoBlock class which will use for ValueError and UnicodeDecodeError
+    Generate exception message for VideoDescriptor class which will use for ValueError and UnicodeDecodeError
     when setting xml attributes.
     """
     exception_message = "Block-location:{location}, Key:{key}, Value:{value}".format(
-        location=six.text_type(location),
+        location=unicode(location),
         key=key,
         value=value
     )

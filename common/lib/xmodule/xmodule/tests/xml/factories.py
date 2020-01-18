@@ -2,18 +2,17 @@
 Factories for generating edXML for testing XModule import
 """
 
-
 import inspect
+
 from tempfile import mkdtemp
-
-from factory import Factory, Sequence, lazy_attribute, post_generation
 from fs.osfs import OSFS
+from factory import Factory, lazy_attribute, post_generation, Sequence
 from lxml import etree
-from xblock.mixins import HierarchyMixin
 
-from xmodule.modulestore import only_xmodules
+from xblock.mixins import HierarchyMixin
 from xmodule.modulestore.inheritance import InheritanceMixin
 from xmodule.x_module import XModuleMixin
+from xmodule.modulestore import only_xmodules
 
 
 class XmlImportData(object):
@@ -109,7 +108,7 @@ class XmlImportFactory(Factory):
         if inline_xml:
             kwargs['xml_node'].set('not_a_pointer', 'true')
 
-        for key in list(kwargs.keys()):
+        for key in kwargs.keys():
             if key not in XML_IMPORT_ARGS:
                 kwargs['xml_node'].set(key, kwargs.pop(key))
 

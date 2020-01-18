@@ -1,8 +1,6 @@
 """
 Third party auth API related permissions
 """
-
-
 from rest_framework import permissions
 
 from third_party_auth.models import ProviderApiPermissions

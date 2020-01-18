@@ -1,12 +1,11 @@
 """
 Acceptance tests for Studio related to the asset index page.
 """
-
-
 import os
 
-from common.test.acceptance.pages.studio.asset_index import UPLOAD_FILE_DIR, AssetIndexPageStudioFrontend
+from common.test.acceptance.pages.studio.asset_index import AssetIndexPageStudioFrontend
 from common.test.acceptance.tests.studio.base_studio_test import StudioCourseTest
+from common.test.acceptance.pages.studio.asset_index import UPLOAD_FILE_DIR
 
 
 class AssetIndexTestStudioFrontend(StudioCourseTest):
@@ -180,7 +179,6 @@ class AssetIndexTestStudioFrontend(StudioCourseTest):
 
 class AssetIndexTestStudioFrontendPagination(StudioCourseTest):
     """Pagination tests for the Asset index page."""
-    shard = 23
 
     def setUp(self, is_staff=False):  # pylint: disable=arguments-differ
         super(AssetIndexTestStudioFrontendPagination, self).setUp()

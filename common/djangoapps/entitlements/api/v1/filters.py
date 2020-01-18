@@ -1,5 +1,3 @@
-
-
 from django_filters import rest_framework as filters
 
 from entitlements.models import CourseEntitlement

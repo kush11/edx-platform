@@ -1,8 +1,6 @@
 """
 Tests for the Third Party Auth REST API
 """
-
-
 import unittest
 
 import ddt
@@ -13,16 +11,16 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from mock import patch
 from provider.constants import CONFIDENTIAL
-from provider.oauth2.models import AccessToken, Client
+from provider.oauth2.models import Client, AccessToken
+from openedx.core.lib.api.permissions import ApiKeyHeaderPermission
 from rest_framework.test import APITestCase
-from six.moves import range
 from social_django.models import UserSocialAuth
 
-from openedx.core.lib.api.permissions import ApiKeyHeaderPermission
 from student.tests.factories import UserFactory
 from third_party_auth.api.permissions import ThirdPartyAuthProviderApiPermission
 from third_party_auth.models import ProviderApiPermissions
 from third_party_auth.tests.testutil import ThirdPartyAuthTestMixin
+
 
 VALID_API_KEY = "i am a key"
 IDP_SLUG_TESTSHIB = 'testshib'
@@ -133,7 +131,7 @@ class UserViewsMixin(object):
         self.assertEqual(response.status_code, expect_result)
         if expect_result == 200:
             self.assertIn("active", response.data)
-            six.assertCountEqual(self, response.data["active"], self.expected_active(target_user))
+            self.assertItemsEqual(response.data["active"], self.expected_active(target_user))
 
     @ddt.data(
         # A server with a valid API key can query any user's list of providers
@@ -149,7 +147,7 @@ class UserViewsMixin(object):
         self.assertEqual(response.status_code, expect_result)
         if expect_result == 200:
             self.assertIn("active", response.data)
-            six.assertCountEqual(self, response.data["active"], self.expected_active(target_user))
+            self.assertItemsEqual(response.data["active"], self.expected_active(target_user))
 
     @ddt.data(
         (True, ALICE_USERNAME, 200, True),
@@ -203,7 +201,7 @@ class UserViewAPITests(UserViewsMixin, TpaAPITestCase):
         """
         return reverse(
             'third_party_auth_users_api',
-            kwargs={'username': list(identifier.values())[0]}
+            kwargs={'username': identifier.values()[0]}
         )
 
 
@@ -261,7 +259,7 @@ class UserMappingViewAPITests(TpaAPITestCase):
         if access_token == 'valid-token':
             access_token = token.token
 
-        response = self.client.get(url, HTTP_AUTHORIZATION=u'Bearer {}'.format(access_token))
+        response = self.client.get(url, HTTP_AUTHORIZATION='Bearer {}'.format(access_token))
         self._verify_response(response, expect_code, expect_data)
 
     @ddt.data(
@@ -352,36 +350,4 @@ class UserMappingViewAPITests(TpaAPITestCase):
         if expect_code == 200:
             for item in ['results', 'count', 'num_pages']:
                 self.assertIn(item, response.data)
-            six.assertCountEqual(self, response.data['results'], expect_result)
-
-
-@unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
-class TestThirdPartyAuthUserStatusView(ThirdPartyAuthTestMixin, APITestCase):
-    """
-    Tests ThirdPartyAuthStatusView.
-    """
-
-    def setUp(self, *args, **kwargs):
-        super(TestThirdPartyAuthUserStatusView, self).setUp(*args, **kwargs)
-        self.user = UserFactory.create(password=PASSWORD)
-        self.google_provider = self.configure_google_provider(enabled=True, visible=True)
-        self.url = reverse('third_party_auth_user_status_api')
-
-    def test_get(self):
-        """
-        Verify that get returns the expected data.
-        """
-        self.client.login(username=self.user.username, password=PASSWORD)
-        response = self.client.get(self.url, content_type="application/json")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.data,
-            [{
-                "accepts_logins": True,
-                "name": "Google",
-                "disconnect_url": "/auth/disconnect/google-oauth2/?",
-                "connect_url": "/auth/login/google-oauth2/?auth_entry=account_settings&next=%2Faccount%2Fsettings",
-                "connected": False,
-                "id": "oa2-google-oauth2"
-            }]
-        )
+            self.assertItemsEqual(response.data['results'], expect_result)

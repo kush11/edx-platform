@@ -1,14 +1,12 @@
 """
 Acceptance tests for Problem component in studio
 """
-
-
-from common.test.acceptance.fixtures.course import XBlockFixtureDesc
-from common.test.acceptance.pages.studio.container import ContainerPage
-from common.test.acceptance.pages.studio.problem_editor import ProblemXBlockEditorView
-from common.test.acceptance.pages.studio.utils import add_component
 from common.test.acceptance.tests.helpers import skip_if_browser
 from common.test.acceptance.tests.studio.base_studio_test import ContainerBase
+from common.test.acceptance.fixtures.course import XBlockFixtureDesc
+from common.test.acceptance.pages.studio.container import ContainerPage
+from common.test.acceptance.pages.studio.utils import add_component
+from common.test.acceptance.pages.studio.problem_editor import ProblemXBlockEditorView
 
 
 class ProblemComponentEditor(ContainerBase):
@@ -58,7 +56,6 @@ class ProblemComponentEditor(ContainerBase):
             'Problem Weight': u'',
             'Randomization': u'Never',
             'Show Answer': u'Finished',
-            'Show Answer: Number of Attempts': u'0',
             'Show Reset Button': u'False',
             'Timer Between Attempts': u'0'
         }

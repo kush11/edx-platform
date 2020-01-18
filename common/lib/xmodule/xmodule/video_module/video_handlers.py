@@ -5,35 +5,35 @@ StudentViewHandlers are handlers for video module instance.
 StudioViewHandlers are handlers for video descriptor instance.
 """
 
-
 import json
 import logging
 
 import six
 from django.core.files.base import ContentFile
 from django.utils.timezone import now
-from edxval.api import create_external_video, create_or_update_video_transcript, delete_video_transcript
-from opaque_keys.edx.locator import CourseLocator
 from webob import Response
+
 from xblock.core import XBlock
 from xblock.exceptions import JsonHandlerError
 
 from xmodule.exceptions import NotFoundError
 from xmodule.fields import RelativeTime
+from opaque_keys.edx.locator import CourseLocator
 
+from edxval.api import create_or_update_video_transcript, create_external_video, delete_video_transcript
 from .transcripts_utils import (
+    clean_video_id,
+    get_or_create_sjson,
+    generate_sjson_for_all_speeds,
+    subs_filename,
     Transcript,
     TranscriptException,
     TranscriptsGenerationException,
-    clean_video_id,
-    generate_sjson_for_all_speeds,
-    get_html5_ids,
-    get_or_create_sjson,
+    youtube_speed_dict,
     get_transcript,
     get_transcript_from_contentstore,
     remove_subs_from_store,
-    subs_filename,
-    youtube_speed_dict
+    get_html5_ids
 )
 
 log = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ class VideoStudentViewHandlers(object):
                 generate_sjson_for_all_speeds(
                     self,
                     other_lang[self.transcript_language],
-                    {speed: youtube_id for youtube_id, speed in six.iteritems(youtube_ids)},
+                    {speed: youtube_id for youtube_id, speed in youtube_ids.iteritems()},
                     self.transcript_language
                 )
                 sjson_transcript = Transcript.asset(self.location, youtube_id, self.transcript_language).data
@@ -202,7 +202,7 @@ class VideoStudentViewHandlers(object):
         if transcript_name:
             # Get the asset path for course
             asset_path = None
-            course = self.runtime.modulestore.get_course(self.course_id)
+            course = self.descriptor.runtime.modulestore.get_course(self.course_id)
             if course.static_asset_path:
                 asset_path = course.static_asset_path
             else:
@@ -264,10 +264,7 @@ class VideoStudentViewHandlers(object):
 
         if add_attachment_header:
             headerlist.append(
-                (
-                    'Content-Disposition',
-                    'attachment; filename="{}"'.format(filename.encode('utf-8') if six.PY2 else filename)
-                )
+                ('Content-Disposition', 'attachment; filename="{}"'.format(filename.encode('utf-8')))
             )
 
         response = Response(
@@ -312,7 +309,7 @@ class VideoStudentViewHandlers(object):
                 log.info("Invalid /translation request: no language.")
                 return Response(status=400)
 
-            if language not in ['en'] + list(transcripts["transcripts"].keys()):
+            if language not in ['en'] + transcripts["transcripts"].keys():
                 log.info("Video: transcript facilities are not available for given language.")
                 return Response(status=404)
 
@@ -465,7 +462,7 @@ class VideoStudioViewHandlers(object):
                         # Convert SRT transcript into an SJSON format
                         # and upload it to S3.
                         sjson_subs = Transcript.convert(
-                            content=transcript_file.read().decode('utf-8'),
+                            content=transcript_file.read(),
                             input_format=Transcript.SRT,
                             output_format=Transcript.SJSON
                         )
@@ -533,12 +530,7 @@ class VideoStudioViewHandlers(object):
                         video=self, lang=language, output_format=Transcript.SRT
                     )
                     response = Response(transcript_content, headerlist=[
-                        (
-                            'Content-Disposition',
-                            'attachment; filename="{}"'.format(
-                                transcript_name.encode('utf8') if six.PY2 else transcript_name
-                            )
-                        ),
+                        ('Content-Disposition', 'attachment; filename="{}"'.format(transcript_name.encode('utf8'))),
                         ('Content-Language', language),
                         ('Content-Type', mime_type)
                     ])

@@ -1,8 +1,6 @@
 """
 Miscellaneous utility functions.
 """
-
-
 from functools import partial
 
 

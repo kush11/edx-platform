@@ -1,16 +1,16 @@
 """Tests for classes defined in fields.py."""
 
-
 import datetime
 import unittest
 
 from pytz import UTC
 
-from xmodule.fields import Date, RelativeTime, Timedelta
+from xmodule.fields import Date, Timedelta, RelativeTime
 from xmodule.timeinfo import TimeInfo
 
 
 class DateTest(unittest.TestCase):
+    shard = 1
     date = Date()
 
     def compare_dates(self, dt1, dt2, expected_delta):
@@ -123,6 +123,7 @@ class DateTest(unittest.TestCase):
 
 
 class TimedeltaTest(unittest.TestCase):
+    shard = 1
     delta = Timedelta()
 
     def test_from_json(self):
@@ -157,6 +158,7 @@ class TimedeltaTest(unittest.TestCase):
 
 
 class TimeInfoTest(unittest.TestCase):
+    shard = 1
 
     def test_time_info(self):
         due_date = datetime.datetime(2000, 4, 14, 10, tzinfo=UTC)
@@ -169,6 +171,7 @@ class TimeInfoTest(unittest.TestCase):
 
 
 class RelativeTimeTest(unittest.TestCase):
+    shard = 1
 
     delta = RelativeTime()
 
@@ -221,7 +224,7 @@ class RelativeTimeTest(unittest.TestCase):
         )
 
         error_msg = "RelativeTime max value is 23:59:59=86400.0 seconds, but 90000.0 seconds is passed"
-        with self.assertRaisesRegex(ValueError, error_msg):
+        with self.assertRaisesRegexp(ValueError, error_msg):
             RelativeTimeTest.delta.to_json(datetime.timedelta(seconds=90000))
 
         with self.assertRaises(TypeError):

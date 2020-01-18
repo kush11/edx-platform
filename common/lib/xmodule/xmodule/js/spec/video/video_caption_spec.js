@@ -63,13 +63,7 @@
                     state = jasmine.initializePlayer();
                     $captionControl = $('.toggle-transcript');
                     expect($captionControl).toHaveAttrs({
-                        'aria-disabled': 'false',
-                        'aria-label': 'Turn off transcripts'
-                    });
-                    $captionControl.click();
-                    expect($captionControl).toHaveAttrs({
-                        'aria-disabled': 'false',
-                        'aria-label': 'Turn on transcripts'
+                        'aria-disabled': 'false'
                     });
                 });
 
@@ -77,21 +71,6 @@
                     state = jasmine.initializePlayer();
                     expect($('.video')).toContainElement('.toggle-captions');
                     expect($('.video')).toContainElement('.closed-captions');
-                });
-
-                it('add ARIA attributes to caption control', function() {
-                    var $toggleCaption;
-                    state = jasmine.initializePlayer();
-                    $toggleCaption = $('.toggle-captions');
-                    expect($toggleCaption).toHaveAttrs({
-                        'aria-disabled': 'false',
-                        'aria-label': 'Turn on closed captioning'
-                    });
-                    $toggleCaption.click();
-                    expect($toggleCaption).toHaveAttrs({
-                        'aria-disabled': 'false',
-                        'aria-label': 'Hide closed captions'
-                    });
                 });
 
                 it('fetch the transcript in HTML5 mode', function(done) {

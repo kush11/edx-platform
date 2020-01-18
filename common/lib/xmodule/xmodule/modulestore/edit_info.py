@@ -1,12 +1,8 @@
 """
 Access methods to get EditInfo for xblocks
 """
-
-
-from abc import ABCMeta, abstractmethod
-
-import six
 from xblock.core import XBlockMixin
+from abc import ABCMeta, abstractmethod
 
 
 class EditInfoMixin(XBlockMixin):
@@ -56,10 +52,11 @@ class EditInfoMixin(XBlockMixin):
         return self.runtime.get_published_on(self)
 
 
-class EditInfoRuntimeMixin(six.with_metaclass(ABCMeta, object)):
+class EditInfoRuntimeMixin(object):
     """
     An abstract mixin class for the functions which the :class: `EditInfoMixin` methods call on the runtime
     """
+    __metaclass__ = ABCMeta
 
     @abstractmethod
     def get_edited_by(self, xblock):

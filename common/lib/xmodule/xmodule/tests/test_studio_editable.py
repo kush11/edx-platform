@@ -2,7 +2,6 @@
 Tests for StudioEditableModule.
 """
 
-
 from xmodule.tests.test_vertical import BaseVerticalBlockTest
 from xmodule.x_module import AUTHOR_VIEW
 
@@ -11,6 +10,7 @@ class StudioEditableModuleTestCase(BaseVerticalBlockTest):
     """
     Class containing StudioEditableModule tests.
     """
+    shard = 1
 
     def test_render_reorderable_children(self):
         """

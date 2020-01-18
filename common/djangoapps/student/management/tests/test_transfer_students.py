@@ -1,18 +1,16 @@
 """
 Tests the transfer student management command
 """
-
-
 import unittest
 
-import ddt
-from django.conf import settings
-from django.core.management import call_command
 from mock import call, patch
-from opaque_keys.edx import locator
 from six import text_type
 
+import ddt
 from course_modes.models import CourseMode
+from django.conf import settings
+from django.core.management import call_command
+from opaque_keys.edx import locator
 from shoppingcart.models import CertificateItem, Order  # pylint: disable=import-error
 from student.models import (
     EVENT_NAME_ENROLLMENT_ACTIVATED,
@@ -128,9 +126,9 @@ class TestTransferStudents(ModuleStoreTestCase):
         self.mock_tracker.reset_mock()
 
         # Confirm the enrollment mode is verified on the new courses, and enrollment is enabled as appropriate.
-        self.assertEqual((mode, False), CourseEnrollment.enrollment_mode_for_user(student, course.id))
-        self.assertEqual((mode, True), CourseEnrollment.enrollment_mode_for_user(student, new_course_one.id))
-        self.assertEqual((mode, True), CourseEnrollment.enrollment_mode_for_user(student, new_course_two.id))
+        self.assertEquals((mode, False), CourseEnrollment.enrollment_mode_for_user(student, course.id))
+        self.assertEquals((mode, True), CourseEnrollment.enrollment_mode_for_user(student, new_course_one.id))
+        self.assertEquals((mode, True), CourseEnrollment.enrollment_mode_for_user(student, new_course_two.id))
 
         # Confirm the student has not be refunded.
         target_certs = CertificateItem.objects.filter(
@@ -138,7 +136,7 @@ class TestTransferStudents(ModuleStoreTestCase):
         )
         self.assertTrue(target_certs[0])
         self.assertFalse(target_certs[0].refund_requested_time)
-        self.assertEqual(target_certs[0].order.status, 'purchased')
+        self.assertEquals(target_certs[0].order.status, 'purchased')
 
     def _create_course(self, course_location):
         """

@@ -1,5 +1,3 @@
-"""Django App config for course_modes"""
-
 
 from django.apps import AppConfig
 
@@ -9,4 +7,4 @@ class CourseModesConfig(AppConfig):
     verbose_name = "Course Modes"
 
     def ready(self):
-        import course_modes.signals  # pylint: disable=unused-variable
+        import course_modes.signals  # pylint: disable=unused-import

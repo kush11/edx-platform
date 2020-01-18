@@ -1,25 +1,22 @@
 """
 Tests for ErrorModule and NonStaffErrorModule
 """
-
-
 import unittest
-
-from mock import MagicMock, Mock, patch
-from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator
-from xblock.field_data import DictFieldData
-from xblock.fields import ScopeIds
-from xblock.runtime import IdReader, Runtime
-from xblock.test.tools import unabc
-
+from xmodule.tests import get_test_system
 from xmodule.error_module import ErrorDescriptor, ErrorModule, NonStaffErrorDescriptor
 from xmodule.modulestore.xml import CourseLocationManager
-from xmodule.tests import get_test_system
-from xmodule.x_module import STUDENT_VIEW, XModule, XModuleDescriptor
+from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator
+from xmodule.x_module import XModuleDescriptor, XModule, STUDENT_VIEW
+from mock import MagicMock, Mock, patch
+from xblock.runtime import Runtime, IdReader
+from xblock.field_data import DictFieldData
+from xblock.fields import ScopeIds
+from xblock.test.tools import unabc
 
 
 class SetupTestErrorModules(unittest.TestCase):
     """Common setUp for use in ErrorModule tests."""
+    shard = 1
 
     def setUp(self):
         super(SetupTestErrorModules, self).setUp()
@@ -34,6 +31,7 @@ class TestErrorModule(SetupTestErrorModules):
     """
     Tests for ErrorModule and ErrorDescriptor
     """
+    shard = 1
 
     def test_error_module_xml_rendering(self):
         descriptor = ErrorDescriptor.from_xml(
@@ -68,6 +66,7 @@ class TestNonStaffErrorModule(SetupTestErrorModules):
     """
     Tests for NonStaffErrorModule and NonStaffErrorDescriptor
     """
+    shard = 1
 
     def test_non_staff_error_module_create(self):
         descriptor = NonStaffErrorDescriptor.from_xml(
@@ -128,6 +127,7 @@ class TestErrorModuleConstruction(unittest.TestCase):
     """
     Test that error module construction happens correctly
     """
+    shard = 1
 
     def setUp(self):
         # pylint: disable=abstract-class-instantiated

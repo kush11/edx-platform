@@ -1,11 +1,8 @@
 """
 Page classes to test either the Course Team page or the Library Team page.
 """
-
-
 import os
 
-import six
 from bok_choy.page_object import PageObject
 from bok_choy.promise import EmptyPromise
 from opaque_keys.edx.locator import CourseLocator
@@ -116,7 +113,7 @@ class UsersPageMixin(PageObject):
 
     def modal_dialog_text(self, dialog_type):
         """ Gets modal dialog text """
-        return self.q(css=u'.prompt.{dialog_type} .message'.format(dialog_type=dialog_type)).text[0]
+        return self.q(css='.prompt.{dialog_type} .message'.format(dialog_type=dialog_type)).text[0]
 
     def wait_until_no_loading_indicator(self):
         """
@@ -168,7 +165,7 @@ class LibraryUsersPage(UsersPageMixin, HelpMixin):
         """
         URL to the "User Access" page for the given library.
         """
-        return "{}/library/{}/team/".format(BASE_URL, six.text_type(self.locator))
+        return "{}/library/{}/team/".format(BASE_URL, unicode(self.locator))
 
 
 class CourseTeamPage(UsersPageMixin, CoursePage):
@@ -190,7 +187,7 @@ class CourseTeamPage(UsersPageMixin, CoursePage):
             self.course_info['course_run'],
             deprecated=(default_store == 'draft')
         )
-        return "/".join([BASE_URL, self.url_path, six.text_type(course_key)])
+        return "/".join([BASE_URL, self.url_path, unicode(course_key)])
 
 
 class UserWrapper(PageObject):
@@ -207,7 +204,7 @@ class UserWrapper(PageObject):
     def __init__(self, browser, email):
         super(UserWrapper, self).__init__(browser)
         self.email = email
-        self.selector = u'.user-list .user-item[data-email="{}"]'.format(self.email)
+        self.selector = '.user-list .user-item[data-email="{}"]'.format(self.email)
 
     def is_browser_on_page(self):
         """
@@ -219,19 +216,17 @@ class UserWrapper(PageObject):
         """
         Return `selector`, but limited to this particular user entry's context
         """
-        return u'{} {}'.format(self.selector, selector)
+        return '{} {}'.format(self.selector, selector)
 
     @property
     def name(self):
         """ Get this user's username, as displayed. """
-        text = self.q(css=self._bounded_selector('.user-username')).text
-        return text[0] if text else None
+        return self.q(css=self._bounded_selector('.user-username')).text[0]
 
     @property
     def role_label(self):
         """ Get this user's role, as displayed. """
-        text = self.q(css=self._bounded_selector('.flag-role .value')).text
-        return text[0] if text else None
+        return self.q(css=self._bounded_selector('.flag-role .value')).text[0]
 
     @property
     def is_current_user(self):
@@ -246,8 +241,7 @@ class UserWrapper(PageObject):
     @property
     def promote_button_text(self):
         """ What does the promote user button say? """
-        text = self.q(css=self._bounded_selector('.add-admin-role')).text
-        return text[0] if text else None
+        return self.q(css=self._bounded_selector('.add-admin-role')).text[0]
 
     def click_promote(self):
         """ Click on the button to promote this user to the more powerful role """
@@ -262,8 +256,7 @@ class UserWrapper(PageObject):
     @property
     def demote_button_text(self):
         """ What does the demote user button say? """
-        text = self.q(css=self._bounded_selector('.remove-admin-role')).text
-        return text[0] if text else None
+        return self.q(css=self._bounded_selector('.remove-admin-role')).text[0]
 
     def click_demote(self):
         """ Click on the button to demote this user to the less powerful role """

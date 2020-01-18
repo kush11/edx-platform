@@ -2,19 +2,18 @@
 """
 Acceptance tests for Studio's Setting pages
 """
+from __future__ import unicode_literals
 
-
-import json
 import os
 import random
 import string
+import json
 from textwrap import dedent
 
-import six
 from bok_choy.promise import EmptyPromise
 from mock import patch
-from six.moves import range
 
+from common.test.acceptance.tests.studio.base_studio_test import StudioCourseTest
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 from common.test.acceptance.pages.common.utils import add_enrollment_course_modes
 from common.test.acceptance.pages.lms.courseware import CoursewarePage
@@ -24,7 +23,6 @@ from common.test.acceptance.pages.studio.settings_advanced import AdvancedSettin
 from common.test.acceptance.pages.studio.settings_group_configurations import GroupConfigurationsPage
 from common.test.acceptance.pages.studio.utils import get_input_value, type_in_codemirror
 from common.test.acceptance.tests.helpers import create_user_partition_json, element_has_text
-from common.test.acceptance.tests.studio.base_studio_test import StudioCourseTest
 from openedx.core.lib.tests import attr
 from xmodule.partitions.partitions import Group
 
@@ -428,6 +426,18 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
             'Settings must be saved successfully in order to have confirmation message'
         )
 
+    def test_deprecated_settings_invisible_by_default(self):
+        """
+        Scenario: Test that advanced settings does not have deprecated settings by default
+            Given a staff logs in to studio
+            When this user goes to advanced settings page
+                Then the user does not see the deprecated settings
+                And sees 'Show Deprecated Settings' button
+        """
+        button_text = self.advanced_settings.deprecated_settings_button_text
+        self.assertEqual(button_text, 'Show Deprecated Settings')
+        self.assertFalse(self.advanced_settings.is_deprecated_setting_visible())
+
     def test_deprecated_settings_can_be_toggled(self):
         """
         Scenario: Test that advanced settings can toggle deprecated settings
@@ -468,9 +478,9 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         }
         json_input = json.dumps(inputs)
         self.advanced_settings.set('Discussion Topic Mapping', json_input)
-        assert self.advanced_settings.get('Discussion Topic Mapping') in (
-            '{\n    "key": "value",\n    "key_2": "value_2"\n}',
-            '{\n    "key_2": "value_2",\n    "key": "value"\n}'
+        self.assertEqual(
+            self.advanced_settings.get('Discussion Topic Mapping'),
+            '{\n    "key": "value",\n    "key_2": "value_2"\n}'
         )
 
     def test_automatic_quoting_of_non_json_value(self):
@@ -508,7 +518,7 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         self.advanced_settings.wait_for_modal_load()
         self.check_modal_shows_correct_contents(['Course Display Name'])
         self.advanced_settings.refresh_and_wait_for_load()
-        self.assertEqual(
+        self.assertEquals(
             self.advanced_settings.get('Course Display Name'),
             course_display_name,
             'Wrong input for Course Display Name must not change its value'
@@ -530,7 +540,7 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         self.check_modal_shows_correct_contents(['Course Display Name'])
         self.advanced_settings.refresh_and_wait_for_load()
 
-        self.assertEqual(
+        self.assertEquals(
             self.advanced_settings.get('Course Display Name'),
             course_display_name,
             'Wrong input for Course Display Name must not change its value'
@@ -550,8 +560,8 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         self.check_modal_shows_correct_contents(self.type_fields)
         self.advanced_settings.refresh_and_wait_for_load()
 
-        for key, val in six.iteritems(original_values_map):
-            self.assertEqual(
+        for key, val in original_values_map.iteritems():
+            self.assertEquals(
                 self.advanced_settings.get(key),
                 val,
                 'Wrong input for Advanced Settings Fields must not change its value'
@@ -573,8 +583,8 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         self.advanced_settings.undo_changes_via_modal()
 
         # Check that changes are undone
-        for key, val in six.iteritems(original_values_map):
-            self.assertEqual(
+        for key, val in original_values_map.iteritems():
+            self.assertEquals(
                 self.advanced_settings.get(key),
                 val,
                 'Undoing Should revert back to original value'
@@ -599,8 +609,8 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         self.assertFalse(self.advanced_settings.is_validation_modal_present())
 
         # Iterate through the wrong values and make sure they're still displayed
-        for key, val in six.iteritems(inputs):
-            self.assertEqual(
+        for key, val in inputs.iteritems():
+            self.assertEquals(
                 str(self.advanced_settings.get(key)),
                 str(val),
                 'manual change should keep: ' + str(val) + ', but is: ' + str(self.advanced_settings.get(key))
@@ -663,7 +673,7 @@ class AdvancedSettingsValidationTest(StudioCourseTest):
         """
         expected_fields = self.advanced_settings.expected_settings_names
         displayed_fields = self.advanced_settings.displayed_settings_names
-        self.assertEqual(set(displayed_fields), set(expected_fields))
+        self.assertEquals(set(displayed_fields), set(expected_fields))
 
 
 @attr(shard=16)
@@ -762,10 +772,6 @@ class StudioSettingsA11yTest(StudioCourseTest):
         self.settings_page.a11y_audit.config.set_rules({
             "ignore": [
                 'link-href',  # TODO: AC-590
-                'aria-allowed-role',  # TODO: AC-936
-                'landmark-complementary-is-top-level',  # TODO: AC-939
-                'radiogroup',  # TODO:  AC-941
-                'region',  # TODO: AC-932
             ],
         })
 
@@ -825,11 +831,6 @@ class StudioSubsectionSettingsA11yTest(StudioCourseTest):
         self.course_outline.open_subsection_settings_dialog()
         self.course_outline.select_advanced_tab()
 
-        self.course_outline.a11y_audit.config.set_rules({
-            "ignore": [
-                'section',  # TODO: AC-491
-            ],
-        })
         # limit the scope of the audit to the special exams tab on the modal dialog
         self.course_outline.a11y_audit.config.set_scope(
             include=['section.edit-settings-timed-examination']

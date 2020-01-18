@@ -1,13 +1,11 @@
 """
 Acceptance tests for discussion component in studio
 """
-
-
+from common.test.acceptance.tests.studio.base_studio_test import ContainerBase
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 from common.test.acceptance.pages.studio.container import ContainerPage
-from common.test.acceptance.pages.studio.discussion_component_editor import DiscussionComponentEditor
 from common.test.acceptance.pages.studio.utils import add_component
-from common.test.acceptance.tests.studio.base_studio_test import ContainerBase
+from common.test.acceptance.pages.studio.discussion_component_editor import DiscussionComponentEditor
 
 
 class DiscussionComponentTest(ContainerBase):
@@ -15,8 +13,6 @@ class DiscussionComponentTest(ContainerBase):
     Feature: CMS.Component Adding
     As a course author, I want to be able to add and edit Discussion component
     """
-    shard = 14
-
     def setUp(self, is_staff=True):
         """
         Create a course with a section, subsection, and unit to which to add the component.

@@ -4,12 +4,11 @@ Module that provides a connection to the ModuleStore specified in the django set
 Passes settings.MODULESTORE as kwargs to MongoModuleStore
 """
 
+from __future__ import absolute_import
 
 from importlib import import_module
 import gettext
 import logging
-
-import six
 from pkg_resources import resource_filename
 import re
 
@@ -199,10 +198,6 @@ class SignalHandler(object):
             log.info('Sent %s signal to %s with kwargs %s. Response was: %s', signal_name, receiver, kwargs, response)
 
 
-# to allow easy imports
-globals().update({sig.name.upper(): sig for sig in SignalHandler.all_signals()})
-
-
 def load_function(path):
     """
     Load a function by name.
@@ -251,7 +246,7 @@ def create_modulestore_instance(
 
     FUNCTION_KEYS = ['render_template']
     for key in FUNCTION_KEYS:
-        if key in _options and isinstance(_options[key], six.string_types):
+        if key in _options and isinstance(_options[key], basestring):
             _options[key] = load_function(_options[key])
 
     request_cache = DEFAULT_REQUEST_CACHE
@@ -383,7 +378,6 @@ class ModuleI18nService(object):
                 pass
 
     def __getattr__(self, name):
-        name = 'gettext' if six.PY3 and name == 'ugettext' else name
         return getattr(self.translator, name)
 
     def strftime(self, *args, **kwargs):
@@ -425,7 +419,7 @@ def _get_modulestore_branch_setting():
 
             # compare hostname against the regex expressions set of mappings which will tell us which branch to use
             if mappings:
-                for key in mappings:
+                for key in mappings.iterkeys():
                     if re.match(key, hostname):
                         return mappings[key]
         if branch is None:

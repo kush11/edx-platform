@@ -4,21 +4,20 @@ Utilities for writing third_party_auth tests.
 Used by Django and non-Django tests; must not have Django deps.
 """
 
-
 import os.path
 from contextlib import contextmanager
 
 import django.test
 import mock
-import six
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
 from mako.template import Template
 from provider import constants
 from provider.oauth2.models import Client as OAuth2Client
-from openedx.core.storage import OverwriteStorage
+from storages.backends.overwrite import OverwriteStorage
 
+from third_party_auth.models import cache as config_cache
 from third_party_auth.models import (
     LTIProviderConfig,
     OAuth2ProviderConfig,
@@ -26,7 +25,7 @@ from third_party_auth.models import (
     SAMLConfiguration,
     SAMLProviderConfig
 )
-from third_party_auth.models import cache as config_cache
+from third_party_auth.saml import EdXSAMLIdentityProvider, get_saml_idp_class
 
 AUTH_FEATURES_KEY = 'ENABLE_THIRD_PARTY_AUTH'
 AUTH_FEATURE_ENABLED = AUTH_FEATURES_KEY in settings.FEATURES
@@ -49,7 +48,7 @@ class FakeDjangoSettings(object):
 
     def __init__(self, mappings):
         """Initializes the fake from mappings dict."""
-        for key, value in six.iteritems(mappings):
+        for key, value in mappings.iteritems():
             setattr(self, key, value)
 
 
@@ -159,12 +158,6 @@ class ThirdPartyAuthTestMixin(object):
         return cls.configure_oauth_provider(**kwargs)
 
     @classmethod
-    def configure_identityServer3_provider(cls, **kwargs):
-        kwargs.setdefault("name", "identityServer3TestConfig")
-        kwargs.setdefault("backend_name", "identityServer3")
-        return cls.configure_oauth_provider(**kwargs)
-
-    @classmethod
     def verify_user_email(cls, email):
         """ Mark the user with the given email as verified """
         user = User.objects.get(email=email)
@@ -221,6 +214,16 @@ class SAMLTestCase(TestCase):
             kwargs['public_key'] = self._get_public_key()
         kwargs.setdefault('entity_id', "https://saml.example.none")
         super(SAMLTestCase, self).enable_saml(**kwargs)
+
+    @mock.patch('third_party_auth.saml.log')
+    def test_get_saml_idp_class_with_fake_identifier(self, log_mock):
+        error_mock = log_mock.error
+        idp_class = get_saml_idp_class('fake_idp_class_option')
+        error_mock.assert_called_once_with(
+            '%s is not a valid EdXSAMLIdentityProvider subclass; using EdXSAMLIdentityProvider base class.',
+            'fake_idp_class_option'
+        )
+        self.assertIs(idp_class, EdXSAMLIdentityProvider)
 
 
 @contextmanager

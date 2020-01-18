@@ -2,11 +2,8 @@
 Tests for memcache in util app
 """
 
-
 from django.core.cache import caches
 from django.test import TestCase
-from six import unichr
-from six.moves import range
 
 from util.memcache import safe_key
 
@@ -17,7 +14,7 @@ class MemcacheTest(TestCase):
     """
 
     # Test whitespace, control characters, and some non-ASCII UTF-16
-    UNICODE_CHAR_CODES = (list(range(30)) + [127] +
+    UNICODE_CHAR_CODES = (range(30) + [127] +
                           [129, 500, 2 ** 8 - 1, 2 ** 8 + 1, 2 ** 16 - 1])
 
     def setUp(self):

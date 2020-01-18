@@ -2,7 +2,7 @@
 """
 Acceptance tests for licensing of the Video module
 """
-
+from __future__ import unicode_literals
 
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 from common.test.acceptance.pages.lms.courseware import CoursewarePage
@@ -57,7 +57,7 @@ class VideoLicenseTest(StudioCourseTest):
         self.lms_courseware.visit()
         video = self.lms_courseware.q(css=".vert .xblock .video")
         self.assertTrue(video.is_present())
-        video_license = self.lms_courseware.q(css=".vert .xblock.xmodule_VideoBlock .xblock-license")
+        video_license = self.lms_courseware.q(css=".vert .xblock.xmodule_VideoModule .xblock-license")
         self.assertFalse(video_license.is_present())
 
     def test_arr_license(self):
@@ -78,12 +78,12 @@ class VideoLicenseTest(StudioCourseTest):
         video.open_advanced_tab()
         video.set_license('all-rights-reserved')
         video.save_settings()
-        container_page.publish()
+        container_page.publish_action.click()
 
         self.lms_courseware.visit()
         video = self.lms_courseware.q(css=".vert .xblock .video")
         self.assertTrue(video.is_present())
-        video_license_css = ".vert .xblock.xmodule_VideoBlock .xblock-license"
+        video_license_css = ".vert .xblock.xmodule_VideoModule .xblock-license"
         self.lms_courseware.wait_for_element_presence(
             video_license_css, "Video module license block is present"
         )
@@ -108,12 +108,12 @@ class VideoLicenseTest(StudioCourseTest):
         video.open_advanced_tab()
         video.set_license('creative-commons')
         video.save_settings()
-        container_page.publish()
+        container_page.publish_action.click()
 
         self.lms_courseware.visit()
         video = self.lms_courseware.q(css=".vert .xblock .video")
         self.assertTrue(video.is_present())
-        video_license_css = ".vert .xblock.xmodule_VideoBlock .xblock-license"
+        video_license_css = ".vert .xblock.xmodule_VideoModule .xblock-license"
         self.lms_courseware.wait_for_element_presence(
             video_license_css, "Video module license block is present"
         )

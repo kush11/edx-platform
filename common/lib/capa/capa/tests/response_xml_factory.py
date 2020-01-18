@@ -1,16 +1,13 @@
-
-
+from lxml import etree
 from abc import ABCMeta, abstractmethod
 
-import six
-from lxml import etree
-from six.moves import range, zip
 
-
-class ResponseXMLFactory(six.with_metaclass(ABCMeta, object)):
+class ResponseXMLFactory(object):
     """ Abstract base class for capa response XML factories.
     Subclasses override create_response_element and
     create_input_element to produce XML of particular response types"""
+
+    __metaclass__ = ABCMeta
 
     @abstractmethod
     def create_response_element(self, **kwargs):
@@ -102,7 +99,7 @@ class ResponseXMLFactory(six.with_metaclass(ABCMeta, object)):
                 explanation_div.set("class", "detailed-solution")
                 explanation_div.text = explanation_text
 
-        return etree.tostring(root).decode('utf-8')
+        return etree.tostring(root)
 
     @staticmethod
     def textline_input_xml(**kwargs):
@@ -544,7 +541,7 @@ class FormulaResponseXMLFactory(ResponseXMLFactory):
         low_range_vals = [str(f[0]) for f in sample_dict.values()]
         high_range_vals = [str(f[1]) for f in sample_dict.values()]
         sample_str = (
-            ",".join(list(sample_dict.keys())) + "@" +
+            ",".join(sample_dict.keys()) + "@" +
             ",".join(low_range_vals) + ":" +
             ",".join(high_range_vals) +
             "#" + str(num_samples)
@@ -730,7 +727,7 @@ class StringResponseXMLFactory(ResponseXMLFactory):
         response_element = etree.Element("stringresponse")
 
         # Set the answer attribute
-        response_element.set("answer", six.text_type(answer))
+        response_element.set("answer", unicode(answer))
 
         # Set the case sensitivity and regexp:
         type_value = ''

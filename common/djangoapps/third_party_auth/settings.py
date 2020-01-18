@@ -10,8 +10,6 @@ If true, it:
     b) calls apply_settings(), passing in the Django settings
 """
 
-
-from django.conf import settings
 from openedx.features.enterprise_support.api import insert_enterprise_pipeline_elements
 
 
@@ -42,9 +40,6 @@ def apply_settings(django_settings):
     # Adding extra key value pair in the url query string for microsoft as per request
     django_settings.SOCIAL_AUTH_AZUREAD_OAUTH2_AUTH_EXTRA_ARGUMENTS = {'msafed': 0}
 
-    # Avoid default username check to allow non-ascii characters
-    django_settings.SOCIAL_AUTH_CLEAN_USERNAMES = not settings.FEATURES.get("ENABLE_UNICODE_USERNAME")
-
     # Inject our customized auth pipeline. All auth backends must work with
     # this pipeline.
     django_settings.SOCIAL_AUTH_PIPELINE = [
@@ -54,7 +49,7 @@ def apply_settings(django_settings):
         'social_core.pipeline.social_auth.auth_allowed',
         'social_core.pipeline.social_auth.social_user',
         'third_party_auth.pipeline.associate_by_email_if_login_api',
-        'third_party_auth.pipeline.get_username',
+        'social_core.pipeline.user.get_username',
         'third_party_auth.pipeline.set_pipeline_timeout',
         'third_party_auth.pipeline.ensure_user_information',
         'social_core.pipeline.user.create_user',

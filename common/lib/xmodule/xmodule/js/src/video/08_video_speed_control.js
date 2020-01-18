@@ -41,9 +41,9 @@
             '<span>',
             '<span class="icon fa fa-caret-right" aria-hidden="true"></span>',
             '</span>',
-            '<span class="label">',
+            '<span class="label" aria-hidden="true">',
             gettext('Speed'),
-            ' </span>',
+            '</span>',
             '<span class="value"></span>',
             '</button>',
             '<ol class="video-speeds menu"></ol>',
@@ -231,22 +231,21 @@
          * not differs from current speed.
          */
         setSpeed: function(speed, silent, forceUpdate) {
-            var newSpeed = this.state.speedToString(speed);
-            if (newSpeed !== this.currentSpeed || forceUpdate) {
+            if (speed !== this.currentSpeed || forceUpdate) {
                 this.speedsContainer
                     .find('li')
-                    .siblings("li[data-speed='" + newSpeed + "']");
+                    .siblings("li[data-speed='" + speed + "']");
 
-                this.speedButton.find('.value').text(newSpeed + 'x');
-                this.currentSpeed = newSpeed;
+                this.speedButton.find('.value').text(speed + 'x');
+                this.currentSpeed = speed;
 
                 if (!silent) {
-                    this.el.trigger('speedchange', [newSpeed, this.state.speed]);
+                    this.el.trigger('speedchange', [speed, this.state.speed]);
                 }
             }
 
             this.resetActiveSpeed();
-            this.setActiveSpeed(newSpeed);
+            this.setActiveSpeed(speed);
         },
 
         resetActiveSpeed: function() {
@@ -260,13 +259,13 @@
         },
 
         setActiveSpeed: function(speed) {
-            var speedOption = this.speedsContainer.find('li[data-speed="' + this.state.speedToString(speed) + '"]');
+            var speedOption = this.speedsContainer.find('li[data-speed="' + speed + '"]');
 
             speedOption.addClass('is-active')
                 .find('.speed-option')
                 .attr('aria-pressed', 'true');
 
-            this.speedButton.attr('title', gettext('Video speed: ') + this.state.speedToString(speed) + 'x');
+            this.speedButton.attr('title', gettext('Video speed: ') + speed + 'x');
         },
 
         /**

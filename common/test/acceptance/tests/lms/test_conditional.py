@@ -2,7 +2,6 @@
 Bok choy acceptance tests for conditionals in the LMS
 """
 
-
 from capa.tests.response_xml_factory import StringResponseXMLFactory
 from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc
 from common.test.acceptance.pages.common.auto_auth import AutoAuthPage
@@ -16,7 +15,6 @@ class ConditionalTest(UniqueCourseTest):
     """
     Test the conditional module in the lms.
     """
-    shard = 23
 
     def setUp(self):
         super(ConditionalTest, self).setUp()

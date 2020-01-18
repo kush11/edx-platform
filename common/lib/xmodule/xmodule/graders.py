@@ -2,6 +2,7 @@
 Code used to calculate learner grades.
 """
 
+from __future__ import division
 
 import abc
 import inspect
@@ -11,11 +12,9 @@ import sys
 from collections import OrderedDict
 from datetime import datetime
 
-import six
 from contracts import contract
 from pytz import UTC
 from django.utils.translation import ugettext_lazy as _
-from six.moves import range  # pylint: disable=ungrouped-imports
 
 from xmodule.util.misc import get_short_labeler
 
@@ -23,10 +22,11 @@ from xmodule.util.misc import get_short_labeler
 log = logging.getLogger("edx.courseware")
 
 
-class ScoreBase(six.with_metaclass(abc.ABCMeta, object)):
+class ScoreBase(object):
     """
     Abstract base class for encapsulating fields of values scores.
     """
+    __metaclass__ = abc.ABCMeta
 
     @contract(graded="bool", first_attempted="datetime|None")
     def __init__(self, graded, first_attempted):
@@ -179,8 +179,8 @@ def grader_from_conf(conf):
                 raise ValueError("Configuration has no appropriate grader class.")
 
             bad_args = invalid_args(subgrader_class.__init__, subgraderconf)
-            if bad_args:
-                log.warning(u"Invalid arguments for a subgrader: %s", bad_args)
+            if len(bad_args) > 0:
+                log.warning("Invalid arguments for a subgrader: %s", bad_args)
                 for key in bad_args:
                     del subgraderconf[key]
 
@@ -192,12 +192,12 @@ def grader_from_conf(conf):
             msg = ("Unable to parse grader configuration:\n    " +
                    str(subgraderconf) +
                    "\n    Error was:\n    " + str(error))
-            six.reraise(ValueError, ValueError(msg), sys.exc_info()[2])
+            raise ValueError(msg), None, sys.exc_info()[2]
 
     return WeightedSubsectionsGrader(subgraders)
 
 
-class CourseGrader(six.with_metaclass(abc.ABCMeta, object)):
+class CourseGrader(object):
     """
     A course grader takes the totaled scores for each graded section (that a student has
     started) in the course. From these scores, the grader calculates an overall percentage
@@ -238,6 +238,8 @@ class CourseGrader(six.with_metaclass(abc.ABCMeta, object)):
 
     """
 
+    __metaclass__ = abc.ABCMeta
+
     @abc.abstractmethod
     def grade(self, grade_sheet, generate_random_scores=False):
         '''Given a grade sheet, return a dict containing grading information'''
@@ -265,10 +267,10 @@ class WeightedSubsectionsGrader(CourseGrader):
 
     @property
     def sum_of_weights(self):
-        result = 0
+        sum = 0
         for _, _, weight in self.subgraders:
-            result += weight
-        return result
+            sum += weight
+        return sum
 
     def grade(self, grade_sheet, generate_random_scores=False):
         total_percent = 0.0
@@ -377,7 +379,7 @@ class AssignmentFormatGrader(CourseGrader):
         return aggregate_score, dropped_indices
 
     def grade(self, grade_sheet, generate_random_scores=False):
-        scores = list(grade_sheet.get(self.type, {}).values())
+        scores = grade_sheet.get(self.type, {}).values()
         breakdown = []
         labeler = get_short_labeler(self.short_label)
         for i in range(max(self.min_count, len(scores))):
@@ -484,7 +486,9 @@ class ShowCorrectness(object):
     and aggregate subsection and course grades.
     """
 
-    # Constants used to indicate when to show correctness
+    """
+    Constants used to indicate when to show correctness
+    """
     ALWAYS = "always"
     PAST_DUE = "past_due"
     NEVER = "never"

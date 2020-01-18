@@ -1,16 +1,17 @@
+from __future__ import print_function
 
-
-import datetime
-import json
-import random
-import sys
-from textwrap import dedent
-
-from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
-from pytz import UTC
+from django.contrib.auth.models import User
 
 from student.models import UserTestGroup
+
+import random
+import sys
+import datetime
+from textwrap import dedent
+
+import json
+from pytz import UTC
 
 # Examples:
 # python manage.py assigngroups summary_test:0.3,skip_summary_test:0.7 log.txt "Do previews of future materials help?"

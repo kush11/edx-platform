@@ -1,33 +1,31 @@
 """
 Tests for course_metadata_utils.
 """
-
-
 from collections import namedtuple
-from datetime import datetime, timedelta
+from datetime import timedelta, datetime
 from unittest import TestCase
 
 from pytz import utc
-
 from xmodule.block_metadata_utils import (
+    url_name_for_block,
     display_name_with_default,
     display_name_with_default_escaped,
-    url_name_for_block
 )
 from xmodule.course_metadata_utils import (
-    DEFAULT_START_DATE,
     clean_course_key,
-    course_start_date_is_default,
-    has_course_ended,
+    number_for_course_location,
     has_course_started,
+    has_course_ended,
+    DEFAULT_START_DATE,
+    course_start_date_is_default,
     may_certify_for_course,
-    number_for_course_location
 )
 from xmodule.modulestore.tests.utils import (
-    MixedModulestoreBuilder,
     MongoModulestoreBuilder,
-    VersioningModulestoreBuilder
+    VersioningModulestoreBuilder,
+    MixedModulestoreBuilder
 )
+
 
 _TODAY = datetime.now(utc)
 _LAST_MONTH = _TODAY - timedelta(days=30)
@@ -39,6 +37,7 @@ class CourseMetadataUtilsTestCase(TestCase):
     """
     Tests for course_metadata_utils.
     """
+    shard = 1
 
     def setUp(self):
         """

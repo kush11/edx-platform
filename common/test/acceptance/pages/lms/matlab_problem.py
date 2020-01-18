@@ -1,8 +1,6 @@
 """
 Matlab Problem Page.
 """
-
-
 from bok_choy.page_object import PageObject
 
 

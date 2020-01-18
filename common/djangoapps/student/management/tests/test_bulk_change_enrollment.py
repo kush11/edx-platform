@@ -1,18 +1,18 @@
 """Tests for the bulk_change_enrollment command."""
-
-
 import ddt
-from django.core.management import call_command
-from django.core.management.base import CommandError
-from mock import call, patch
 from six import text_type
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from mock import patch, call
+
 from course_modes.tests.factories import CourseModeFactory
-from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-from student.models import EVENT_NAME_ENROLLMENT_MODE_CHANGED, CourseEnrollment
-from student.tests.factories import CourseEnrollmentFactory, UserFactory
+from student.tests.factories import UserFactory, CourseEnrollmentFactory
+from student.models import CourseEnrollment, EVENT_NAME_ENROLLMENT_MODE_CHANGED
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
+
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
 
 @ddt.ddt

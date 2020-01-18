@@ -230,16 +230,16 @@
                 // Render 'x point(s) possible (un/graded, results hidden)' if no current score provided.
                 if (graded) {
                     progressTemplate = ngettext(
-                        // Translators: {num_points} is the number of points possible (examples: 1, 3, 10).;
-                        '{num_points} point possible (graded, results hidden)',
-                        '{num_points} points possible (graded, results hidden)',
+                        // Translators: %(num_points)s is the number of points possible (examples: 1, 3, 10).;
+                        '%(num_points)s point possible (graded, results hidden)',
+                        '%(num_points)s points possible (graded, results hidden)',
                         totalScore
                     );
                 } else {
                     progressTemplate = ngettext(
-                        // Translators: {num_points} is the number of points possible (examples: 1, 3, 10).;
-                        '{num_points} point possible (ungraded, results hidden)',
-                        '{num_points} points possible (ungraded, results hidden)',
+                        // Translators: %(num_points)s is the number of points possible (examples: 1, 3, 10).;
+                        '%(num_points)s point possible (ungraded, results hidden)',
+                        '%(num_points)s points possible (ungraded, results hidden)',
                         totalScore
                     );
                 }
@@ -248,14 +248,14 @@
                 // But if staff has overridden score to a non-zero number, show it
                 if (graded) {
                     progressTemplate = ngettext(
-                        // Translators: {num_points} is the number of points possible (examples: 1, 3, 10).;
-                        '{num_points} point possible (graded)', '{num_points} points possible (graded)',
+                        // Translators: %(num_points)s is the number of points possible (examples: 1, 3, 10).;
+                        '%(num_points)s point possible (graded)', '%(num_points)s points possible (graded)',
                         totalScore
                     );
                 } else {
                     progressTemplate = ngettext(
-                        // Translators: {num_points} is the number of points possible (examples: 1, 3, 10).;
-                        '{num_points} point possible (ungraded)', '{num_points} points possible (ungraded)',
+                        // Translators: %(num_points)s is the number of points possible (examples: 1, 3, 10).;
+                        '%(num_points)s point possible (ungraded)', '%(num_points)s points possible (ungraded)',
                         totalScore
                     );
                 }
@@ -264,25 +264,25 @@
                 if (graded) {
                     progressTemplate = ngettext(
                         // This comment needs to be on one line to be properly scraped for the translators.
-                        // Translators: {earned} is the number of points earned. {possible} is the total number of points (examples: 0/1, 1/1, 2/3, 5/10). The total number of points will always be at least 1. We pluralize based on the total number of points (example: 0/1 point; 1/2 points);
-                        '{earned}/{possible} point (graded)', '{earned}/{possible} points (graded)',
+                        // Translators: %(earned)s is the number of points earned. %(possible)s is the total number of points (examples: 0/1, 1/1, 2/3, 5/10). The total number of points will always be at least 1. We pluralize based on the total number of points (example: 0/1 point; 1/2 points);
+                        '%(earned)s/%(possible)s point (graded)', '%(earned)s/%(possible)s points (graded)',
                         totalScore
                     );
                 } else {
                     progressTemplate = ngettext(
                         // This comment needs to be on one line to be properly scraped for the translators.
-                        // Translators: {earned} is the number of points earned. {possible} is the total number of points (examples: 0/1, 1/1, 2/3, 5/10). The total number of points will always be at least 1. We pluralize based on the total number of points (example: 0/1 point; 1/2 points);
-                        '{earned}/{possible} point (ungraded)', '{earned}/{possible} points (ungraded)',
+                        // Translators: %(earned)s is the number of points earned. %(possible)s is the total number of points (examples: 0/1, 1/1, 2/3, 5/10). The total number of points will always be at least 1. We pluralize based on the total number of points (example: 0/1 point; 1/2 points);
+                        '%(earned)s/%(possible)s point (ungraded)', '%(earned)s/%(possible)s points (ungraded)',
                         totalScore
                     );
                 }
             }
-            progress = edx.StringUtils.interpolate(
+            progress = interpolate(
                 progressTemplate, {
                     earned: curScore,
                     num_points: totalScore,
                     possible: totalScore
-                }
+                }, true
             );
             return this.$('.problem-progress').text(progress);
         };
@@ -379,7 +379,7 @@
         Problem.prototype.render = function(content, focusCallback) {
             var that = this;
             if (content) {
-                edx.HtmlUtils.setHtml(this.el, edx.HtmlUtils.HTML(content));
+                this.el.html(content);
                 return JavascriptLoader.executeModuleScripts(this.el, function() {
                     that.setupInputTypes();
                     that.bind();
@@ -389,7 +389,7 @@
                 });
             } else {
                 return $.postWithPrefix('' + this.url + '/problem_get', function(response) {
-                    edx.HtmlUtils.setHtml(that.el, edx.HtmlUtils.HTML(response.html));
+                    that.el.html(response.html);
                     return JavascriptLoader.executeModuleScripts(that.el, function() {
                         that.setupInputTypes();
                         that.bind();
@@ -560,12 +560,11 @@
                                 }
                             ));
                         }
-                        fd.append(element.id, file);  // xss-lint: disable=javascript-jquery-append
+                        fd.append(element.id, file);
                     }
                     if (element.files.length === 0) {
                         fileNotSelected = true;
-                        // In case we want to allow submissions with no file
-                        fd.append(element.id, '');  // xss-lint: disable=javascript-jquery-append
+                        fd.append(element.id, ''); // In case we want to allow submissions with no file
                     }
                     if (requiredFiles.length !== 0) {
                         requiredFilesNotSubmitted = true;
@@ -576,21 +575,18 @@
                         ));
                     }
                 } else {
-                    fd.append(element.id, element.value);  // xss-lint: disable=javascript-jquery-append
+                    fd.append(element.id, element.value);
                 }
             });
             if (fileNotSelected) {
                 errors.push(gettext('You did not select any files to submit.'));
             }
-            errorHtml = '';
+            errorHtml = '<ul>\n';
             for (i = 0, len = errors.length; i < len; i++) {
                 error = errors[i];
-                errorHtml = edx.HtmlUtils.joinHtml(
-                    errorHtml,
-                    edx.HtmlUtils.interpolateHtml(edx.HtmlUtils.HTML('<li>{error}</li>'), {error: error})
-                );
+                errorHtml += '<li>' + error + '</li>\n';
             }
-            errorHtml = edx.HtmlUtils.interpolateHtml(edx.HtmlUtils.HTML('<ul>{errors}</ul>'), {errors: errorHtml});
+            errorHtml += '</ul>';
             this.gentle_alert(errorHtml);
             abortSubmission = fileTooLarge || fileNotSelected || unallowedFileSubmitted || requiredFilesNotSubmitted;
             if (abortSubmission) {
@@ -969,7 +965,6 @@
                 return $(element).find('input').on('input', function() {
                     var $p;
                     $p = $(element).find('span.status');
-                    $p.removeClass('correct incorrect submitted');
                     return $p.parent().removeAttr('class').addClass('unsubmitted');
                 });
             },
@@ -1007,7 +1002,6 @@
                 return $(element).find('input').on('input', function() {
                     var $p;
                     $p = $(element).find('span.status');
-                    $p.removeClass('correct incorrect submitted');
                     return $p.parent().removeClass('correct incorrect').addClass('unsubmitted');
                 });
             }
@@ -1075,8 +1069,8 @@
                 results = [];
                 for (i = 0, len = answer.length; i < len; i++) {
                     choice = answer[i];
-                    $inputLabel = $element.find('#input_' + inputId + '_' + choice + ' + label');
-                    $inputStatus = $element.find('#status_' + inputId);
+                    $inputLabel = $element.find('#input_' + inputId + '_' + choice).parent('label');
+                    $inputStatus = $inputLabel.find('#status_' + inputId);
                     // If the correct answer was already Submitted before "Show Answer" was selected,
                     // the status HTML will already be present. Otherwise, inject the status HTML.
 
@@ -1084,13 +1078,12 @@
                     // will be marked as "unanswered". In that case, for correct answers update the
                     // classes accordingly.
                     if ($inputStatus.hasClass('unanswered')) {
-                        edx.HtmlUtils.append($inputLabel, edx.HtmlUtils.HTML(correctStatusHtml));
+                        $inputStatus.removeAttr('class').addClass('status correct');
                         $inputLabel.addClass('choicegroup_correct');
                     } else if (!$inputLabel.hasClass('choicegroup_correct')) {
                         // If the status HTML is not already present (due to clicking Submit), append
                         // the status HTML for correct answers.
                         edx.HtmlUtils.append($inputLabel, edx.HtmlUtils.HTML(correctStatusHtml));
-                        $inputLabel.removeClass('choicegroup_incorrect');
                         results.push($inputLabel.addClass('choicegroup_correct'));
                     }
                 }
@@ -1189,7 +1182,7 @@
                             types[key](context, value);
                         }
                     });
-                    edx.HtmlUtils.setHtml(container, edx.HtmlUtils.HTML(canvas));
+                    container.html(canvas);
                 } else {
                     console.log('Answer is absent for image input with id=' + id); // eslint-disable-line no-console
                 }

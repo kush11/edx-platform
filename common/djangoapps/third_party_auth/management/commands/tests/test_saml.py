@@ -2,17 +2,16 @@
 Tests for `saml` management command, this command fetches saml metadata from providers and updates
 existing data accordingly.
 """
-
-
-import os
 import unittest
-
+import os
 import mock
-from django.conf import settings
+
+from django.test import TestCase
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase
+from django.conf import settings
 from django.utils.six import StringIO
+
 from requests import exceptions
 from requests.models import Response
 
@@ -131,7 +130,7 @@ class TestSAMLCommand(TestCase):
 
         expected = "\nDone.\n1 provider(s) found in database.\n0 skipped and 1 attempted.\n0 updated and 1 failed.\n"
 
-        with self.assertRaisesRegex(CommandError, r"HTTPError: 404 Client Error"):
+        with self.assertRaisesRegexp(CommandError, r"HTTPError: 404 Client Error"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
@@ -176,7 +175,7 @@ class TestSAMLCommand(TestCase):
         )
 
         expected = '\n3 provider(s) found in database.\n0 skipped and 3 attempted.\n2 updated and 1 failed.\n'
-        with self.assertRaisesRegex(CommandError, r"MetadataParseError: Can't find EntityDescriptor for entityID"):
+        with self.assertRaisesRegexp(CommandError, r"MetadataParseError: Can't find EntityDescriptor for entityID"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
@@ -199,7 +198,7 @@ class TestSAMLCommand(TestCase):
 
         # Four configurations -- one will be skipped and three attempted, with similar results.
         expected = '\nDone.\n4 provider(s) found in database.\n1 skipped and 3 attempted.\n0 updated and 1 failed.\n'
-        with self.assertRaisesRegex(CommandError, r"MetadataParseError: Can't find EntityDescriptor for entityID"):
+        with self.assertRaisesRegexp(CommandError, r"MetadataParseError: Can't find EntityDescriptor for entityID"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
@@ -215,19 +214,19 @@ class TestSAMLCommand(TestCase):
 
         expected = "\nDone.\n1 provider(s) found in database.\n0 skipped and 1 attempted.\n0 updated and 1 failed.\n"
 
-        with self.assertRaisesRegex(CommandError, "SSLError:"):
+        with self.assertRaisesRegexp(CommandError, "SSLError:"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
         mocked_get.side_effect = exceptions.ConnectionError
 
-        with self.assertRaisesRegex(CommandError, "ConnectionError:"):
+        with self.assertRaisesRegexp(CommandError, "ConnectionError:"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
         mocked_get.side_effect = exceptions.HTTPError
 
-        with self.assertRaisesRegex(CommandError, "HTTPError:"):
+        with self.assertRaisesRegexp(CommandError, "HTTPError:"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
@@ -252,7 +251,7 @@ class TestSAMLCommand(TestCase):
 
         expected = "\nDone.\n2 provider(s) found in database.\n1 skipped and 1 attempted.\n0 updated and 1 failed.\n"
 
-        with self.assertRaisesRegex(CommandError, "MetadataParseError: Can't find EntityDescriptor for entityID"):
+        with self.assertRaisesRegexp(CommandError, "MetadataParseError: Can't find EntityDescriptor for entityID"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())
 
@@ -272,6 +271,6 @@ class TestSAMLCommand(TestCase):
 
         expected = "\nDone.\n1 provider(s) found in database.\n0 skipped and 1 attempted.\n0 updated and 1 failed.\n"
 
-        with self.assertRaisesRegex(CommandError, "XMLSyntaxError:"):
+        with self.assertRaisesRegexp(CommandError, "XMLSyntaxError:"):
             call_command("saml", pull=True, stdout=self.stdout)
         self.assertIn(expected, self.stdout.getvalue())

@@ -1,12 +1,9 @@
-
-
 import datetime
 import logging
 import re
 import time
 
 import dateutil.parser
-import six
 from pytz import UTC
 from six import text_type
 from xblock.fields import JSONField
@@ -51,11 +48,11 @@ class Date(JSONField):
         """
         if field is None:
             return field
-        elif field == "":
+        elif field is "":
             return None
-        elif isinstance(field, six.string_types):
+        elif isinstance(field, basestring):
             return self._parse_date_wo_default_month_day(field)
-        elif isinstance(field, six.integer_types) or isinstance(field, float):
+        elif isinstance(field, (int, long, float)):
             return datetime.datetime.fromtimestamp(field / 1000, UTC)
         elif isinstance(field, time.struct_time):
             return datetime.datetime.fromtimestamp(time.mktime(field), UTC)
@@ -118,7 +115,7 @@ class Timedelta(JSONField):
             return
         parts = parts.groupdict()
         time_params = {}
-        for (name, param) in six.iteritems(parts):
+        for (name, param) in parts.iteritems():
             if param:
                 time_params[name] = int(param)
         return datetime.timedelta(**time_params)
@@ -204,7 +201,7 @@ class RelativeTime(JSONField):
         if isinstance(value, float):
             return datetime.timedelta(seconds=value)
 
-        if isinstance(value, six.string_types):
+        if isinstance(value, basestring):
             return self.isotime_to_timedelta(value)
 
         msg = "RelativeTime Field {0} has bad value '{1!r}'".format(self.name, value)

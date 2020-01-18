@@ -18,8 +18,6 @@ front-end validation will not pass.
                   one stored on YouTube
     t_not_exist - this file does not exist on YouTube; it exists locally
 """
-
-
 from common.test.acceptance.tests.video.test_studio_video_module import CMSVideoBaseTest
 
 
@@ -74,26 +72,26 @@ class VideoTranscriptTest(CMSVideoBaseTest):
         # Currently we are working with 2nd field. It means, that if 2nd field
         # contain incorrect value, 1st and 3rd fields should be disabled until
         # 2nd field will be filled by correct correct value
-        self.assertEqual(list(self.video.url_field_status(1, 3).values()), [False, False])
+        self.assertEqual(self.video.url_field_status(1, 3).values(), [False, False])
         self.video.clear_fields()
-        self.assertEqual(list(self.video.url_field_status().values()), [True, True, True])
+        self.assertEqual(self.video.url_field_status().values(), [True, True, True])
 
         #User input URL with incorrect format
         self.video.set_url_field('http://link.c', 1)
         self.assertEqual(self.video.message('error'), 'Incorrect url format.')
-        self.assertEqual(list(self.video.url_field_status(2, 3).values()), [False, False])
+        self.assertEqual(self.video.url_field_status(2, 3).values(), [False, False])
 
         #User input URL with incorrect format
         self.video.set_url_field('http://goo.gl/pxxZrg', 1)
         self.video.set_url_field('http://goo.gl/pxxZrg', 2)
         self.assertEqual(self.video.message('error'), 'Links should be unique.')
-        self.assertEqual(list(self.video.url_field_status(1, 3).values()), [False, False])
+        self.assertEqual(self.video.url_field_status(1, 3).values(), [False, False])
         self.video.clear_fields()
-        self.assertEqual(list(self.video.url_field_status().values()), [True, True, True])
+        self.assertEqual(self.video.url_field_status().values(), [True, True, True])
 
         self.video.set_url_field('http://youtu.be/t_not_exist', 1)
         self.assertEqual(self.video.message('error'), '')
-        self.assertEqual(list(self.video.url_field_status().values()), [True, True, True])
+        self.assertEqual(self.video.url_field_status().values(), [True, True, True])
 
     def test_youtube_server_interaction(self):
         """
@@ -418,6 +416,54 @@ class VideoTranscriptTest(CMSVideoBaseTest):
 
         self.video.set_url_field('uk_transcripts.webm', 3)
         self.assertEqual(self.video.message('status'), 'Timed Transcript Found')
+
+    def test_two_html5_sources_w_transcripts(self):
+        """
+        Scenario: Enter 2 HTML5 sources with transcripts, they are not the same, choose
+        Given I have created a Video component and subtitles "t_not_exist" and "t__eq_exist"
+        are present in contentstore.
+
+        And I enter a "t_not_exist.mp4" source to field number 1
+        Then I see status message "Timed Transcript Found"
+        `download_to_edit` and `upload_new_timed_transcripts` buttons are shown
+
+        And I enter a "t__eq_exist.webm" source to field number 2
+        Then I see status message "Timed Transcript Conflict"
+        `Timed Transcript from t_not_exist.mp4` and `Timed Transcript from t__eq_exist.webm` buttons are shown
+        And I click transcript button "Timed Transcript from t_not_exist.mp4"
+        Then I see status message "Timed Transcript Found" And I save video component
+        Then I see that the captions are visible.
+        """
+        # Setup a course, navigate to the unit containing
+        # video component and edit the video component.
+        self.assets.append('subs_t_not_exist.srt.sjson')
+        self.assets.append('subs_t__eq_exist.srt.sjson')
+        self.navigate_to_course_unit()
+        self.edit_component()
+
+        self.video.set_url_field('t_not_exist.mp4', 1)
+        self.assertEqual(self.video.message('status'), 'Timed Transcript Found')
+        self.assertTrue(self.video.is_transcript_button_visible('download_to_edit'))
+        self.assertTrue(self.video.is_transcript_button_visible('upload_new_timed_transcripts'))
+
+        self.video.set_url_field('t__eq_exist.webm', 2)
+        self.assertEqual(self.video.message('status'), 'Timed Transcript Conflict')
+
+        self.assertTrue(self.video.is_transcript_button_visible(
+            'choose',
+            button_text='Timed Transcript from t__eq_exist.webm'
+        ))
+        self.assertTrue(self.video.is_transcript_button_visible(
+            'choose',
+            index=1,
+            button_text='Timed Transcript from t_not_exist.mp4'
+        ))
+
+        self.video.click_button('choose', index=1)
+        self.assertEqual(self.video.message('status'), 'Timed Transcript Found')
+        self.save_unit_settings()
+
+        self.assertTrue(self.video.is_captions_visible())
 
     def test_one_field_only(self):
         """

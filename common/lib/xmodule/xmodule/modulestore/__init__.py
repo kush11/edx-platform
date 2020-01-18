@@ -3,34 +3,32 @@ This module provides an abstraction for working with XModuleDescriptors
 that are stored in a database an accessible using their Location as an identifier
 """
 
-
-import datetime
 import logging
 import re
-import threading
-from abc import ABCMeta, abstractmethod
+import datetime
+
+from pytz import UTC
 from collections import defaultdict
 from contextlib import contextmanager
+import threading
 from operator import itemgetter
+from sortedcontainers import SortedListWithKey
 
-import six
+from abc import ABCMeta, abstractmethod
 from contracts import contract, new_contract
-from opaque_keys.edx.keys import AssetKey, CourseKey
-from opaque_keys.edx.locations import Location  # For import backwards compatibility
-from pytz import UTC
-from six.moves import range
-from sortedcontainers import SortedKeyList
-from xblock.core import XBlock
 from xblock.plugin import default_select
+
+from .exceptions import InvalidLocationError, InsufficientSpecificationError
+from xmodule.errortracker import make_error_tracker
+from xmodule.assetstore import AssetMetadata
+from opaque_keys.edx.keys import CourseKey, AssetKey
+from opaque_keys.edx.locations import Location  # For import backwards compatibility
 from xblock.runtime import Mixologist
+from xblock.core import XBlock
 
 # The below import is not used within this module, but ir is still needed becuase
 # other modules are imorting EdxJSONEncoder from here
 from openedx.core.lib.json_utils import EdxJSONEncoder  # pylint: disable=unused-import
-from xmodule.assetstore import AssetMetadata
-from xmodule.errortracker import make_error_tracker
-
-from .exceptions import InsufficientSpecificationError, InvalidLocationError
 
 log = logging.getLogger('edx.modulestore')
 
@@ -209,7 +207,7 @@ class BulkOperationsMixin(object):
 
         # Retrieve the bulk record based on matching org/course/run (possibly ignoring case)
         if ignore_case:
-            for key, record in six.iteritems(self._active_bulk_ops.records):
+            for key, record in self._active_bulk_ops.records.iteritems():
                 # Shortcut: check basic equivalence for cases where org/course/run might be None.
                 if (key == course_key) or (
                         (key.org and key.org.lower() == course_key.org.lower()) and
@@ -225,7 +223,7 @@ class BulkOperationsMixin(object):
         """
         Yield all active (CourseLocator, BulkOpsRecord) tuples.
         """
-        for course_key, record in six.iteritems(self._active_bulk_ops.records):
+        for course_key, record in self._active_bulk_ops.records.iteritems():
             if record.active:
                 yield (course_key, record)
 
@@ -511,7 +509,7 @@ class IncorrectlySortedList(Exception):
     pass
 
 
-class SortedAssetList(SortedKeyList):
+class SortedAssetList(SortedListWithKey):
     """
     List of assets that is sorted based on an asset attribute.
     """
@@ -551,11 +549,12 @@ class SortedAssetList(SortedKeyList):
         """
         metadata_to_insert = asset_md.to_storable()
         asset_idx = self.find(asset_md.asset_id)
-        if asset_idx is not None:
-            # Delete existing metadata.
-            del self[asset_idx]
-        # Add new metadata sorted into the list.
-        self.add(metadata_to_insert)
+        if asset_idx is None:
+            # Add new metadata sorted into the list.
+            self.add(metadata_to_insert)
+        else:
+            # Replace existing metadata.
+            self[asset_idx] = metadata_to_insert
 
 
 class ModuleStoreAssetBase(object):
@@ -576,7 +575,10 @@ class ModuleStoreAssetBase(object):
             - the index of asset in list (None if asset does not exist)
         """
         course_assets = self._find_course_assets(asset_key.course_key)
-        all_assets = SortedAssetList(iterable=course_assets.setdefault(asset_key.block_type, []))
+        all_assets = SortedAssetList(iterable=[])
+        # Assets should be pre-sorted, so add them efficiently without sorting.
+        # extend() will raise a ValueError if the passed-in list is not sorted.
+        all_assets.extend(course_assets.setdefault(asset_key.block_type, []))
         idx = all_assets.find(asset_key)
 
         return course_assets, idx
@@ -602,7 +604,7 @@ class ModuleStoreAssetBase(object):
         return mdata
 
     @contract(
-        course_key='CourseKey', asset_type='None | str',
+        course_key='CourseKey', asset_type='None | basestring',
         start='int | None', maxresults='int | None', sort='tuple(str,int) | None'
     )
     def get_all_asset_metadata(self, course_key, asset_type, start=0, maxresults=-1, sort=None, **kwargs):
@@ -636,7 +638,7 @@ class ModuleStoreAssetBase(object):
         if asset_type is None:
             # Add assets of all types to the sorted list.
             all_assets = SortedAssetList(iterable=[], key=key_func)
-            for asset_type, val in six.iteritems(course_assets):
+            for asset_type, val in course_assets.iteritems():
                 all_assets.update(val)
         else:
             # Add assets of a single type to the sorted list.
@@ -657,7 +659,7 @@ class ModuleStoreAssetBase(object):
             end_idx = (num_assets - 1) - end_idx
 
         ret_assets = []
-        for idx in range(start_idx, end_idx, step_incr):
+        for idx in xrange(start_idx, end_idx, step_incr):
             raw_asset = all_assets[idx]
             asset_key = course_key.make_asset_key(raw_asset['asset_type'], raw_asset['filename'])
             new_asset = AssetMetadata(asset_key)
@@ -778,11 +780,13 @@ class ModuleStoreAssetWriteInterface(ModuleStoreAssetBase):
         pass
 
 
-class ModuleStoreRead(six.with_metaclass(ABCMeta, ModuleStoreAssetBase)):
+class ModuleStoreRead(ModuleStoreAssetBase):
     """
     An abstract interface for a database backend that stores XModuleDescriptor
     instances and extends read-only functionality
     """
+
+    __metaclass__ = ABCMeta
 
     @abstractmethod
     def has_item(self, usage_key):
@@ -877,7 +881,7 @@ class ModuleStoreRead(six.with_metaclass(ABCMeta, ModuleStoreAssetBase)):
             else:
                 return True, field
 
-        for key, criteria in six.iteritems(qualifiers):
+        for key, criteria in qualifiers.iteritems():
             is_set, value = _is_set_on(key)
             if isinstance(criteria, dict) and '$exists' in criteria and criteria['$exists'] == is_set:
                 continue
@@ -1033,11 +1037,13 @@ class ModuleStoreRead(six.with_metaclass(ABCMeta, ModuleStoreAssetBase)):
         pass
 
 
-class ModuleStoreWrite(six.with_metaclass(ABCMeta, ModuleStoreRead, ModuleStoreAssetWriteInterface)):
+class ModuleStoreWrite(ModuleStoreRead, ModuleStoreAssetWriteInterface):
     """
     An abstract interface for a database backend that stores XModuleDescriptor
     instances and extends both read and write functionality
     """
+
+    __metaclass__ = ABCMeta
 
     @abstractmethod
     def update_item(self, xblock, user_id, allow_not_found=False, force=False, **kwargs):
@@ -1297,9 +1303,8 @@ class ModuleStoreWriteBase(ModuleStoreReadBase, ModuleStoreWrite):
         result = defaultdict(dict)
         if fields is None:
             return result
-        classes = XBlock.load_class(category, select=prefer_xmodules)
-        cls = self.mixologist.mix(classes)
-        for field_name, value in six.iteritems(fields):
+        cls = self.mixologist.mix(XBlock.load_class(category, select=prefer_xmodules))
+        for field_name, value in fields.iteritems():
             field = getattr(cls, field_name)
             result[field.scope][field_name] = value
         return result

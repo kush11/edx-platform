@@ -2,8 +2,6 @@
 """
 End-to-end tests for the CCX dashboard.
 """
-
-
 from common.test.acceptance.fixtures.course import CourseFixture
 from common.test.acceptance.pages.common.auto_auth import AutoAuthPage
 from common.test.acceptance.pages.lms.ccx_dashboard_page import CoachDashboardPage

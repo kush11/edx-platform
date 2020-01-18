@@ -1,5 +1,5 @@
 """Acceptance tests for LMS-hosted Programs pages"""
-
+import pytest
 
 from common.test.acceptance.fixtures.catalog import CatalogFixture, CatalogIntegrationMixin
 from common.test.acceptance.fixtures.course import CourseFixture
@@ -83,6 +83,17 @@ class ProgramListingPageTest(ProgramPageBase):
 
         self.listing_page = ProgramListingPage(self.browser)
 
+    def test_no_enrollments(self):
+        """Verify that no cards appear when the user has no enrollments."""
+        self.auth(enroll=False)
+        self.stub_catalog_api(self.programs, self.pathways)
+        self.cache_programs()
+
+        self.listing_page.visit()
+
+        self.assertTrue(self.listing_page.is_sidebar_present)
+        self.assertFalse(self.listing_page.are_cards_present)
+
     def test_no_programs(self):
         """
         Verify that no cards appear when the user has enrollments
@@ -98,10 +109,9 @@ class ProgramListingPageTest(ProgramPageBase):
         self.assertFalse(self.listing_page.are_cards_present)
 
 
+@pytest.mark.a11y
 class ProgramListingPageA11yTest(ProgramPageBase):
     """Test program listing page accessibility."""
-    a11y = True
-
     def setUp(self):
         super(ProgramListingPageA11yTest, self).setUp()
 
@@ -114,7 +124,6 @@ class ProgramListingPageA11yTest(ProgramPageBase):
         self.listing_page.a11y_audit.config.set_rules({
             "ignore": [
                 'aria-valid-attr',  # TODO: LEARNER-6611 & LEARNER-6865
-                'region',  # TODO: AC-932
             ]
         })
         self.auth(enroll=False)
@@ -132,8 +141,6 @@ class ProgramListingPageA11yTest(ProgramPageBase):
         self.listing_page.a11y_audit.config.set_rules({
             "ignore": [
                 'aria-valid-attr',  # TODO: LEARNER-6611 & LEARNER-6865
-                'landmark-complementary-is-top-level',  # TODO: AC-939
-                'region',  # TODO: AC-932
             ]
         })
         self.auth()
@@ -147,10 +154,9 @@ class ProgramListingPageA11yTest(ProgramPageBase):
         self.listing_page.a11y_audit.check_for_accessibility_errors()
 
 
+@pytest.mark.a11y
 class ProgramDetailsPageA11yTest(ProgramPageBase):
     """Test program details page accessibility."""
-    a11y = True
-
     def setUp(self):
         super(ProgramDetailsPageA11yTest, self).setUp()
 
@@ -164,8 +170,6 @@ class ProgramDetailsPageA11yTest(ProgramPageBase):
         self.details_page.a11y_audit.config.set_rules({
             "ignore": [
                 'aria-valid-attr',  # TODO: LEARNER-6611 & LEARNER-6865
-                'landmark-complementary-is-top-level',  # TODO: AC-939
-                'region',  # TODO: AC-932
             ]
         })
         self.auth()

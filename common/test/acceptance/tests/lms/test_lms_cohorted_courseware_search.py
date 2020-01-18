@@ -2,7 +2,6 @@
 Test courseware search
 """
 
-
 import json
 import uuid
 
@@ -12,9 +11,9 @@ from common.test.acceptance.pages.common.logout import LogoutPage
 from common.test.acceptance.pages.lms.course_home import CourseHomePage
 from common.test.acceptance.pages.lms.instructor_dashboard import InstructorDashboardPage
 from common.test.acceptance.pages.lms.staff_view import StaffCoursewarePage
+from common.test.acceptance.pages.studio.xblock_editor import XBlockVisibilityEditorView
 from common.test.acceptance.pages.studio.overview import CourseOutlinePage as StudioCourseOutlinePage
 from common.test.acceptance.pages.studio.settings_group_configurations import GroupConfigurationsPage
-from common.test.acceptance.pages.studio.xblock_editor import XBlockVisibilityEditorView
 from common.test.acceptance.tests.discussion.helpers import CohortTestMixin
 from common.test.acceptance.tests.helpers import remove_file
 from common.test.acceptance.tests.studio.base_studio_test import ContainerBase
@@ -182,7 +181,7 @@ class CoursewareSearchCohortTest(ContainerBase, CohortTestMixin):
         set_visibility(2, [self.content_group_b])
         set_visibility(3, [self.content_group_a, self.content_group_b])
 
-        container_page.publish()
+        container_page.publish_action.click()
 
     def create_cohorts_and_assign_students(self):
         """

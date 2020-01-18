@@ -2,20 +2,15 @@
 Utility Mixins for unit tests
 """
 
-
 import json
 import sys
 
-import six
 from django.conf import settings
-from django.test import TestCase
 from django.urls import clear_url_caches, resolve
+from django.test import TestCase
 from mock import patch
 
 from util.db import CommitOnSuccessManager, OuterAtomic
-
-if six.PY3:
-    from importlib import reload  # pylint: disable=no-name-in-module,redefined-builtin
 
 
 class UrlResetMixin(object):
@@ -89,13 +84,13 @@ class EventTestMixin(object):
         """
         Ensures no events were emitted since the last event related assertion.
         """
-        self.assertFalse(self.mock_tracker.emit.called)
+        self.assertFalse(self.mock_tracker.emit.called)  # pylint: disable=maybe-no-member
 
     def assert_event_emitted(self, event_name, **kwargs):
         """
         Verify that an event was emitted with the given parameters.
         """
-        self.mock_tracker.emit.assert_any_call(
+        self.mock_tracker.emit.assert_any_call(  # pylint: disable=maybe-no-member
             event_name,
             kwargs
         )

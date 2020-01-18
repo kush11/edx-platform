@@ -1,8 +1,6 @@
 """
 Javascript tests for the crowdsourcehinter xblock
 """
-
-
 from textwrap import dedent
 
 from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc

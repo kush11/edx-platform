@@ -1,5 +1,3 @@
-
-
 import copy
 import logging
 import os
@@ -8,32 +6,23 @@ import sys
 import textwrap
 from datetime import datetime
 
-from pkg_resources import resource_string
-
-import six
 from django.conf import settings
 from fs.errors import ResourceNotFound
 from lxml import etree
 from path import Path as path
+from pkg_resources import resource_string
 from web_fragments.fragment import Fragment
 from xblock.core import XBlock
 from xblock.fields import Boolean, List, Scope, String
+
 from xmodule.contentstore.content import StaticContent
-from xmodule.editing_module import EditingMixin
+from xmodule.editing_module import EditingDescriptor
 from xmodule.edxnotes_utils import edxnotes
 from xmodule.html_checker import check_html
 from xmodule.stringify import stringify_children
 from xmodule.util.misc import escape_html_characters
-from xmodule.util.xmodule_django import add_webpack_to_fragment
-from xmodule.x_module import (
-    HTMLSnippet,
-    ResourceTemplates,
-    shim_xmodule_js,
-    XModuleMixin,
-    XModuleDescriptorToXBlockMixin,
-    XModuleToXBlockMixin,
-)
-from xmodule.xml_module import XmlMixin, name_to_pathname
+from xmodule.x_module import DEPRECATION_VSCOMPAT_EVENT, XModule
+from xmodule.xml_module import XmlDescriptor, name_to_pathname
 
 log = logging.getLogger("edx.courseware")
 
@@ -42,14 +31,11 @@ log = logging.getLogger("edx.courseware")
 _ = lambda text: text
 
 
-@edxnotes
-@XBlock.needs("i18n")
-class HtmlBlock(
-    XmlMixin, EditingMixin,
-    XModuleDescriptorToXBlockMixin, XModuleToXBlockMixin, HTMLSnippet, ResourceTemplates, XModuleMixin,
-):
+class HtmlBlock(object):
     """
-    The HTML XBlock.
+    This will eventually subclass XBlock and merge HtmlModule and HtmlDescriptor
+    into one. For now, it's a place to put the pieces that are already sharable
+    between the two (field information and XBlock handlers).
     """
     display_name = String(
         display_name=_("Display Name"),
@@ -90,10 +76,7 @@ class HtmlBlock(
         """
         Return a fragment that contains the html for the student view
         """
-        fragment = Fragment(self.get_html())
-        add_webpack_to_fragment(fragment, 'HtmlBlockPreview')
-        shim_xmodule_js(fragment, 'HTMLModule')
-        return fragment
+        return Fragment(self.get_html())
 
     @XBlock.supports("multi_device")
     def public_view(self, context):
@@ -115,56 +98,54 @@ class HtmlBlock(
             }
 
     def get_html(self):
-        """ Returns html required for rendering the block. """
+        """ Returns html required for rendering XModule. """
+
+        # When we switch this to an XBlock, we can merge this with student_view,
+        # but for now the XModule mixin requires that this method be defined.
         # pylint: disable=no-member
         if self.data is not None and getattr(self.system, 'anonymous_student_id', None) is not None:
             return self.data.replace("%%USER_ID%%", self.system.anonymous_student_id)
         return self.data
 
-    def studio_view(self, _context):
-        """
-        Return the studio view.
-        """
-        fragment = Fragment(
-            self.system.render_template(self.mako_template, self.get_context())
-        )
-        add_webpack_to_fragment(fragment, 'HtmlBlockStudio')
-        shim_xmodule_js(fragment, 'HTMLEditingDescriptor')
-        return fragment
 
-    preview_view_js = {
+class HtmlModuleMixin(HtmlBlock, XModule):
+    """
+    Attributes and methods used by HtmlModules internally.
+    """
+    js = {
         'js': [
             resource_string(__name__, 'js/src/html/display.js'),
             resource_string(__name__, 'js/src/javascript_loader.js'),
             resource_string(__name__, 'js/src/collapsible.js'),
             resource_string(__name__, 'js/src/html/imageModal.js'),
             resource_string(__name__, 'js/common_static/js/vendor/draggabilly.js'),
-        ],
-        'xmodule_js': resource_string(__name__, 'js/src/xmodule.js'),
+        ]
     }
-    preview_view_css = {'scss': [resource_string(__name__, 'css/html/display.scss')]}
+    js_module_name = "HTMLModule"
+    css = {'scss': [resource_string(__name__, 'css/html/display.scss')]}
 
-    uses_xmodule_styles_setup = True
-    requires_per_student_anonymous_id = True
 
+@edxnotes
+class HtmlModule(HtmlModuleMixin):
+    """
+    Module for putting raw html in a course
+    """
+
+
+class HtmlDescriptor(HtmlBlock, XmlDescriptor, EditingDescriptor):  # pylint: disable=abstract-method
+    """
+    Module for putting raw html in a course
+    """
     mako_template = "widgets/html-edit.html"
+    module_class = HtmlModule
     resources_dir = None
     filename_extension = "xml"
     template_dir_name = "html"
     show_in_read_only_mode = True
 
-    studio_view_js = {
-        'js': [
-            resource_string(__name__, 'js/src/html/edit.js')
-        ],
-        'xmodule_js': resource_string(__name__, 'js/src/xmodule.js'),
-    }
-    studio_view_css = {
-        'scss': [
-            resource_string(__name__, 'css/editor/edit.scss'),
-            resource_string(__name__, 'css/html/edit.scss')
-        ]
-    }
+    js = {'js': [resource_string(__name__, 'js/src/html/edit.js')]}
+    js_module_name = "HTMLEditingDescriptor"
+    css = {'scss': [resource_string(__name__, 'css/editor/edit.scss'), resource_string(__name__, 'css/html/edit.scss')]}
 
     # VS[compat] TODO (cpennington): Delete this method once all fall 2012 course
     # are being edited in the cms
@@ -204,7 +185,7 @@ class HtmlBlock(
         an override to add in specific rendering context, in this case we need to
         add in a base path to our c4x content addressing scheme
         """
-        _context = EditingMixin.get_context(self)
+        _context = EditingDescriptor.get_context(self)
         # Add some specific HTML rendering context when editing HTML modules where we pass
         # the root /c4x/ url for assets. This allows client-side substitutions to occur.
         _context.update({
@@ -291,21 +272,7 @@ class HtmlBlock(
                 msg = 'Unable to load file contents at path {0}: {1} '.format(
                     filepath, err)
                 # add more info and re-raise
-                six.reraise(Exception, Exception(msg), sys.exc_info()[2])
-
-    @classmethod
-    def parse_xml_new_runtime(cls, node, runtime, keys):
-        """
-        Parse XML in the new blockstore-based runtime. Since it doesn't yet
-        support loading separate .html files, the HTML data is assumed to be in
-        a CDATA child or otherwise just inline in the OLX.
-        """
-        block = runtime.construct_xblock_from_class(cls, keys)
-        block.data = stringify_children(node)
-        # Attributes become fields.
-        for name, value in node.items():
-            cls._set_field_if_present(block, name, value, {})
-        return block
+                raise Exception(msg), None, sys.exc_info()[2]
 
     # TODO (vshnayder): make export put things in the right places.
 
@@ -338,12 +305,12 @@ class HtmlBlock(
         """
         `use_latex_compiler` should not be editable in the Studio settings editor.
         """
-        non_editable_fields = super(HtmlBlock, self).non_editable_metadata_fields
-        non_editable_fields.append(HtmlBlock.use_latex_compiler)
+        non_editable_fields = super(HtmlDescriptor, self).non_editable_metadata_fields
+        non_editable_fields.append(HtmlDescriptor.use_latex_compiler)
         return non_editable_fields
 
     def index_dictionary(self):
-        xblock_body = super(HtmlBlock, self).index_dictionary()
+        xblock_body = super(HtmlDescriptor, self).index_dictionary()
         # Removing script and style
         html_content = re.sub(
             re.compile(
@@ -383,12 +350,21 @@ class AboutFields(object):
 
 
 @XBlock.tag("detached")
-class AboutBlock(AboutFields, HtmlBlock):
+class AboutModule(AboutFields, HtmlModuleMixin):
     """
-    These pieces of course content are treated as HtmlBlocks but we need to overload where the templates are located
+    Overriding defaults but otherwise treated as HtmlModule.
+    """
+    pass
+
+
+@XBlock.tag("detached")
+class AboutDescriptor(AboutFields, HtmlDescriptor):
+    """
+    These pieces of course content are treated as HtmlModules but we need to overload where the templates are located
     in order to be able to create new ones
     """
     template_dir_name = "about"
+    module_class = AboutModule
 
 
 class StaticTabFields(object):
@@ -418,12 +394,21 @@ class StaticTabFields(object):
 
 
 @XBlock.tag("detached")
-class StaticTabBlock(StaticTabFields, HtmlBlock):
+class StaticTabModule(StaticTabFields, HtmlModuleMixin):
     """
-    These pieces of course content are treated as HtmlBlocks but we need to overload where the templates are located
+    Supports the field overrides
+    """
+    pass
+
+
+@XBlock.tag("detached")
+class StaticTabDescriptor(StaticTabFields, HtmlDescriptor):
+    """
+    These pieces of course content are treated as HtmlModules but we need to overload where the templates are located
     in order to be able to create new ones
     """
     template_dir_name = None
+    module_class = StaticTabModule
 
 
 class CourseInfoFields(object):
@@ -443,17 +428,21 @@ class CourseInfoFields(object):
 
 
 @XBlock.tag("detached")
-class CourseInfoBlock(CourseInfoFields, HtmlBlock):
+class CourseInfoModule(CourseInfoFields, HtmlModuleMixin):
     """
-    These pieces of course content are treated as HtmlBlock but we need to overload where the templates are located
-    in order to be able to create new ones
+    Just to support xblock field overrides
     """
     # statuses
     STATUS_VISIBLE = 'visible'
     STATUS_DELETED = 'deleted'
     TEMPLATE_DIR = 'courseware'
 
-    template_dir_name = None
+    @XBlock.supports("multi_device")
+    def student_view(self, _context):
+        """
+        Return a fragment that contains the html for the student view
+        """
+        return Fragment(self.get_html())
 
     def get_html(self):
         """ Returns html required for rendering XModule. """
@@ -496,3 +485,13 @@ class CourseInfoBlock(CourseInfoFields, HtmlBlock):
             return datetime.strptime(date, '%B %d, %Y')
         except ValueError:  # occurs for ill-formatted date values
             return datetime.today()
+
+
+@XBlock.tag("detached")
+class CourseInfoDescriptor(CourseInfoFields, HtmlDescriptor):
+    """
+    These pieces of course content are treated as HtmlModules but we need to overload where the templates are located
+    in order to be able to create new ones
+    """
+    template_dir_name = None
+    module_class = CourseInfoModule

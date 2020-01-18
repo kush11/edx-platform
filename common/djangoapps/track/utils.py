@@ -1,6 +1,5 @@
 """Utility functions and classes for track backends"""
 
-
 import json
 from datetime import date, datetime
 

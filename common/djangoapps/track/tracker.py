@@ -18,11 +18,9 @@ below::
 
 """
 
-
 import inspect
 from importlib import import_module
 
-import six
 from django.conf import settings
 
 from track.backends import BaseBackend
@@ -43,7 +41,7 @@ def _initialize_backends_from_django_settings():
 
     config = getattr(settings, 'TRACKING_BACKENDS', {})
 
-    for name, values in six.iteritems(config):
+    for name, values in config.iteritems():
         # Ignore empty values to turn-off default tracker backends
         if values:
             engine = values['ENGINE']
@@ -88,7 +86,7 @@ def send(event):
 
     """
 
-    for name, backend in six.iteritems(backends):
+    for name, backend in backends.iteritems():
         backend.send(event)
 
 

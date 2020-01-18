@@ -1,6 +1,5 @@
 """Unit tests for third_party_auth/pipeline.py."""
 
-
 import unittest
 
 from third_party_auth import pipeline

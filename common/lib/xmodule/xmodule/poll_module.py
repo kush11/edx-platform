@@ -6,19 +6,17 @@ If student does not yet anwered - Question with set of choices.
 If student have answered - Question with statistics for each answers.
 """
 
-
 import cgi
 import json
 import logging
 from collections import OrderedDict
 from copy import deepcopy
 
-from pkg_resources import resource_string
-
-import six
 from lxml import etree
-from openedx.core.djangolib.markup import Text
+from pkg_resources import resource_string
 from xblock.fields import Boolean, Dict, List, Scope, String
+
+from openedx.core.djangolib.markup import Text
 from xmodule.mako_module import MakoModuleDescriptor
 from xmodule.stringify import stringify_children
 from xmodule.x_module import XModule
@@ -222,7 +220,7 @@ class PollDescriptor(PollFields, MakoModuleDescriptor, XmlDescriptor):
 
         def add_child(xml_obj, answer):
             # Escape answer text before adding to xml tree.
-            answer_text = six.text_type(Text(answer['text']))
+            answer_text = unicode(Text(answer['text']))
             child_str = u'<{tag_name} id="{id}">{text}</{tag_name}>'.format(
                 tag_name=self._child_tag_name, id=answer['id'],
                 text=answer_text)

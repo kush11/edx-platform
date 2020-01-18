@@ -2,9 +2,6 @@
 """
 Tests for basic common operations related to Course Action State managers
 """
-
-from six.moves import range
-
 from collections import namedtuple
 
 from ddt import data, ddt
@@ -161,4 +158,4 @@ class TestCourseActionUIStateManager(TestCourseActionStateManagerBase):
             source_course_key=source_course_key,
         )
         found_action_state = CourseRerunState.objects.find_first(course_key=destination_course_key)
-        self.assertEqual(source_course_key, found_action_state.source_course_key)
+        self.assertEquals(source_course_key, found_action_state.source_course_key)

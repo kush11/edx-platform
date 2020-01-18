@@ -1,8 +1,5 @@
-
-
-import copy
-
 from opaque_keys.edx.locator import DefinitionLocator
+import copy
 
 
 class DefinitionLazyLoader(object):

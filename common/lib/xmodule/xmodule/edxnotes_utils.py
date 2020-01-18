@@ -1,8 +1,6 @@
 """
 Utilities related to edXNotes.
 """
-
-
 import sys
 
 

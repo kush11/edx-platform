@@ -1,10 +1,7 @@
 """
 Acceptance tests for Content Libraries in Studio
 """
-
-
 from ddt import data, ddt
-from six.moves import range
 
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 from common.test.acceptance.pages.common.auto_auth import AutoAuthPage
@@ -207,7 +204,7 @@ class LibraryNavigationTest(StudioLibraryTest):
         Create four pages worth of XBlocks, and offset by one so each is named
         after the number they should be in line by the user's perception.
         """
-        self.blocks = [XBlockFixtureDesc('html', str(i)) for i in range(1, 41)]
+        self.blocks = [XBlockFixtureDesc('html', str(i)) for i in xrange(1, 41)]
         library_fixture.add_children(*self.blocks)
 
     def test_arbitrary_page_selection(self):
@@ -657,10 +654,6 @@ class StudioLibraryA11yTest(StudioLibraryTest):
         lib_page.a11y_audit.config.set_rules({
             "ignore": [
                 'link-href',  # TODO: AC-590
-                'duplicate-id-aria',  # TODO: AC-940
-                'heading-order',  # TODO: AC-933
-                'landmark-complementary-is-top-level',  # TODO: AC-939
-                'region'  # TODO: AC-932
             ],
         })
 

@@ -1,5 +1,6 @@
 """MongoDB event tracker backend."""
 
+from __future__ import absolute_import
 
 import logging
 
@@ -28,7 +29,6 @@ class MongoBackend(BaseBackend):
           - `password`: collection user password
           - `database`: name of the database
           - `collection`: name of the collection
-          - 'auth_source': name of the authentication database
           - `extra`: parameters to pymongo.MongoClient not listed above
 
         """
@@ -45,8 +45,6 @@ class MongoBackend(BaseBackend):
 
         db_name = kwargs.get('database', 'track')
         collection_name = kwargs.get('collection', 'events')
-
-        auth_source = kwargs.get('auth_source') or None
 
         # Other mongo connection arguments
         extra = kwargs.get('extra', {})
@@ -69,7 +67,7 @@ class MongoBackend(BaseBackend):
         database = self.connection[db_name]
 
         if user or password:
-            database.authenticate(user, password, source=auth_source)
+            database.authenticate(user, password)
 
         self.collection = database[collection_name]
 

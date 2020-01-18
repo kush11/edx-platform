@@ -1,8 +1,6 @@
 """
 Serializers for all Course Entitlement related return objects.
 """
-
-
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 

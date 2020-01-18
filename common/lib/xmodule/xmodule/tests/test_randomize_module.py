@@ -1,18 +1,16 @@
 """
 Test cases covering workflows and behaviors for the Randomize XModule
 """
-
-
 import unittest
 from datetime import datetime, timedelta
 
-from opaque_keys.edx.locator import BlockUsageLocator
 from pytz import UTC
+from opaque_keys.edx.locator import BlockUsageLocator
 from xblock.fields import ScopeIds
-
 from xmodule.randomize_module import RandomizeModule
 
 from .test_course_module import DummySystem as DummyImportSystem
+
 
 ORG = 'test_org'
 COURSE = 'test_course'
@@ -25,6 +23,7 @@ _NEXT_WEEK = _TODAY + timedelta(days=7)
 
 class RandomizeModuleTestCase(unittest.TestCase):
     """Make sure the randomize module works"""
+    shard = 1
 
     def setUp(self):
         """
@@ -75,7 +74,7 @@ class RandomizeModuleTestCase(unittest.TestCase):
         """ Check course/randomize module works fine """
 
         self.assertTrue(self.course.has_children)
-        self.assertEqual(len(self.course.get_children()), 2)
+        self.assertEquals(len(self.course.get_children()), 2)
 
         def inner_get_module(descriptor):
             """
@@ -95,7 +94,7 @@ class RandomizeModuleTestCase(unittest.TestCase):
         # Get randomize_descriptor from the course & verify its children
         randomize_descriptor = inner_get_module(self.course.id.make_usage_key('randomize', 'my_randomize'))
         self.assertTrue(randomize_descriptor.has_children)
-        self.assertEqual(len(randomize_descriptor.get_children()), 2)
+        self.assertEquals(len(randomize_descriptor.get_children()), 2)
 
         # Call RandomizeModule which will select an element from the list of available items
         randomize_module = RandomizeModule(
@@ -105,5 +104,5 @@ class RandomizeModuleTestCase(unittest.TestCase):
         )
 
         # Verify the selected child
-        self.assertEqual(len(randomize_module.get_child_descriptors()), 1, "No child is chosen")
+        self.assertEquals(len(randomize_module.get_child_descriptors()), 1, "No child is chosen")
         self.assertIn(randomize_module.child.display_name, ['A', 'B'], "Unwanted child selected")

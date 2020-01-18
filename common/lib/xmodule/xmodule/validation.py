@@ -1,9 +1,6 @@
 """
 Extension of XBlock Validation class to include information for presentation in Studio.
 """
-
-
-import six
 from xblock.validation import Validation, ValidationMessage
 
 
@@ -35,15 +32,15 @@ class StudioValidationMessage(ValidationMessage):
         """
         super(StudioValidationMessage, self).__init__(message_type, message_text)
         if action_label is not None:
-            if not isinstance(action_label, six.text_type):
+            if not isinstance(action_label, unicode):
                 raise TypeError("Action label must be unicode.")
             self.action_label = action_label
         if action_class is not None:
-            if not isinstance(action_class, six.string_types):
+            if not isinstance(action_class, basestring):
                 raise TypeError("Action class must be a string.")
             self.action_class = action_class
         if action_runtime_event is not None:
-            if not isinstance(action_runtime_event, six.string_types):
+            if not isinstance(action_runtime_event, basestring):
                 raise TypeError("Action runtime event must be a string.")
             self.action_runtime_event = action_runtime_event
 

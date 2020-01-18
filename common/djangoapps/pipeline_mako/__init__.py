@@ -1,5 +1,3 @@
-
-
 from edxmako.shortcuts import render_to_string
 
 from pipeline.conf import settings
@@ -12,7 +10,7 @@ from django.contrib.staticfiles.storage import staticfiles_storage
 
 
 def compressed_css(package_name, raw=False):
-    package = settings.STYLESHEETS.get(package_name, {})
+    package = settings.PIPELINE_CSS.get(package_name, {})
     if package:
         package = {package_name: package}
     packager = Packager(css_packages=package, js_packages={})
@@ -46,7 +44,7 @@ def render_individual_css(package, paths, raw=False):
 
 
 def compressed_js(package_name):
-    package = settings.JAVASCRIPT.get(package_name, {})
+    package = settings.PIPELINE_JS.get(package_name, {})
     if package:
         package = {package_name: package}
     packager = Packager(css_packages={}, js_packages=package)

@@ -2,7 +2,6 @@
 Setup.py for safe_lxml.
 """
 
-
 from setuptools import setup
 
 setup(

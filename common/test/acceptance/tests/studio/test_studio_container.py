@@ -3,27 +3,23 @@ Acceptance tests for Studio related to the container page.
 The container page is used both for displaying units, and
 for displaying containers within units.
 """
-
-
 import datetime
 
 import ddt
-import six
 
+from base_studio_test import ContainerBase
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 from common.test.acceptance.pages.lms.courseware import CoursewarePage
 from common.test.acceptance.pages.lms.create_mode import ModeCreationPage
 from common.test.acceptance.pages.lms.staff_view import StaffCoursewarePage
+from common.test.acceptance.pages.studio.xblock_editor import XBlockEditorView, XBlockVisibilityEditorView
 from common.test.acceptance.pages.studio.container import ContainerPage
 from common.test.acceptance.pages.studio.html_component_editor import HtmlXBlockEditorView
 from common.test.acceptance.pages.studio.move_xblock import MoveModalView
 from common.test.acceptance.pages.studio.utils import add_discussion
-from common.test.acceptance.pages.studio.xblock_editor import XBlockEditorView, XBlockVisibilityEditorView
 from common.test.acceptance.tests.helpers import create_user_partition_json
 from openedx.core.lib.tests import attr
 from xmodule.partitions.partitions import ENROLLMENT_TRACK_PARTITION_ID, MINIMUM_STATIC_PARTITION_ID, Group
-
-from .base_studio_test import ContainerBase
 
 
 class NestedVerticalTest(ContainerBase):
@@ -52,7 +48,7 @@ class NestedVerticalTest(ContainerBase):
         self.group_a_item_1_action_index = 0
         self.group_a_item_2_action_index = 1
 
-        self.duplicate_label = u"Duplicate of '{0}'"
+        self.duplicate_label = "Duplicate of '{0}'"
         self.discussion_label = "Discussion"
 
         course_fixture.add_children(
@@ -84,7 +80,7 @@ class AddComponentTest(NestedVerticalTest):
 
     def add_and_verify(self, menu_index, expected_ordering):
         self.do_action_and_verify(
-            lambda container: add_discussion(container, menu_index),
+            lambda (container): add_discussion(container, menu_index),
             expected_ordering
         )
 
@@ -124,7 +120,7 @@ class DuplicateComponentTest(NestedVerticalTest):
 
     def duplicate_and_verify(self, source_index, expected_ordering):
         self.do_action_and_verify(
-            lambda container: container.duplicate(source_index),
+            lambda (container): container.duplicate(source_index),
             expected_ordering
         )
 
@@ -170,7 +166,7 @@ class DeleteComponentTest(NestedVerticalTest):
 
     def delete_and_verify(self, source_index, expected_ordering):
         self.do_action_and_verify(
-            lambda container: container.delete(source_index),
+            lambda (container): container.delete(source_index),
             expected_ordering
         )
 
@@ -290,7 +286,7 @@ class BaseGroupConfigurationsTest(ContainerBase):
             self.assertEqual("Access is not restricted", visibility_editor.current_groups_message)
         else:
             self.assertEqual(
-                u"Access is restricted to: {groups}".format(groups=expected_current_groups),
+                "Access is restricted to: {groups}".format(groups=expected_current_groups),
                 visibility_editor.current_groups_message
             )
 
@@ -298,13 +294,13 @@ class BaseGroupConfigurationsTest(ContainerBase):
         """
         Check that the expected partition scheme is selected.
         """
-        six.assertCountEqual(self, expected_scheme, visibility_editor.selected_partition_scheme)
+        self.assertItemsEqual(expected_scheme, visibility_editor.selected_partition_scheme)
 
     def verify_selected_groups(self, visibility_editor, expected_groups):
         """
         Check the expected partition groups.
         """
-        six.assertCountEqual(self, expected_groups, [group.text for group in visibility_editor.selected_groups])
+        self.assertItemsEqual(expected_groups, [group.text for group in visibility_editor.selected_groups])
 
     def select_and_verify_saved(self, component, partition_label, groups=[]):
         """
@@ -792,7 +788,8 @@ class UnitPublishingTest(ContainerBase):
         add_discussion(unit)
         unit.verify_publish_title(self.DRAFT_STATUS)
         self._verify_last_published_and_saved(unit, self.LAST_PUBLISHED, self.LAST_SAVED)
-        unit.publish()
+        unit.publish_action.click()
+        unit.wait_for_ajax()
         unit.verify_publish_title(self.PUBLISHED_LIVE_STATUS)
         self._verify_last_published_and_saved(unit, self.LAST_PUBLISHED, self.LAST_PUBLISHED)
 
@@ -855,7 +852,7 @@ class UnitPublishingTest(ContainerBase):
         """
         unit = self.go_to_unit_page()
         add_discussion(unit)
-        unit.publish()
+        unit.publish_action.click()
         self._view_published_version(unit)
         self._verify_components_visible(['html', 'discussion'])
 
@@ -1024,7 +1021,8 @@ class UnitPublishingTest(ContainerBase):
         unit = self.go_to_unit_page()
         unit.delete(0)
         unit.verify_publish_title(self.DRAFT_STATUS)
-        unit.publish()
+        unit.publish_action.click()
+        unit.wait_for_ajax()
         unit.verify_publish_title(self.PUBLISHED_LIVE_STATUS)
         self._view_published_version(unit)
         self.assertEqual(0, self.courseware.num_xblock_components)
@@ -1044,7 +1042,8 @@ class UnitPublishingTest(ContainerBase):
         unit.verify_publish_title(self.PUBLISHED_STATUS)
         add_discussion(unit)
         unit.verify_publish_title(self.DRAFT_STATUS)
-        unit.publish()
+        unit.publish_action.click()
+        unit.wait_for_ajax()
         unit.verify_publish_title(self.PUBLISHED_STATUS)
 
     def _view_published_version(self, unit):
@@ -1237,8 +1236,8 @@ class MoveComponentTest(ContainerBase):
         }
         self.source_component_display_name = 'HTML 11'
         self.source_xblock_category = 'component'
-        self.message_move = u'Success! "{display_name}" has been moved.'
-        self.message_undo = u'Move cancelled. "{display_name}" has been moved back to its original location.'
+        self.message_move = 'Success! "{display_name}" has been moved.'
+        self.message_undo = 'Move cancelled. "{display_name}" has been moved back to its original location.'
 
     def populate_course_fixture(self, course_fixture):
         """
@@ -1320,7 +1319,7 @@ class MoveComponentTest(ContainerBase):
 
         # Now click publish/discard button
         if operation == 'publish':
-            unit_page.publish()
+            unit_page.publish_action.click()
         else:
             unit_page.discard_changes()
 

@@ -1,13 +1,10 @@
 """
 Tests for the course modes Django admin interface.
 """
-
-
 import unittest
 from datetime import datetime, timedelta
 
 import ddt
-import six
 from django.conf import settings
 from django.urls import reverse
 from pytz import UTC, timezone
@@ -15,12 +12,12 @@ from pytz import UTC, timezone
 from course_modes.admin import CourseModeForm
 from course_modes.models import CourseMode
 from course_modes.tests.factories import CourseModeFactory
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 # Technically, we shouldn't be importing verify_student, since it's
 # defined in the LMS and course_modes is in common.  However, the benefits
 # of putting all this configuration in one place outweigh the downsides.
 # Once the course admin tool is deployed, we can remove this dependency.
 from lms.djangoapps.verify_student.models import VerificationDeadline
-from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from student.tests.factories import UserFactory
 from util.date_utils import get_time_display
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
@@ -47,7 +44,7 @@ class AdminCourseModePageTest(ModuleStoreTestCase):
         CourseOverview.load_from_module_store(course.id)
 
         data = {
-            'course': six.text_type(course.id),
+            'course': unicode(course.id),
             'mode_slug': 'verified',
             'mode_display_name': 'verified',
             'min_price': 10,
@@ -202,7 +199,7 @@ class AdminCourseModeFormTest(ModuleStoreTestCase):
             mode_slug=mode,
         )
         return CourseModeForm({
-            "course": six.text_type(self.course.id),
+            "course": unicode(self.course.id),
             "mode_slug": mode,
             "mode_display_name": mode,
             "_expiration_datetime": upgrade_deadline,

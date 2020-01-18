@@ -1,22 +1,19 @@
 """
 CAPA HTML rendering tests.
 """
-
-
-import os
 import textwrap
 import unittest
 
 import ddt
 import mock
-from lxml import etree
-
+import os
 # Changes formatting of empty elements; import here to avoid test order dependence
 import xmodule.modulestore.xml  # pylint: disable=unused-import
-from capa.tests.helpers import new_loncapa_problem, test_capa_system
+from capa.tests.helpers import test_capa_system, new_loncapa_problem
+from lxml import etree
 from openedx.core.djangolib.markup import HTML
 
-from .response_xml_factory import CustomResponseXMLFactory, StringResponseXMLFactory
+from .response_xml_factory import StringResponseXMLFactory, CustomResponseXMLFactory
 
 
 @ddt.ddt
@@ -140,7 +137,7 @@ class CapaHtmlRenderTest(unittest.TestCase):
         # expect the javascript is still present in the rendered html
         self.assertIn(
             "<script type=\"text/javascript\">function(){}</script>",
-            etree.tostring(rendered_html).decode('utf-8')
+            etree.tostring(rendered_html)
         )
 
     def test_render_response_xml(self):
@@ -306,7 +303,7 @@ class CapaHtmlRenderTest(unittest.TestCase):
 
         # Render the HTML
         the_html = problem.get_html()
-        self.assertRegex(the_html, r"<div>\s*</div>")
+        self.assertRegexpMatches(the_html, r"<div>\s*</div>")
 
     def _create_test_file(self, path, content_str):
         test_fp = self.capa_system.filestore.open(path, "w")

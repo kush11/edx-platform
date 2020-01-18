@@ -1,7 +1,7 @@
 """Middleware classes for third_party_auth."""
 
+import urlparse
 
-import six.moves.urllib.parse  # pylint: disable=import-error
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -39,7 +39,7 @@ class ExceptionMiddleware(SocialAuthExceptionMiddleware):
         referer_url = request.META.get('HTTP_REFERER', '')
         if (referer_url and isinstance(exception, HTTPError) and
                 exception.response.status_code == 502):
-            referer_url = six.moves.urllib.parse.urlparse(referer_url).path
+            referer_url = urlparse.urlparse(referer_url).path
             if referer_url == reverse('signin_user'):
                 messages.error(request, _('Unable to connect with the external provider, please try again'),
                                extra_tags='social-auth')

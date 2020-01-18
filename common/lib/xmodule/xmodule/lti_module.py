@@ -53,41 +53,37 @@ What is supported:
             GET / PUT / DELETE HTTP methods respectively
 """
 
-
 import base64
 import datetime
 import hashlib
 import logging
 import textwrap
+import urllib
 from xml.sax.saxutils import escape
-
-from pkg_resources import resource_string
 
 import bleach
 import mock
 import oauthlib.oauth1
-import six
-import six.moves.urllib.parse
+from pytz import UTC
 from lxml import etree
 from oauthlib.oauth1.rfc5849 import signature
-from pytz import UTC
+from pkg_resources import resource_string
 from six import text_type
 from webob import Response
 from xblock.core import List, Scope, String, XBlock
 from xblock.fields import Boolean, Float
+
 from xmodule.editing_module import MetadataOnlyEditingDescriptor
 from xmodule.lti_2_util import LTI20ModuleMixin, LTIError
 from xmodule.raw_module import EmptyDataRawDescriptor
 from xmodule.x_module import XModule, module_attr
-from openedx.core.djangolib.markup import HTML, Text
 
 log = logging.getLogger(__name__)
 
 DOCS_ANCHOR_TAG_OPEN = (
-    "<a rel='noopener' target='_blank' "
+    "<a target='_blank' "
     "href='https://edx.readthedocs.io/projects/edx-partner-course-staff/en/latest/exercises_tools/lti_component.html'>"
 )
-BREAK_TAG = '<br />'
 
 # Make '_' a no-op so we can scrape strings. Using lambda instead of
 #  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
@@ -125,42 +121,39 @@ class LTIFields(object):
     )
     lti_id = String(
         display_name=_("LTI ID"),
-        help=Text(_(
+        help=_(
             "Enter the LTI ID for the external LTI provider.  "
             "This value must be the same LTI ID that you entered in the "
             "LTI Passports setting on the Advanced Settings page."
-            "{break_tag}See {docs_anchor_open}the edX LTI documentation{anchor_close} for more details on this setting."
-        )).format(
-            break_tag=HTML(BREAK_TAG),
-            docs_anchor_open=HTML(DOCS_ANCHOR_TAG_OPEN),
-            anchor_close=HTML("</a>")
+            "<br />See {docs_anchor_open}the edX LTI documentation{anchor_close} for more details on this setting."
+        ).format(
+            docs_anchor_open=DOCS_ANCHOR_TAG_OPEN,
+            anchor_close="</a>"
         ),
         default='',
         scope=Scope.settings
     )
     launch_url = String(
         display_name=_("LTI URL"),
-        help=Text(_(
+        help=_(
             "Enter the URL of the external tool that this component launches. "
             "This setting is only used when Hide External Tool is set to False."
-            "{break_tag}See {docs_anchor_open}the edX LTI documentation{anchor_close} for more details on this setting."
-        )).format(
-            break_tag=HTML(BREAK_TAG),
-            docs_anchor_open=HTML(DOCS_ANCHOR_TAG_OPEN),
-            anchor_close=HTML("</a>")
+            "<br />See {docs_anchor_open}the edX LTI documentation{anchor_close} for more details on this setting."
+        ).format(
+            docs_anchor_open=DOCS_ANCHOR_TAG_OPEN,
+            anchor_close="</a>"
         ),
         default='http://www.example.com',
         scope=Scope.settings)
     custom_parameters = List(
         display_name=_("Custom Parameters"),
-        help=Text(_(
+        help=_(
             "Add the key/value pair for any custom parameters, such as the page your e-book should open to or "
             "the background color for this component."
-            "{break_tag}See {docs_anchor_open}the edX LTI documentation{anchor_close} for more details on this setting."
-        )).format(
-            break_tag=HTML(BREAK_TAG),
-            docs_anchor_open=HTML(DOCS_ANCHOR_TAG_OPEN),
-            anchor_close=HTML("</a>")
+            "<br />See {docs_anchor_open}the edX LTI documentation{anchor_close} for more details on this setting."
+        ).format(
+            docs_anchor_open=DOCS_ANCHOR_TAG_OPEN,
+            anchor_close="</a>"
         ),
         scope=Scope.settings)
     open_in_a_new_page = Boolean(
@@ -404,7 +397,7 @@ class LTIModule(LTIFields, LTI20ModuleMixin, XModule):
             if param_name not in PARAMETERS:
                 param_name = 'custom_' + param_name
 
-            custom_parameters[six.text_type(param_name)] = six.text_type(param_value)
+            custom_parameters[unicode(param_name)] = unicode(param_value)
 
         return self.oauth_params(
             custom_parameters,
@@ -467,7 +460,7 @@ class LTIModule(LTIFields, LTI20ModuleMixin, XModule):
     def get_user_id(self):
         user_id = self.runtime.anonymous_student_id
         assert user_id is not None
-        return six.text_type(six.moves.urllib.parse.quote(user_id))
+        return unicode(urllib.quote(user_id))
 
     def get_outcome_service_url(self, service_name="grade_handler"):
         """
@@ -513,7 +506,7 @@ class LTIModule(LTIFields, LTI20ModuleMixin, XModule):
         i4x-2-3-lti-31de800015cf4afb973356dbe81496df this part of resource_link_id:
         makes resource_link_id to be unique among courses inside same system.
         """
-        return six.text_type(six.moves.urllib.parse.quote("{}-{}".format(self.system.hostname, self.location.html_id())))
+        return unicode(urllib.quote("{}-{}".format(self.system.hostname, self.location.html_id())))
 
     def get_lis_result_sourcedid(self):
         """
@@ -525,7 +518,7 @@ class LTIModule(LTIFields, LTI20ModuleMixin, XModule):
         This field is generally optional, but is required for grading.
         """
         return "{context}:{resource_link}:{user_id}".format(
-            context=six.moves.urllib.parse.quote(self.context_id),
+            context=urllib.quote(self.context_id),
             resource_link=self.get_resource_link_id(),
             user_id=self.get_user_id()
         )
@@ -626,7 +619,7 @@ class LTIModule(LTIFields, LTI20ModuleMixin, XModule):
 
         try:
             __, headers, __ = client.sign(
-                six.text_type(self.launch_url.strip()),
+                unicode(self.launch_url.strip()),
                 http_method=u'POST',
                 body=body,
                 headers=headers)
@@ -656,7 +649,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
         # so '='' becomes '%3D'.
         # We send form via browser, so browser will encode it again,
         # So we need to decode signature back:
-        params[u'oauth_signature'] = six.moves.urllib.parse.unquote(params[u'oauth_signature']).encode('utf-8').decode('utf8')
+        params[u'oauth_signature'] = urllib.unquote(params[u'oauth_signature']).decode('utf8')
 
         # Add LTI parameters to OAuth parameters for sending in form.
         params.update(body)
@@ -760,7 +753,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
             log.debug("[LTI]: " + error_message)
             return Response(response_xml_template.format(**failure_values), content_type="application/xml")
 
-        real_user = self.system.get_real_user(six.moves.urllib.parse.unquote(sourcedId.split(':')[-1]))
+        real_user = self.system.get_real_user(urllib.unquote(sourcedId.split(':')[-1]))
         if not real_user:  # that means we can't save to database, as we do not have real user id.
             failure_values['imsx_messageIdentifier'] = escape(imsx_messageIdentifier)
             failure_values['imsx_description'] = "User not found."
@@ -796,7 +789,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
         lti_spec_namespace = "http://www.imsglobal.org/services/ltiv1p1/xsd/imsoms_v1p0"
         namespaces = {'def': lti_spec_namespace}
 
-        data = body.strip()
+        data = body.strip().encode('utf-8')
         parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
         root = etree.fromstring(data, parser=parser)
 
@@ -829,26 +822,26 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
 
         client_key, client_secret = self.get_client_key_secret()
         headers = {
-            'Authorization': six.text_type(request.headers.get('Authorization')),
+            'Authorization': unicode(request.headers.get('Authorization')),
             'Content-Type': content_type,
         }
 
         sha1 = hashlib.sha1()
         sha1.update(request.body)
-        oauth_body_hash = base64.b64encode(sha1.digest()).decode('utf-8')
+        oauth_body_hash = base64.b64encode(sha1.digest())
         oauth_params = signature.collect_parameters(headers=headers, exclude_oauth_signature=False)
         oauth_headers = dict(oauth_params)
         oauth_signature = oauth_headers.pop('oauth_signature')
         mock_request_lti_1 = mock.Mock(
-            uri=six.text_type(six.moves.urllib.parse.unquote(self.get_outcome_service_url())),
-            http_method=six.text_type(request.method),
-            params=list(oauth_headers.items()),
+            uri=unicode(urllib.unquote(self.get_outcome_service_url())),
+            http_method=unicode(request.method),
+            params=oauth_headers.items(),
             signature=oauth_signature
         )
         mock_request_lti_2 = mock.Mock(
-            uri=six.text_type(six.moves.urllib.parse.unquote(request.url)),
-            http_method=six.text_type(request.method),
-            params=list(oauth_headers.items()),
+            uri=unicode(urllib.unquote(request.url)),
+            http_method=unicode(request.method),
+            params=oauth_headers.items(),
             signature=oauth_signature
         )
         if oauth_body_hash != oauth_headers.get('oauth_body_hash'):
@@ -869,7 +862,7 @@ oauth_consumer_key="", oauth_signature="frVp4JuvT1mVXlxktiAUjQ7%2F1cw%3D"'}
                       "headers:{} url:{} method:{}".format(
                           oauth_headers,
                           self.get_outcome_service_url(),
-                          six.text_type(request.method)
+                          unicode(request.method)
                       ))
             raise LTIError("OAuth signature verification has failed.")
 

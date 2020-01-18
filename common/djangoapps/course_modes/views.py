@@ -2,15 +2,10 @@
 Views for the course_mode module
 """
 
-
 import decimal
 import json
-import logging
+import urllib
 
-import six
-import six.moves.urllib.error
-import six.moves.urllib.parse
-import six.moves.urllib.request
 import waffle
 from babel.dates import format_datetime
 from django.contrib.auth.decorators import login_required
@@ -22,27 +17,24 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import get_language, to_locale
 from django.utils.translation import ugettext as _
 from django.views.generic.base import View
-from edx_django_utils.monitoring.utils import increment
 from ipware.ip import get_ip
 from opaque_keys.edx.keys import CourseKey
 from six import text_type
 
 from course_modes.models import CourseMode
+from courseware.access import has_access
 from edxmako.shortcuts import render_to_response
 from lms.djangoapps.commerce.utils import EcommerceService
 from lms.djangoapps.experiments.utils import get_experiment_user_metadata_context
 from openedx.core.djangoapps.catalog.utils import get_currency_data
 from openedx.core.djangoapps.embargo import api as embargo_api
-from openedx.core.djangoapps.enrollments.permissions import ENROLL_IN_COURSE
+from openedx.core.djangoapps.programs.utils import ProgramDataExtender, ProgramProgressMeter
+from openedx.core.djangoapps.waffle_utils import WaffleFlag, WaffleFlagNamespace
 from openedx.features.content_type_gating.models import ContentTypeGatingConfig
 from openedx.features.course_duration_limits.models import CourseDurationLimitConfig
-from openedx.features.discounts.applicability import discount_percentage
 from student.models import CourseEnrollment
 from util.db import outer_atomic
 from xmodule.modulestore.django import modulestore
-
-
-LOG = logging.getLogger(__name__)
 
 
 class ChooseModeView(View):
@@ -98,13 +90,6 @@ class ChooseModeView(View):
             return redirect(embargo_redirect)
 
         enrollment_mode, is_active = CourseEnrollment.enrollment_mode_for_user(request.user, course_key)
-
-        increment('track-selection.{}.{}'.format(enrollment_mode, 'active' if is_active else 'inactive'))
-        increment('track-selection.views')
-
-        if enrollment_mode is None:
-            LOG.info('Rendering track selection for unenrolled user, referred by %s', request.META.get('HTTP_REFERER'))
-
         modes = CourseMode.modes_for_course_dict(course_key)
         ecommerce_service = EcommerceService()
 
@@ -113,7 +98,7 @@ class ChooseModeView(View):
         has_enrolled_professional = (CourseMode.is_professional_slug(enrollment_mode) and is_active)
         if CourseMode.has_professional_mode(modes) and not has_enrolled_professional:
             purchase_workflow = request.GET.get("purchase_workflow", "single")
-            verify_url = reverse('verify_student_start_flow', kwargs={'course_id': six.text_type(course_key)})
+            verify_url = reverse('verify_student_start_flow', kwargs={'course_id': unicode(course_key)})
             redirect_url = "{url}?purchase_workflow={workflow}".format(url=verify_url, workflow=purchase_workflow)
             if ecommerce_service.is_enabled(request.user):
                 professional_mode = modes.get(CourseMode.NO_ID_PROFESSIONAL_MODE) or modes.get(CourseMode.PROFESSIONAL)
@@ -138,18 +123,18 @@ class ChooseModeView(View):
             return redirect(reverse('dashboard'))
 
         donation_for_course = request.session.get("donation_for_course", {})
-        chosen_price = donation_for_course.get(six.text_type(course_key), None)
+        chosen_price = donation_for_course.get(unicode(course_key), None)
 
         if CourseEnrollment.is_enrollment_closed(request.user, course):
             locale = to_locale(get_language())
             enrollment_end_date = format_datetime(course.enrollment_end, 'short', locale=locale)
-            params = six.moves.urllib.parse.urlencode({'course_closed': enrollment_end_date})
+            params = urllib.urlencode({'course_closed': enrollment_end_date})
             return redirect('{0}?{1}'.format(reverse('dashboard'), params))
 
         # When a credit mode is available, students will be given the option
         # to upgrade from a verified mode to a credit mode at the end of the course.
         # This allows students who have completed photo verification to be eligible
-        # for university credit.
+        # for univerity credit.
         # Since credit isn't one of the selectable options on the track selection page,
         # we need to check *all* available course modes in order to determine whether
         # a credit mode is available.  If so, then we show slightly different messaging
@@ -160,7 +145,37 @@ class ChooseModeView(View):
         )
         course_id = text_type(course_key)
 
+        bundle_data = {}
+        bundles_on_track_selection = WaffleFlag(WaffleFlagNamespace(name=u'experiments'), u'bundles_on_track_selection')
+        if bundles_on_track_selection.is_enabled():
+            # enrollment in the course on this page
+            current_enrollment = list(CourseEnrollment.enrollments_for_user(request.user).filter(course_id=course_key))
+            if current_enrollment:
+                meter = ProgramProgressMeter(request.site, request.user, enrollments=current_enrollment)
+                meter_inverted_programs = meter.invert_programs()
+                if len(meter_inverted_programs) > 0:
+                    # program for the course on this page
+                    programs_for_course = meter_inverted_programs.get(course_id)
+                    if programs_for_course:
+                        program_for_course = programs_for_course[0]
+                        program_uuid = program_for_course.get('uuid')
+                        if program_for_course:
+                            # program data with bundle info
+                            program_data = ProgramDataExtender(program_for_course, request.user, mobile_only=False).extend()
+                            skus = program_data.get('skus')
+                            ecommerce_service = EcommerceService()
+                            program_bundle_url = ecommerce_service.get_checkout_page_url(*skus, program_uuid=program_uuid)
+                            bundle_data = {
+                                'program_marketing_site_url': program_data.get('marketing_url'),
+                                'program_bundle_url': program_bundle_url,
+                                'discount_data': program_data.get('discount_data'),
+                                'program_type': program_data.get('type'),
+                                'program_title': program_data.get('title'),
+                                'program_price': program_data.get('full_program_price'),
+                            }
+
         context = {
+            "bundle_data": bundle_data,
             "course_modes_choose_url": reverse(
                 "course_modes_choose",
                 kwargs={'course_id': course_id}
@@ -190,11 +205,9 @@ class ChooseModeView(View):
             )
         )
 
-        title_content = ''
-        if enrollment_mode:
-            title_content = _("Congratulations!  You are now enrolled in {course_name}").format(
-                course_name=course.display_name_with_default
-            )
+        title_content = _("Congratulations!  You are now enrolled in {course_name}").format(
+            course_name=course.display_name_with_default
+        )
 
         context["title_content"] = title_content
 
@@ -205,10 +218,8 @@ class ChooseModeView(View):
                 for x in verified_mode.suggested_prices.split(",")
                 if x.strip()
             ]
-            price_before_discount = verified_mode.min_price
-
             context["currency"] = verified_mode.currency.upper()
-            context["min_price"] = price_before_discount
+            context["min_price"] = verified_mode.min_price
             context["verified_name"] = verified_mode.name
             context["verified_description"] = verified_mode.description
 
@@ -251,7 +262,7 @@ class ChooseModeView(View):
         # This is a bit redundant with logic in student.views.change_enrollment,
         # but I don't really have the time to refactor it more nicely and test.
         course = modulestore().get_course(course_key)
-        if not user.has_perm(ENROLL_IN_COURSE, course):
+        if not has_access(user, 'enroll', course):
             error_msg = _("Enrollment is closed")
             return self.get(request, course_id, error=error_msg)
 
@@ -299,13 +310,13 @@ class ChooseModeView(View):
                 return self.get(request, course_id, error=error_msg)
 
             donation_for_course = request.session.get("donation_for_course", {})
-            donation_for_course[six.text_type(course_key)] = amount_value
+            donation_for_course[unicode(course_key)] = amount_value
             request.session["donation_for_course"] = donation_for_course
 
             return redirect(
                 reverse(
                     'verify_student_start_flow',
-                    kwargs={'course_id': six.text_type(course_key)}
+                    kwargs={'course_id': unicode(course_key)}
                 )
             )
 
@@ -363,7 +374,7 @@ def create_mode(request, course_id):
     }
 
     # Try pulling querystring parameters out of the request
-    for parameter, default in six.iteritems(PARAMETERS):
+    for parameter, default in PARAMETERS.iteritems():
         PARAMETERS[parameter] = request.GET.get(parameter, default)
 
     # Attempt to create the new mode for the given course

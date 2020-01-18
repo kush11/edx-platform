@@ -1,6 +1,4 @@
 """Tests for disabling rate limiting. """
-
-
 import unittest
 
 import mock

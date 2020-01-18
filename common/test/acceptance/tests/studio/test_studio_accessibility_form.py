@@ -1,8 +1,6 @@
 """
 Bok-choy tests for the Studio Accessibility Feedback page.
 """
-
-
 import ddt
 
 from common.test.acceptance.pages.studio.index import AccessibilityPage

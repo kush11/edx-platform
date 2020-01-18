@@ -2,18 +2,16 @@
 Tests for the logic in input type mako templates.
 """
 
-
 import json
 import unittest
 from collections import OrderedDict
 
-from lxml import etree
-from mako import exceptions
-from six.moves import range
-
 from capa.inputtypes import Status
 from capa.tests.helpers import capa_render_template
+from lxml import etree
+from mako import exceptions
 from openedx.core.djangolib.markup import HTML
+
 from xmodule.stringify import stringify_children
 
 
@@ -41,7 +39,7 @@ class TemplateTestCase(unittest.TestCase):
             ('desc-2', '<em>description</em> <mark>text</mark> 2')
         ]
     )
-    DESCRIPTION_IDS = ' '.join(list(DESCRIPTIONS.keys()))
+    DESCRIPTION_IDS = ' '.join(DESCRIPTIONS.keys())
     RESPONSE_DATA = {
         'label': 'question text 101',
         'descriptions': DESCRIPTIONS
@@ -117,8 +115,8 @@ class TemplateTestCase(unittest.TestCase):
         If no elements are found, the assertion fails.
         """
         element_list = xml_root.xpath(xpath)
-        self.assertGreater(len(element_list), 0, "Could not find element at '%s'\n%s" %
-                           (str(xpath), etree.tostring(xml_root)))
+        self.assertGreater(len(element_list), 0, "Could not find element at '%s'" % str(xpath))
+
         if exact:
             self.assertEqual(text, element_list[0].text.strip())
         else:
@@ -344,7 +342,7 @@ class ChoiceGroupTemplateTest(TemplateTestCase):
     def test_option_marked_correct(self):
         """
         Test conditions under which a particular option
-        and the entire problem is marked correct.
+        (not the entire problem) is marked correct.
         """
         conditions = [
             {'input_type': 'radio', 'value': '2'},
@@ -358,14 +356,14 @@ class ChoiceGroupTemplateTest(TemplateTestCase):
             xpath = "//label[contains(@class, 'choicegroup_correct')]"
             self.assert_has_xpath(xml, xpath, self.context)
 
-            # Should also mark the whole problem
-            xpath = "//div[@class='indicator-container']/span[@class='status correct']"
-            self.assert_has_xpath(xml, xpath, self.context)
+            # Should NOT mark the whole problem
+            xpath = "//div[@class='indicator-container']/span"
+            self.assert_no_xpath(xml, xpath, self.context)
 
     def test_option_marked_incorrect(self):
         """
         Test conditions under which a particular option
-        and the entire problem is marked incorrect.
+        (not the entire problem) is marked incorrect.
         """
         conditions = [
             {'input_type': 'radio', 'value': '2'},
@@ -379,9 +377,9 @@ class ChoiceGroupTemplateTest(TemplateTestCase):
             xpath = "//label[contains(@class, 'choicegroup_incorrect')]"
             self.assert_has_xpath(xml, xpath, self.context)
 
-            # Should also mark the whole problem
-            xpath = "//div[@class='indicator-container']/span[@class='status incorrect']"
-            self.assert_has_xpath(xml, xpath, self.context)
+            # Should NOT mark the whole problem
+            xpath = "//div[@class='indicator-container']/span"
+            self.assert_no_xpath(xml, xpath, self.context)
 
     def test_never_show_correctness(self):
         """

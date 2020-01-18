@@ -1,8 +1,6 @@
 """
 Miscellaneous utility functions.
 """
-
-
 import re
 
 from xmodule.annotator_mixin import html_to_text

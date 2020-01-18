@@ -1,8 +1,6 @@
 """
 Integration tests for third_party_auth LTI auth providers
 """
-
-
 import unittest
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -73,8 +71,9 @@ class IntegrationTestLTI(testutil.TestCase):
         self.assertEqual(login_response.status_code, 302)
         self.assertTrue(login_response['Location'].endswith(reverse('signin_user')))
         register_response = self.client.get(login_response['Location'])
-        self.assertContains(register_response, '"currentProvider": "LTI Test Tool Consumer"')
-        self.assertContains(register_response, '"errorMessage": null')
+        self.assertEqual(register_response.status_code, 200)
+        self.assertIn('"currentProvider": "LTI Test Tool Consumer"', register_response.content)
+        self.assertIn('"errorMessage": null', register_response.content)
 
         # Now complete the form:
         ajax_register_response = self.client.post(
@@ -130,9 +129,9 @@ class IntegrationTestLTI(testutil.TestCase):
         self.assertEqual(login_response.status_code, 302)
         self.assertTrue(login_response['Location'].endswith(reverse('signin_user')))
         error_response = self.client.get(login_response['Location'])
-        self.assertContains(
-            error_response,
+        self.assertIn(
             'Authentication failed: LTI parameters could not be validated.',
+            error_response.content
         )
 
     def test_can_load_consumer_secret_from_settings(self):
@@ -155,8 +154,9 @@ class IntegrationTestLTI(testutil.TestCase):
             self.assertEqual(login_response.status_code, 302)
             self.assertTrue(login_response['Location'].endswith(reverse('signin_user')))
             register_response = self.client.get(login_response['Location'])
-            self.assertContains(
-                register_response,
+            self.assertEqual(register_response.status_code, 200)
+            self.assertIn(
                 '"currentProvider": "Tool Consumer with Secret in Settings"',
+                register_response.content
             )
-            self.assertContains(register_response, '"errorMessage": null')
+            self.assertIn('"errorMessage": null', register_response.content)

@@ -2,13 +2,12 @@
 Container page in Studio
 """
 
-
 from bok_choy.page_object import PageObject
 from bok_choy.promise import EmptyPromise, Promise
 
 from common.test.acceptance.pages.common.utils import click_css, confirm_prompt
 from common.test.acceptance.pages.studio import BASE_URL
-from common.test.acceptance.pages.studio.utils import HelpMixin, set_input_value_and_save, type_in_codemirror
+from common.test.acceptance.pages.studio.utils import HelpMixin, type_in_codemirror
 from common.test.acceptance.tests.helpers import click_and_wait_for_window
 
 
@@ -17,8 +16,8 @@ class ContainerPage(PageObject, HelpMixin):
     Container page in Studio
     """
     NAME_SELECTOR = '.page-header-title'
-    NAME_INPUT_SELECTOR = '.wrapper-xblock-field .xblock-field-input'
-    NAME_FIELD_WRAPPER_SELECTOR = '.wrapper-xblock-field'
+    NAME_INPUT_SELECTOR = '.page-header .xblock-field-input'
+    NAME_FIELD_WRAPPER_SELECTOR = '.page-header .wrapper-xblock-field'
     ADD_MISSING_GROUPS_SELECTOR = '.notification-action-button[data-notification-action="add-missing-groups"]'
 
     def __init__(self, browser, locator):
@@ -28,7 +27,7 @@ class ContainerPage(PageObject, HelpMixin):
     @property
     def url(self):
         """URL to the container page for an xblock."""
-        return u"{}/container/{}".format(BASE_URL, self.locator)
+        return "{}/container/{}".format(BASE_URL, self.locator)
 
     @property
     def name(self):
@@ -40,7 +39,7 @@ class ContainerPage(PageObject, HelpMixin):
 
     def is_browser_on_page(self):
         def _xblock_count(class_name, request_token):
-            return len(self.q(css=u'{body_selector} .xblock.{class_name}[data-request-token="{request_token}"]'.format(
+            return len(self.q(css='{body_selector} .xblock.{class_name}[data-request-token="{request_token}"]'.format(
                 body_selector=XBlockWrapper.BODY_SELECTOR, class_name=class_name, request_token=request_token
             )).results)
 
@@ -51,7 +50,7 @@ class ContainerPage(PageObject, HelpMixin):
             if len(data_request_elements) > 0:
                 request_token = data_request_elements.first.attrs('data-request-token')[0]
                 # Then find the number of Studio xblock wrappers on the page with that request token.
-                num_wrappers = len(self.q(css=u'{} [data-request-token="{}"]'.format(XBlockWrapper.BODY_SELECTOR, request_token)).results)
+                num_wrappers = len(self.q(css='{} [data-request-token="{}"]'.format(XBlockWrapper.BODY_SELECTOR, request_token)).results)
                 # Wait until all components have been loaded and marked as either initialized or failed.
                 # See:
                 #   - common/static/js/xblock/core.js which adds the class "xblock-initialized"
@@ -186,8 +185,8 @@ class ContainerPage(PageObject, HelpMixin):
         """
         Publishes the container.
         """
-        self.scroll_to_element('.action-publish')
-        click_css(self, '.action-publish', 0, require_notification=False)
+        self.publish_action.click()
+        self.wait_for_ajax()
 
     def discard_changes(self):
         """
@@ -206,18 +205,6 @@ class ContainerPage(PageObject, HelpMixin):
             list: A list of X-block titles
         """
         return self.q(css='.wrapper-xblock .level-element .header-details').text
-
-    @property
-    def content_html(self):
-        """
-        Gets the html of HTML module
-        Returns:
-            list: A list containing inner HTMl
-        """
-        self.wait_for_element_visibility('.xmodule_HtmlBlock', 'Xblock content is visible')
-        html = self.q(css='.xmodule_HtmlBlock').html
-        html = html[0].strip()
-        return html
 
     @property
     def is_staff_locked(self):
@@ -324,7 +311,7 @@ class ContainerPage(PageObject, HelpMixin):
             text = self.q(css='#page-alert .alert.confirmation #alert-confirmation-title').text
             return text and message not in text[0] if verify_hidden else text and message in text[0]
 
-        self.wait_for(_verify_message, description=u'confirmation message {status}'.format(
+        self.wait_for(_verify_message, description='confirmation message {status}'.format(
             status='hidden' if verify_hidden else 'present'
         ))
 
@@ -403,18 +390,11 @@ class ContainerPage(PageObject, HelpMixin):
         Returns:
             list
         """
-        css = u'#tab{tab_index} button[data-category={category_type}] span'.format(
+        css = '#tab{tab_index} button[data-category={category_type}] span'.format(
             tab_index=tab_index,
             category_type=category_type
         )
         return self.q(css=css).html
-
-    def set_name(self, name):
-        """
-        Set the name of the unit.
-        """
-        set_input_value_and_save(self, self.NAME_INPUT_SELECTOR, name)
-        self.wait_for_ajax()
 
 
 class XBlockWrapper(PageObject):
@@ -443,7 +423,7 @@ class XBlockWrapper(PageObject):
         """
         Return `selector`, but limited to this particular `CourseOutlineChild` context
         """
-        return u'{}[data-locator="{}"] {}'.format(
+        return '{}[data-locator="{}"] {}'.format(
             self.BODY_SELECTOR,
             self.locator,
             selector
@@ -495,7 +475,7 @@ class XBlockWrapper(PageObject):
 
     def _validation_paragraph(self, css_class):
         """ Helper method to return the <p> element of a validation warning """
-        return self.q(css=self._bounded_selector(u'{} p.{}'.format(self.VALIDATION_SELECTOR, css_class)))
+        return self.q(css=self._bounded_selector('{} p.{}'.format(self.VALIDATION_SELECTOR, css_class)))
 
     @property
     def has_validation_warning(self):
@@ -627,7 +607,7 @@ class XBlockWrapper(PageObject):
         """
         If editing, set the value of a field.
         """
-        selector = u'{} li.field label:contains("{}") + input'.format(self.editor_selector, field_display_name)
+        selector = '{} li.field label:contains("{}") + input'.format(self.editor_selector, field_display_name)
         script = "$(arguments[0]).val(arguments[1]).change();"
         self.browser.execute_script(script, selector, field_value)
 
@@ -635,7 +615,7 @@ class XBlockWrapper(PageObject):
         """
         If editing, reset the value of a field to its default.
         """
-        scope = u'{} li.field label:contains("{}")'.format(self.editor_selector, field_display_name)
+        scope = '{} li.field label:contains("{}")'.format(self.editor_selector, field_display_name)
         script = "$(arguments[0]).siblings('.setting-clear').click();"
         self.browser.execute_script(script, scope)
 
@@ -643,18 +623,18 @@ class XBlockWrapper(PageObject):
         """
         Set the text of a CodeMirror editor that is part of this xblock's settings.
         """
-        type_in_codemirror(self, index, text, find_prefix=u'$("{}").find'.format(self.editor_selector))
+        type_in_codemirror(self, index, text, find_prefix='$("{}").find'.format(self.editor_selector))
 
     def set_license(self, license_type):
         """
         Uses the UI to set the course's license to the given license_type (str)
         """
         css_selector = (
-            u"ul.license-types li[data-license={license_type}] button"
+            "ul.license-types li[data-license={license_type}] button"
         ).format(license_type=license_type)
         self.wait_for_element_presence(
             css_selector,
-            u"{license_type} button is present".format(license_type=license_type)
+            "{license_type} button is present".format(license_type=license_type)
         )
         self.q(css=css_selector).click()
 
@@ -666,7 +646,7 @@ class XBlockWrapper(PageObject):
 
     @property
     def editor_selector(self):
-        return u'.xblock-studio_view'
+        return '.xblock-studio_view'
 
     def _click_button(self, button_name):
         """
@@ -699,7 +679,7 @@ class XBlockWrapper(PageObject):
         return self.q(css=self._bounded_selector('span.message-text a')).first.text[0]
 
 
-def _click_edit(page_object, button_css, view_css, bounded_selector=lambda x: x):
+def _click_edit(page_object, button_css, view_css, bounded_selector=lambda(x): x):
     """
     Click on the first editing button found and wait for the Studio editor to be present.
     """

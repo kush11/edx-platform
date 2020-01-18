@@ -13,8 +13,6 @@ To disable rate limiting:
 Note: You should NEVER disable rate limiting in production.
 
 """
-
-
 import logging
 from functools import wraps
 

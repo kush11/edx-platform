@@ -2,8 +2,6 @@
 Helper functions to access and update the id and type
 used in event tracking.
 """
-
-
 from uuid import UUID, uuid4
 
 from openedx.core.lib.cache_utils import get_cache

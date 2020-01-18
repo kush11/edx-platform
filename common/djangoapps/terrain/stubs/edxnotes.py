@@ -2,16 +2,13 @@
 Stub implementation of EdxNotes for acceptance tests
 """
 
-
 import json
 import re
 from copy import deepcopy
 from datetime import datetime
 from math import ceil
+from urllib import urlencode
 from uuid import uuid4
-
-import six
-from six.moves.urllib.parse import urlencode  # pylint: disable=import-error
 
 from .http import StubHttpRequestHandler, StubHttpService
 
@@ -120,7 +117,7 @@ class StubEdxNotesServiceHandler(StubHttpRequestHandler):
         }
         if status_code < 400 and content:
             headers["Content-Type"] = "application/json"
-            content = json.dumps(content).encode('utf-8')
+            content = json.dumps(content)
         else:
             headers["Content-Type"] = "text/html"
 
@@ -130,7 +127,7 @@ class StubEdxNotesServiceHandler(StubHttpRequestHandler):
         """
         Create a note, assign id, annotator_schema_version, created and updated dates.
         """
-        note = json.loads(self.request_content.decode('utf-8'))
+        note = json.loads(self.request_content)
         note.update({
             "id": uuid4().hex,
             "annotator_schema_version": "v1.0",
@@ -145,7 +142,7 @@ class StubEdxNotesServiceHandler(StubHttpRequestHandler):
         The same as self._create, but it works a list of notes.
         """
         try:
-            notes = json.loads(self.request_content.decode('utf-8'))
+            notes = json.loads(self.request_content)
         except ValueError:
             self.respond(400, "Bad Request")
             return
@@ -180,7 +177,7 @@ class StubEdxNotesServiceHandler(StubHttpRequestHandler):
         """
         Update the note by note id.
         """
-        note = self.server.update_note(note_id, json.loads(self.request_content.decode('utf-8')))
+        note = self.server.update_note(note_id, json.loads(self.request_content))
         if note:
             self.respond(content=note)
         else:
@@ -393,4 +390,4 @@ class StubEdxNotesService(StubHttpService):
         """
         Search the `query(str)` text in the provided `data(list)`.
         """
-        return [note for note in data if six.text_type(query).strip() in note.get("text", "").split()]
+        return [note for note in data if unicode(query).strip() in note.get("text", "").split()]

@@ -1,8 +1,6 @@
 """
 Tests for course utils.
 """
-
-
 import ddt
 import mock
 from django.conf import settings

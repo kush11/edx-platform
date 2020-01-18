@@ -2,7 +2,6 @@
 Utility functions for third_party_auth
 """
 
-
 from django.contrib.auth.models import User
 
 
@@ -22,7 +21,7 @@ def user_exists(details):
     if email:
         user_queryset_filter['email'] = email
     elif username:
-        user_queryset_filter['username__iexact'] = username
+        user_queryset_filter['username'] = username
 
     if user_queryset_filter:
         return User.objects.filter(**user_queryset_filter).exists()

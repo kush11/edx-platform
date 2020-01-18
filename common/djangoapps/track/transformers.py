@@ -5,11 +5,9 @@ by name (or name prefix) in the EventTransformerRegistry, which is used to
 apply them to the appropriate events.
 """
 
-
 import json
 import logging
 
-import six
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import UsageKey
 
@@ -48,7 +46,7 @@ class DottedPathMapping(object):
     def __getitem__(self, key):
         if key in self._match_registry:
             return self._match_registry[key]
-        if isinstance(key, six.string_types):
+        if isinstance(key, basestring):
             # Reverse-sort the keys to find the longest matching prefix.
             for prefix in sorted(self._prefix_registry, reverse=True):
                 if key.startswith(prefix):
@@ -89,7 +87,7 @@ class DottedPathMapping(object):
         Return the keys of the mapping, including both exact matches and
         prefix matches.
         """
-        return list(self._match_registry.keys()) + list(self._prefix_registry.keys())
+        return self._match_registry.keys() + self._prefix_registry.keys()
 
 
 class EventTransformerRegistry(object):
@@ -222,7 +220,7 @@ class EventTransformer(dict):
         Create a data version of self[u'event'] at self.event
         """
         if u'event' in self:
-            if isinstance(self[u'event'], six.string_types):
+            if isinstance(self[u'event'], basestring):
                 self.event = json.loads(self[u'event'])
             else:
                 self.event = self[u'event']
@@ -233,7 +231,7 @@ class EventTransformer(dict):
 
         Keep the same format we were originally given.
         """
-        if isinstance(self.get(u'event'), six.string_types):
+        if isinstance(self.get(u'event'), basestring):
             self[u'event'] = json.dumps(self.event)
         else:
             self[u'event'] = self.event

@@ -1,8 +1,6 @@
 """
 Acceptance tests for adding components in Studio.
 """
-
-
 import ddt
 
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc

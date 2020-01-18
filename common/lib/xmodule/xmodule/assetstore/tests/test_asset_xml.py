@@ -2,15 +2,12 @@
 Test for asset XML generation / parsing.
 """
 
-
 import unittest
-
-from contracts import ContractNotRespected
-from lxml import etree
-from opaque_keys.edx.locator import CourseLocator
 from path import Path as path
-from six.moves import zip
+from lxml import etree
+from contracts import ContractNotRespected
 
+from opaque_keys.edx.locator import CourseLocator
 from xmodule.assetstore import AssetMetadata
 from xmodule.modulestore.tests.test_assetstore import AssetStoreTestData
 
@@ -19,6 +16,7 @@ class TestAssetXml(unittest.TestCase):
     """
     Tests for storing/querying course asset metadata.
     """
+    shard = 1
 
     def setUp(self):
         super(TestAssetXml, self).setUp()
@@ -29,13 +27,13 @@ class TestAssetXml(unittest.TestCase):
 
         self.course_assets = []
         for asset in AssetStoreTestData.all_asset_data:
-            asset_dict = dict(list(zip(AssetStoreTestData.asset_fields[1:], asset[1:])))
+            asset_dict = dict(zip(AssetStoreTestData.asset_fields[1:], asset[1:]))
             asset_md = AssetMetadata(self.course_id.make_asset_key('asset', asset[0]), **asset_dict)
             self.course_assets.append(asset_md)
 
         # Read in the XML schema definition and make a validator.
         xsd_path = path(__file__).realpath().parent / xsd_filename
-        with open(xsd_path, 'rb') as f:
+        with open(xsd_path, 'r') as f:
             schema_root = etree.XML(f.read())
         schema = etree.XMLSchema(schema_root)
         self.xmlparser = etree.XMLParser(schema=schema)

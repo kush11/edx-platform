@@ -4,7 +4,6 @@ Entitlements Application Configuration
 Signal handlers are connected here.
 """
 
-
 from django.apps import AppConfig
 
 
@@ -19,4 +18,3 @@ class EntitlementsConfig(AppConfig):
         Connect handlers to signals.
         """
         from . import signals  # pylint: disable=unused-variable
-        from .tasks import expire_old_entitlements

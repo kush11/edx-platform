@@ -1,16 +1,10 @@
 """
 Utility methods related to course
 """
-
-
 import logging
+import urllib
 
-import six
-import six.moves.urllib.error
-import six.moves.urllib.parse
-import six.moves.urllib.request
 from django.conf import settings
-from django.utils.timezone import now
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 
@@ -35,8 +29,8 @@ def get_encoded_course_sharing_utm_params():
     Returns encoded Course Sharing UTM Parameters.
     """
     return {
-        utm_source: six.moves.urllib.parse.urlencode(utm_params)
-        for utm_source, utm_params in six.iteritems(COURSE_SHARING_UTM_PARAMETERS)
+        utm_source: urllib.urlencode(utm_params)
+        for utm_source, utm_params in COURSE_SHARING_UTM_PARAMETERS.iteritems()
     }
 
 
@@ -59,7 +53,7 @@ def get_link_for_about_page(course):
     else:
         course_about_url = u'{about_base_url}/courses/{course_key}/about'.format(
             about_base_url=configuration_helpers.get_value('LMS_ROOT_URL', settings.LMS_ROOT_URL),
-            course_key=six.text_type(course.id),
+            course_key=unicode(course.id),
         )
 
     return course_about_url
@@ -74,9 +68,3 @@ def has_certificates_enabled(course):
     if not settings.FEATURES.get('CERTIFICATES_HTML_VIEW', False):
         return False
     return course.cert_html_view_enabled
-
-
-def should_display_grade(end_date):
-    if end_date and end_date < now().replace(hour=0, minute=0, second=0, microsecond=0):
-        return True
-    return False

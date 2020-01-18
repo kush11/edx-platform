@@ -3,29 +3,25 @@ Test the partitions and partitions service
 
 """
 
-
 from datetime import datetime
-
-import six
 from django.test import TestCase
 from mock import Mock, patch
+
 from opaque_keys.edx.locator import CourseLocator
 from stevedore.extension import Extension, ExtensionManager
-
-from openedx.features.content_type_gating.models import ContentTypeGatingConfig
 from xmodule.partitions.partitions import (
-    ENROLLMENT_TRACK_PARTITION_ID,
-    USER_PARTITION_SCHEME_NAMESPACE,
-    Group,
-    NoSuchUserPartitionGroupError,
-    UserPartition,
-    UserPartitionError
+    Group, UserPartition, UserPartitionError, NoSuchUserPartitionGroupError,
+    USER_PARTITION_SCHEME_NAMESPACE, ENROLLMENT_TRACK_PARTITION_ID
 )
-from xmodule.partitions.partitions_service import FEATURES, PartitionService, get_all_partitions_for_course
+from xmodule.partitions.partitions_service import (
+    PartitionService, get_all_partitions_for_course, FEATURES
+)
+from openedx.features.content_type_gating.models import ContentTypeGatingConfig
 
 
 class TestGroup(TestCase):
     """Test constructing groups"""
+    shard = 2
 
     def test_construct(self):
         test_id = 10
@@ -73,7 +69,7 @@ class TestGroup(TestCase):
             "name": name,
             "version": -1,
         }
-        with self.assertRaisesRegex(TypeError, "has unexpected version"):
+        with self.assertRaisesRegexp(TypeError, "has unexpected version"):
             Group.from_json(jsonified)
 
         # Missing key "id"
@@ -81,7 +77,7 @@ class TestGroup(TestCase):
             "name": name,
             "version": Group.VERSION
         }
-        with self.assertRaisesRegex(TypeError, "missing value key 'id'"):
+        with self.assertRaisesRegexp(TypeError, "missing value key 'id'"):
             Group.from_json(jsonified)
 
         # Has extra key - should not be a problem
@@ -127,6 +123,7 @@ class MockEnrollmentTrackUserPartitionScheme(MockUserPartitionScheme):
 
 class PartitionTestCase(TestCase):
     """Base class for test cases that require partitions"""
+    shard = 2
     TEST_ID = 0
     TEST_NAME = "Mock Partition"
     TEST_DESCRIPTION = "for testing purposes"
@@ -182,6 +179,7 @@ class PartitionTestCase(TestCase):
 
 class TestUserPartition(PartitionTestCase):
     """Test constructing UserPartitions"""
+    shard = 2
 
     def test_construct(self):
         user_partition = UserPartition(
@@ -196,8 +194,8 @@ class TestUserPartition(PartitionTestCase):
         self.assertEqual(user_partition.name, self.TEST_NAME)
         self.assertEqual(user_partition.description, self.TEST_DESCRIPTION)
         self.assertEqual(user_partition.groups, self.TEST_GROUPS)
-        self.assertEqual(user_partition.scheme.name, self.TEST_SCHEME_NAME)
-        self.assertEqual(user_partition.parameters, self.TEST_PARAMETERS)
+        self.assertEquals(user_partition.scheme.name, self.TEST_SCHEME_NAME)
+        self.assertEquals(user_partition.parameters, self.TEST_PARAMETERS)
 
     def test_string_id(self):
         user_partition = UserPartition(
@@ -272,7 +270,7 @@ class TestUserPartition(PartitionTestCase):
             "groups": [group.to_json() for group in self.TEST_GROUPS],
             "version": 2,
         }
-        with self.assertRaisesRegex(TypeError, "missing value key 'scheme'"):
+        with self.assertRaisesRegexp(TypeError, "missing value key 'scheme'"):
             UserPartition.from_json(jsonified)
 
         # Test that version 3 partitions have a scheme specified
@@ -316,7 +314,7 @@ class TestUserPartition(PartitionTestCase):
             "version": UserPartition.VERSION,
             "scheme": self.TEST_SCHEME_NAME,
         }
-        with self.assertRaisesRegex(TypeError, "missing value key 'id'"):
+        with self.assertRaisesRegexp(TypeError, "missing value key 'id'"):
             UserPartition.from_json(jsonified)
 
         # Missing scheme
@@ -328,7 +326,7 @@ class TestUserPartition(PartitionTestCase):
             "groups": [group.to_json() for group in self.TEST_GROUPS],
             "version": UserPartition.VERSION,
         }
-        with self.assertRaisesRegex(TypeError, "missing value key 'scheme'"):
+        with self.assertRaisesRegexp(TypeError, "missing value key 'scheme'"):
             UserPartition.from_json(jsonified)
 
         # Invalid scheme
@@ -341,7 +339,7 @@ class TestUserPartition(PartitionTestCase):
             "version": UserPartition.VERSION,
             "scheme": "no_such_scheme",
         }
-        with self.assertRaisesRegex(UserPartitionError, "Unrecognized scheme"):
+        with self.assertRaisesRegexp(UserPartitionError, "Unrecognized scheme"):
             UserPartition.from_json(jsonified)
 
         # Wrong version
@@ -354,7 +352,7 @@ class TestUserPartition(PartitionTestCase):
             "version": -1,
             "scheme": self.TEST_SCHEME_NAME,
         }
-        with self.assertRaisesRegex(TypeError, "has unexpected version"):
+        with self.assertRaisesRegexp(TypeError, "has unexpected version"):
             UserPartition.from_json(jsonified)
 
         # Has extra key - should not be a problem
@@ -468,6 +466,7 @@ class TestPartitionService(PartitionServiceBaseClass):
     """
     Test getting a user's group out of a partition
     """
+    shard = 2
 
     def test_get_user_group_id_for_partition(self):
         # assign the first group to be returned
@@ -558,6 +557,7 @@ class TestGetCourseUserPartitions(PartitionServiceBaseClass):
     """
     Test the helper method get_all_partitions_for_course.
     """
+    shard = 2
 
     def setUp(self):
         super(TestGetCourseUserPartitions, self).setUp()
@@ -579,7 +579,7 @@ class TestGetCourseUserPartitions(PartitionServiceBaseClass):
         self.assertEqual(self.TEST_SCHEME_NAME, all_partitions[0].scheme.name)
         enrollment_track_partition = all_partitions[1]
         self.assertEqual(self.ENROLLMENT_TRACK_SCHEME_NAME, enrollment_track_partition.scheme.name)
-        self.assertEqual(six.text_type(self.course.id), enrollment_track_partition.parameters['course_id'])
+        self.assertEqual(unicode(self.course.id), enrollment_track_partition.parameters['course_id'])
         self.assertEqual(ENROLLMENT_TRACK_PARTITION_ID, enrollment_track_partition.id)
 
     def test_enrollment_track_partition_not_added_if_conflict(self):

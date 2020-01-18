@@ -1,25 +1,21 @@
 """
 Utility functions for capa.
 """
-
-
 import re
-import logging
-import six
-from cmath import isinf, isnan
 from decimal import Decimal
 
 import bleach
-from calc import evaluator
 from lxml import etree
 
+from calc import evaluator
+from cmath import isinf, isnan
 from openedx.core.djangolib.markup import HTML
+
 
 #-----------------------------------------------------------------------------
 #
 # Utility functions used in CAPA responsetypes
 default_tolerance = '0.001%'
-log = logging.getLogger(__name__)
 
 
 def compare_with_tolerance(student_complex, instructor_complex, tolerance=default_tolerance, relative_tolerance=False):
@@ -103,28 +99,20 @@ def contextualize_text(text, context):  # private
     Takes a string with variables. E.g. $a+$b.
     Does a substitution of those variables from the context
     """
-    def convert_to_str(value):
-        """The method tries to convert unicode/non-ascii values into string"""
-        try:
-            return str(value)
-        except UnicodeEncodeError:
-            return value.encode('utf8', errors='ignore')
-
     if not text:
         return text
-
-    for key in sorted(context, key=len, reverse=True):
+    for key in sorted(context, lambda x, y: cmp(len(y), len(x))):
         # TODO (vshnayder): This whole replacement thing is a big hack
         # right now--context contains not just the vars defined in the
         # program, but also e.g. a reference to the numpy module.
         # Should be a separate dict of variables that should be
         # replaced.
-        context_key = '$' + key
-        if context_key in (text.decode('utf-8') if six.PY3 and isinstance(text, bytes) else text):
-            text = convert_to_str(text)
-            context_value = convert_to_str(context[key])
-            text = text.replace(context_key, context_value)
-
+        if '$' + key in text:
+            try:
+                s = str(context[key])
+            except UnicodeEncodeError:
+                s = context[key].encode('utf8', errors='ignore')
+            text = text.replace('$' + key, s)
     return text
 
 
@@ -204,7 +192,7 @@ def get_inner_html_from_xpath(xpath_node):
 
     """
     # returns string from xpath node
-    html = etree.tostring(xpath_node).strip().decode('utf-8')
+    html = etree.tostring(xpath_node).strip()
     # strips outer tag from html string
     # xss-lint: disable=python-interpolate-html
     inner_html = re.sub('(?ms)<%s[^>]*>(.*)</%s>' % (xpath_node.tag, xpath_node.tag), '\\1', html)

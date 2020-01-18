@@ -12,19 +12,16 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-
 import logging
+from urlparse import urljoin
 
-import six
 from django.conf import settings
+from django.urls import reverse
 from django.http import HttpResponse
 from django.template import engines
-from django.urls import reverse
-from six.moves.urllib.parse import urljoin
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.theming.helpers import is_request_in_themed_site
-from xmodule.util.xmodule_django import get_current_request_hostname
 
 from . import Engines
 
@@ -55,12 +52,6 @@ def marketing_link(name):
         # special case for when we only want the root marketing URL
         if name == 'ROOT':
             return marketing_urls.get('ROOT')
-        # special case for new enterprise marketing url with custom tracking query params
-        if name == 'ENTERPRISE':
-            enterprise_url = marketing_urls.get(name)
-            # if url is not relative, then return it without joining to root
-            if not enterprise_url.startswith('/'):
-                return enterprise_url
         # Using urljoin here allows us to enable a marketing site and set
         # a site ROOT, but still specify absolute URLs for other marketing
         # URLs in the MKTG_URLS setting
@@ -70,13 +61,9 @@ def marketing_link(name):
     elif not enable_mktg_site and name in link_map:
         # don't try to reverse disabled marketing links
         if link_map[name] is not None:
-            host_name = get_current_request_hostname()
-            if all([host_name and 'edge' in host_name, 'http' in link_map[name]]):
-                return link_map[name]
-            else:
-                return reverse(link_map[name])
+            return reverse(link_map[name])
     else:
-        log.debug(u"Cannot find corresponding link for name: %s", name)
+        log.debug("Cannot find corresponding link for name: %s", name)
         return '#'
 
 
@@ -126,9 +113,20 @@ def marketing_link_context_processor(request):
         [
             ("MKTG_URL_" + k, marketing_link(k))
             for k in (
-                six.viewkeys(settings.MKTG_URL_LINK_MAP) |
-                six.viewkeys(marketing_urls)
+                settings.MKTG_URL_LINK_MAP.viewkeys() |
+                marketing_urls.viewkeys()
             )
+        ]
+    )
+
+
+def footer_context_processor(request):  # pylint: disable=unused-argument
+    """
+    Checks the site name to determine whether to use the edX.org footer or the Open Source Footer.
+    """
+    return dict(
+        [
+            ("IS_REQUEST_IN_MICROSITE", is_request_in_themed_site())
         ]
     )
 

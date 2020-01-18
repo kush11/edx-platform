@@ -1,8 +1,6 @@
 """
 Factories for course mode models.
 """
-
-
 import random
 
 from factory import lazy_attribute

@@ -2,11 +2,10 @@
 Utility methods for unit tests.
 """
 
-
 import filecmp
-
 from path import Path as path
-from xblock.reference.user_service import UserService, XBlockUser
+
+from xblock.reference.user_service import XBlockUser, UserService
 
 
 def directories_equal(directory1, directory2):

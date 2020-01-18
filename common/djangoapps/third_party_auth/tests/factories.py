@@ -1,8 +1,6 @@
 """
 Provides factories for third_party_auth models.
 """
-
-
 from factory import SubFactory
 from factory.django import DjangoModelFactory
 

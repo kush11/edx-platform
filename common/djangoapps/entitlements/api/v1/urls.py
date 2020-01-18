@@ -1,9 +1,7 @@
-
-
-from django.conf.urls import include, url
+from django.conf.urls import url, include
 from rest_framework.routers import DefaultRouter
 
-from .views import EntitlementEnrollmentViewSet, EntitlementViewSet
+from .views import EntitlementViewSet, EntitlementEnrollmentViewSet
 
 router = DefaultRouter()
 router.register(r'entitlements', EntitlementViewSet, base_name='entitlements')

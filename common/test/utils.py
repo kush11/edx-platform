@@ -1,14 +1,11 @@
 """
 General testing utilities.
 """
-
-
 import functools
 import sys
 from contextlib import contextmanager
 
 import moto
-import pytest
 from django.dispatch import Signal
 from markupsafe import escape
 from mock import Mock, patch
@@ -111,10 +108,8 @@ def skip_signal(signal, **kwargs):
     and then reconnecting the signal.
     """
     signal.disconnect(**kwargs)
-    try:
-        yield
-    finally:
-        signal.connect(**kwargs)
+    yield
+    signal.connect(**kwargs)
 
 
 class MockS3Mixin(object):
@@ -124,7 +119,7 @@ class MockS3Mixin(object):
     """
     def setUp(self):
         super(MockS3Mixin, self).setUp()
-        self._mock_s3 = moto.mock_s3_deprecated()
+        self._mock_s3 = moto.mock_s3()
         self._mock_s3.start()
 
     def tearDown(self):
@@ -138,7 +133,7 @@ class reprwrapper(object):
     """
     def __init__(self, func):
         self._func = func
-        self.repr = u'Func: {}'.format(func.__name__)
+        self.repr = 'Func: {}'.format(func.__name__)
         functools.update_wrapper(self, func)
 
     def __call__(self, *args, **kw):
@@ -156,13 +151,3 @@ def normalize_repr(func):
     between worker processes.
     """
     return reprwrapper(func)
-
-
-# Decorator for skipping tests that are not ready to be run with Python 3.x.
-# While we expect many tests to fail with Python 3.x as we transition, this
-# is specifically for tests that rely on external or large scale fixes. It can
-# be added to individual tests or test classes.
-py2_only = pytest.mark.skipif(
-    sys.version_info > (3, 0),
-    reason="This test can only be run with Python 2.7, currently"
-)
