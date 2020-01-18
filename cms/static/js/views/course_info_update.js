@@ -39,9 +39,10 @@ define(['codemirror',
                         try {
                             CourseInfoHelper.changeContentToPreview(
                                 update, 'content', self.options.base_asset_url);
+                            // push notification is always disabled for existing updates
                             HtmlUtils.append(
                                 updateList,
-                                HtmlUtils.HTML(self.template({updateModel: update}))
+                                HtmlUtils.HTML(self.template({updateModel: update, push_notification_enabled: false}))
                             );
                             DateUtils.setupDatePicker('date', self, index);
                             update.isValid();
@@ -131,7 +132,8 @@ define(['codemirror',
 
                 var $newForm = $(
                 this.template({
-                    updateModel: newModel
+                    updateModel: newModel,
+                    push_notification_enabled: this.options.push_notification_enabled
                 })
                 );
 
@@ -162,7 +164,8 @@ define(['codemirror',
                 targetModel.set({
                 // translate short-form date (for input) into long form date (for display)
                     date: $.datepicker.formatDate('MM d, yy', new Date(this.dateEntry(event).val())),
-                    content: this.$codeMirror.getValue()
+                    content: this.$codeMirror.getValue(),
+                    push_notification_selected: this.push_notification_selected(event)
                 });
             // push change to display, hide the editor, submit the change
                 var saving = new NotificationView.Mini({
@@ -182,7 +185,8 @@ define(['codemirror',
 
                 analytics.track('Saved Course Update', {
                     course: course_location_analytics,
-                    date: this.dateEntry(event).val()
+                    date: this.dateEntry(event).val(),
+                    push_notification_selected: this.push_notification_selected(event)
                 });
             },
 
@@ -299,6 +303,12 @@ define(['codemirror',
                     }
                     this.$currentPost.find('form').hide();
                     this.$currentPost.find('.CodeMirror').remove();
+
+                // hide the push notification checkbox for subsequent edits to the Post
+                    var push_notification_ele = this.$currentPost.find('.new-update-push-notification');
+                    if (push_notification_ele) {
+                        push_notification_ele.hide();
+                    }
                 }
 
                 ModalUtils.hideModalCover(this.$modalCover);
@@ -326,6 +336,17 @@ define(['codemirror',
                 var li = $(event.currentTarget).closest('li');
                 if (li) {
                     return $(li).find('.date').first();
+                }
+            },
+
+            push_notification_selected: function(event) {
+                var push_notification_checkbox;
+                var li = $(event.currentTarget).closest('li');
+                if (li) {
+                    push_notification_checkbox = li.find('.new-update-push-notification .toggle-checkbox');
+                    if (push_notification_checkbox) {
+                        return push_notification_checkbox.is(':checked');
+                    }
                 }
             }
         });

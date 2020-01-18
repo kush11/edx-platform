@@ -1,31 +1,30 @@
 """
 Views related to the transcript preferences feature
 """
-
-
-import logging
 import os
+import logging
 
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
-from django.http import HttpResponse, HttpResponseNotFound
+from django.http import HttpResponseNotFound, HttpResponse
 from django.utils.translation import ugettext as _
-from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from django.views.decorators.http import require_http_methods, require_POST, require_GET
 from edxval.api import (
     create_or_update_video_transcript,
     delete_video_transcript,
-    get_3rd_party_transcription_plans,
     get_available_transcript_languages,
+    get_3rd_party_transcription_plans,
     get_video_transcript_data,
-    update_transcript_credentials_state_for_org
+    update_transcript_credentials_state_for_org,
 )
 from opaque_keys.edx.keys import CourseKey
 
-from contentstore.views.videos import TranscriptProvider
 from openedx.core.djangoapps.video_config.models import VideoTranscriptEnabledFlag
 from openedx.core.djangoapps.video_pipeline.api import update_3rd_party_transcription_service_credentials
 from student.auth import has_studio_write_access
 from util.json_request import JsonResponse, expect_json
+
+from contentstore.views.videos import TranscriptProvider
 from xmodule.video_module.transcripts_utils import Transcript, TranscriptsGenerationException
 
 __all__ = [
@@ -59,7 +58,7 @@ def validate_transcript_credentials(provider, **credentials):
         only returns the validated ones.
     """
     error_message, validated_credentials = '', {}
-    valid_providers = list(get_3rd_party_transcription_plans().keys())
+    valid_providers = get_3rd_party_transcription_plans().keys()
     if provider in valid_providers:
         must_have_props = []
         if provider == TranscriptProvider.THREE_PLAY_MEDIA:
@@ -67,9 +66,7 @@ def validate_transcript_credentials(provider, **credentials):
         elif provider == TranscriptProvider.CIELO24:
             must_have_props = ['api_key', 'username']
 
-        missing = [
-            must_have_prop for must_have_prop in must_have_props if must_have_prop not in list(credentials.keys())
-        ]
+        missing = [must_have_prop for must_have_prop in must_have_props if must_have_prop not in credentials.keys()]
         if missing:
             error_message = u'{missing} must be specified.'.format(missing=' and '.join(missing))
             return error_message, validated_credentials
@@ -157,7 +154,7 @@ def transcript_download_handler(request):
     if transcript:
         name_and_extension = os.path.splitext(transcript['file_name'])
         basename, file_format = name_and_extension[0], name_and_extension[1][1:]
-        transcript_filename = '{base_name}.{ext}'.format(base_name=basename, ext=Transcript.SRT)
+        transcript_filename = '{base_name}.{ext}'.format(base_name=basename.encode('utf8'), ext=Transcript.SRT)
         transcript_content = Transcript.convert(
             content=transcript['content'],
             input_format=file_format,
@@ -165,7 +162,7 @@ def transcript_download_handler(request):
         )
         # Construct an HTTP response
         response = HttpResponse(transcript_content, content_type=Transcript.mime_types[Transcript.SRT])
-        response['Content-Disposition'] = u'attachment; filename="{filename}"'.format(filename=transcript_filename)
+        response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=transcript_filename)
     else:
         response = HttpResponseNotFound()
 
@@ -229,7 +226,7 @@ def transcript_upload_handler(request):
             # Convert SRT transcript into an SJSON format
             # and upload it to S3.
             sjson_subs = Transcript.convert(
-                content=transcript_file.read().decode('utf-8'),
+                content=transcript_file.read(),
                 input_format=Transcript.SRT,
                 output_format=Transcript.SJSON
             )

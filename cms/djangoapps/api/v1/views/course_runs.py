@@ -1,6 +1,3 @@
-"""HTTP endpoints for the Course Run API."""
-
-
 from django.conf import settings
 from django.http import Http404
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
@@ -11,7 +8,6 @@ from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
 from contentstore.views.course import _accessible_courses_iter, get_course_and_check_access
-
 from ..serializers.course_runs import (
     CourseRunCreateSerializer,
     CourseRunImageSerializer,
@@ -31,8 +27,8 @@ class CourseRunViewSet(viewsets.GenericViewSet):
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
 
         assert lookup_url_kwarg in self.kwargs, (
-            u'Expected view %s to be called with a URL keyword argument '
-            u'named "%s". Fix your URL conf, or set the `.lookup_field` '
+            'Expected view %s to be called with a URL keyword argument '
+            'named "%s". Fix your URL conf, or set the `.lookup_field` '
             'attribute on the view correctly.' %
             (self.__class__.__name__, lookup_url_kwarg)
         )

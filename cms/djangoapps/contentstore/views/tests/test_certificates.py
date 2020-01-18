@@ -3,18 +3,14 @@
 """
 Certificates Tests.
 """
-
-
 import itertools
 import json
 
 import ddt
 import mock
-import six
 from django.conf import settings
 from django.test.utils import override_settings
 from opaque_keys.edx.keys import AssetKey
-from six.moves import range
 
 from contentstore.tests.utils import CourseTestCase
 from contentstore.utils import get_lms_link_for_certificate_web_view, reverse_course_url
@@ -84,7 +80,7 @@ class HelperMethods(object):
                 'title': 'Title ' + str(i),
                 'signature_image_path': asset_path_format.format(i),
                 'id': i
-            } for i in range(signatory_count)
+            } for i in xrange(signatory_count)
 
         ]
 
@@ -99,7 +95,7 @@ class HelperMethods(object):
                 'signatories': signatories,
                 'version': CERTIFICATE_SCHEMA_VERSION,
                 'is_active': is_active
-            } for i in range(count)
+            } for i in xrange(count)
         ]
         self.course.certificates = {'certificates': certificates}
         self.save_course()
@@ -110,6 +106,7 @@ class CertificatesBaseTestCase(object):
     """
     Mixin with base test cases for the certificates.
     """
+    shard = 1
 
     def _remove_ids(self, content):
         """
@@ -146,7 +143,7 @@ class CertificatesBaseTestCase(object):
 
             self.assertEqual(response.status_code, 400)
             self.assertNotIn("Location", response)
-            content = json.loads(response.content.decode('utf-8'))
+            content = json.loads(response.content)
             self.assertIn("error", content)
 
     def test_invalid_json(self):
@@ -154,8 +151,8 @@ class CertificatesBaseTestCase(object):
         Test invalid json handling.
         """
         # Invalid JSON.
-        invalid_json = u"{u'name': 'Test Name', u'description': 'Test description'," \
-                       u" u'version': " + str(CERTIFICATE_SCHEMA_VERSION) + ", []}"
+        invalid_json = "{u'name': 'Test Name', u'description': 'Test description'," \
+                       " u'version': " + str(CERTIFICATE_SCHEMA_VERSION) + ", []}"
 
         response = self.client.post(
             self._url(),
@@ -167,7 +164,7 @@ class CertificatesBaseTestCase(object):
 
         self.assertEqual(response.status_code, 400)
         self.assertNotIn("Location", response)
-        content = json.loads(response.content.decode('utf-8'))
+        content = json.loads(response.content)
         self.assertIn("error", content)
 
     def test_certificate_data_validation(self):
@@ -181,10 +178,7 @@ class CertificatesBaseTestCase(object):
         with self.assertRaises(Exception) as context:
             CertificateManager.validate(json_data_1)
 
-        self.assertIn(
-            "Unsupported certificate schema version: 100.  Expected version: 1.",
-            str(context.exception)
-        )
+        self.assertIn("Unsupported certificate schema version: 100.  Expected version: 1.", context.exception)
 
         #Test certificate name is missing
         json_data_2 = {
@@ -195,7 +189,7 @@ class CertificatesBaseTestCase(object):
         with self.assertRaises(Exception) as context:
             CertificateManager.validate(json_data_2)
 
-        self.assertIn('must have name of the certificate', str(context.exception))
+        self.assertIn('must have name of the certificate', context.exception)
 
 
 @ddt.ddt
@@ -206,6 +200,7 @@ class CertificatesListHandlerTestCase(
     """
     Test cases for certificates_list_handler.
     """
+    shard = 1
 
     def setUp(self):
         """
@@ -238,12 +233,12 @@ class CertificatesListHandlerTestCase(
 
         self.assertEqual(response.status_code, 201)
         self.assertIn("Location", response)
-        content = json.loads(response.content.decode('utf-8'))
+        content = json.loads(response.content)
         certificate_id = self._remove_ids(content)
         self.assertEqual(content, expected)
         self.assert_event_emitted(
             'edx.certificate.configuration.created',
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
             configuration_id=certificate_id,
         )
 
@@ -267,18 +262,18 @@ class CertificatesListHandlerTestCase(
             course_key=self.course.id,
             mode='honor'
         )
-        self.assertEqual(test_link, None)
+        self.assertEquals(test_link, None)
 
     @override_settings(LMS_BASE="lms_base_url")
     def test_lms_link_for_certificate_web_view(self):
         test_url = "//lms_base_url/certificates/user/" \
-                   + str(self.user.id) + "/course/" + six.text_type(self.course.id) + '?preview=honor'
+                   + str(self.user.id) + "/course/" + unicode(self.course.id) + '?preview=honor'
         link = get_lms_link_for_certificate_web_view(
             user_id=self.user.id,
             course_key=self.course.id,
             mode='honor'
         )
-        self.assertEqual(link, test_url)
+        self.assertEquals(link, test_url)
 
     @mock.patch.dict('django.conf.settings.FEATURES', {'CERTIFICATES_HTML_VIEW': True})
     def test_certificate_info_in_response(self):
@@ -295,13 +290,13 @@ class CertificatesListHandlerTestCase(
 
         # in html response
         result = self.client.get_html(self._url())
-        self.assertContains(result, 'Test certificate')
-        self.assertContains(result, 'Test description')
+        self.assertIn('Test certificate', result.content)
+        self.assertIn('Test description', result.content)
 
         # in JSON response
         response = self.client.get_json(self._url())
-        data = json.loads(response.content.decode('utf-8'))
-        self.assertEqual(len(data), 1)
+        data = json.loads(response.content)
+        self.assertEquals(len(data), 1)
         self.assertEqual(data[0]['name'], 'Test certificate')
         self.assertEqual(data[0]['description'], 'Test description')
         self.assertEqual(data[0]['version'], CERTIFICATE_SCHEMA_VERSION)
@@ -320,7 +315,7 @@ class CertificatesListHandlerTestCase(
 
         # in html response
         result = self.client.get_html(self._url())
-        self.assertNotContains(result, 'Test certificate')
+        self.assertNotIn('Test certificate', result.content)
 
     def test_unsupported_http_accept_header(self):
         """
@@ -349,7 +344,8 @@ class CertificatesListHandlerTestCase(
             self._url(),
             data=CERTIFICATE_JSON
         )
-        self.assertContains(response, "error", status_code=403)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("error", response.content)
 
     def test_audit_course_mode_is_skipped(self):
         """
@@ -419,7 +415,7 @@ class CertificatesListHandlerTestCase(
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
-        new_certificate = json.loads(response.content.decode('utf-8'))
+        new_certificate = json.loads(response.content)
         for prev_certificate in self.course.certificates['certificates']:
             self.assertNotEqual(new_certificate.get('id'), prev_certificate.get('id'))
 
@@ -432,6 +428,8 @@ class CertificatesDetailHandlerTestCase(
     """
     Test cases for CertificatesDetailHandlerTestCase.
     """
+    shard = 1
+
     _id = 0
 
     def setUp(self):  # pylint: disable=arguments-differ
@@ -473,11 +471,11 @@ class CertificatesDetailHandlerTestCase(
             HTTP_ACCEPT="application/json",
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
-        content = json.loads(response.content.decode('utf-8'))
+        content = json.loads(response.content)
         self.assertEqual(content, expected)
         self.assert_event_emitted(
             'edx.certificate.configuration.created',
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
             configuration_id=666,
         )
 
@@ -505,11 +503,11 @@ class CertificatesDetailHandlerTestCase(
             HTTP_ACCEPT="application/json",
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
-        content = json.loads(response.content.decode('utf-8'))
+        content = json.loads(response.content)
         self.assertEqual(content, expected)
         self.assert_event_emitted(
             'edx.certificate.configuration.modified',
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
             configuration_id=1,
         )
         self.reload_course()
@@ -556,7 +554,7 @@ class CertificatesDetailHandlerTestCase(
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
         self.assertEqual(response.status_code, 201)
-        content = json.loads(response.content.decode('utf-8'))
+        content = json.loads(response.content)
         self.assertEqual(content, expected)
 
     @ddt.data(C4X_SIGNATORY_PATH, SIGNATORY_PATH)
@@ -574,7 +572,7 @@ class CertificatesDetailHandlerTestCase(
         self.assertEqual(response.status_code, 204)
         self.assert_event_emitted(
             'edx.certificate.configuration.deleted',
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
             configuration_id='1',
         )
         self.reload_course()
@@ -598,7 +596,7 @@ class CertificatesDetailHandlerTestCase(
         self.assertEqual(response.status_code, 204)
         self.assert_event_emitted(
             'edx.certificate.configuration.deleted',
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
             configuration_id='1',
         )
         self.reload_course()
@@ -623,7 +621,7 @@ class CertificatesDetailHandlerTestCase(
         self.assertEqual(response.status_code, 204)
         self.assert_event_emitted(
             'edx.certificate.configuration.deleted',
-            course_id=six.text_type(self.course.id),
+            course_id=unicode(self.course.id),
             configuration_id='1',
         )
         self.reload_course()
@@ -784,14 +782,14 @@ class CertificatesDetailHandlerTestCase(
                 HTTP_ACCEPT="application/json",
                 HTTP_X_REQUESTED_WITH="XMLHttpRequest"
             )
-            self.assertEqual(response.status_code, 200)
+            self.assertEquals(response.status_code, 200)
             course = self.store.get_course(self.course.id)
             certificates = course.certificates['certificates']
             self.assertEqual(certificates[0].get('is_active'), is_active)
             cert_event_type = 'activated' if is_active else 'deactivated'
             self.assert_event_emitted(
                 '.'.join(['edx.certificate.configuration', cert_event_type]),
-                course_id=six.text_type(self.course.id),
+                course_id=unicode(self.course.id),
             )
 
     @ddt.data(*itertools.product([True, False], [C4X_SIGNATORY_PATH, SIGNATORY_PATH]))
@@ -812,7 +810,7 @@ class CertificatesDetailHandlerTestCase(
             HTTP_ACCEPT="application/json",
             HTTP_X_REQUESTED_WITH="XMLHttpRequest"
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEquals(response.status_code, 403)
 
     @ddt.data(C4X_SIGNATORY_PATH, SIGNATORY_PATH)
     def test_certificate_activation_failure(self, signatory_path):
@@ -831,7 +829,7 @@ class CertificatesDetailHandlerTestCase(
             HTTP_ACCEPT="application/json",
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEquals(response.status_code, 403)
         course = self.store.get_course(self.course.id)
         certificates = course.certificates['certificates']
         self.assertEqual(certificates[0].get('is_active'), False)

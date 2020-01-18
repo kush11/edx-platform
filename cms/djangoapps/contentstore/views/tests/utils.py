@@ -2,7 +2,6 @@
 Utilities for view tests.
 """
 
-
 import json
 
 from contentstore.tests.utils import CourseTestCase
@@ -30,7 +29,7 @@ class StudioPageTestCase(CourseTestCase):
         self.assertIsNotNone(url)
         resp = self.client.get_html(url)
         self.assertEqual(resp.status_code, 200)
-        return resp.content.decode(resp.charset)
+        return resp.content
 
     def get_preview_html(self, xblock, view_name):
         """
@@ -39,7 +38,7 @@ class StudioPageTestCase(CourseTestCase):
         preview_url = '/xblock/{usage_key}/{view_name}'.format(usage_key=xblock.location, view_name=view_name)
         resp = self.client.get_json(preview_url)
         self.assertEqual(resp.status_code, 200)
-        resp_content = json.loads(resp.content.decode('utf-8'))
+        resp_content = json.loads(resp.content)
         return resp_content['html']
 
     def validate_preview_html(self, xblock, view_name, can_add=True, can_reorder=True, can_move=True,

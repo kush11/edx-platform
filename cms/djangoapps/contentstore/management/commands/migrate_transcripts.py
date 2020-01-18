@@ -2,23 +2,19 @@
 Command to migrate transcripts to django storage.
 """
 
-
 import logging
-
 from django.core.management import BaseCommand, CommandError
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import CourseLocator
-from six.moves import map
-
 from cms.djangoapps.contentstore.tasks import (
     DEFAULT_ALL_COURSES,
-    DEFAULT_COMMIT,
     DEFAULT_FORCE_UPDATE,
+    DEFAULT_COMMIT,
     enqueue_async_migrate_transcripts_tasks
 )
-from openedx.core.djangoapps.video_config.models import MigrationEnqueuedCourse, TranscriptMigrationSetting
 from openedx.core.lib.command_utils import get_mutually_exclusive_required_option, parse_course_keys
+from openedx.core.djangoapps.video_config.models import TranscriptMigrationSetting, MigrationEnqueuedCourse
 from xmodule.modulestore.django import modulestore
 
 log = logging.getLogger(__name__)
@@ -78,7 +74,7 @@ class Command(BaseCommand):
         try:
             result = CourseKey.from_string(raw_value)
         except InvalidKeyError:
-            raise CommandError(u"Invalid course_key: '%s'." % raw_value)
+            raise CommandError("Invalid course_key: '%s'." % raw_value)
 
         if not isinstance(result, CourseLocator):
             raise CommandError(u"Argument {0} is not a course key".format(raw_value))
@@ -95,7 +91,7 @@ class Command(BaseCommand):
         if courses_mode == 'all_courses':
             course_keys = [course.id for course in modulestore().get_course_summaries()]
         elif courses_mode == 'course_ids':
-            course_keys = list(map(self._parse_course_key, options['course_ids']))
+            course_keys = map(self._parse_course_key, options['course_ids'])
         else:
             migration_settings = self._latest_settings()
             if migration_settings.all_courses:
@@ -114,9 +110,9 @@ class Command(BaseCommand):
                 course_keys = non_migrated_courses[:migration_settings.batch_size]
 
                 log.info(
-                    (u'[Transcript Migration] Courses(total): %s, '
-                     u'Courses(migrated): %s, Courses(non-migrated): %s, '
-                     u'Courses(migration-in-process): %s'),
+                    ('[Transcript Migration] Courses(total): %s, '
+                     'Courses(migrated): %s, Courses(non-migrated): %s, '
+                     'Courses(migration-in-process): %s'),
                     len(all_courses),
                     len(migrated_courses),
                     len(non_migrated_courses),

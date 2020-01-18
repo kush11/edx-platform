@@ -1,8 +1,6 @@
 """
 Contentstore signals
 """
-
-
 from django.dispatch import Signal
 
 # Signal that indicates that a course grading policy has been updated.

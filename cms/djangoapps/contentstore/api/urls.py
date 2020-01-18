@@ -1,10 +1,9 @@
 """ Course API URLs. """
-
-
 from django.conf import settings
 from django.conf.urls import url
 
 from cms.djangoapps.contentstore.api.views import course_import, course_quality, course_validation
+
 
 app_name = 'contentstore'
 

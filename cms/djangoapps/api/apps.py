@@ -1,8 +1,3 @@
-"""
-Configuration for Studio API Django application
-"""
-
-
 from django.apps import AppConfig
 
 

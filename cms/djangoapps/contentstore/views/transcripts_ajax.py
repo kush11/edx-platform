@@ -5,8 +5,6 @@ Actions manager for transcripts ajax calls.
 Module do not support rollback (pressing "Cancel" button in Studio)
 All user changes are saved immediately.
 """
-
-
 import copy
 import json
 import logging
@@ -19,12 +17,10 @@ from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.http import Http404, HttpResponse
 from django.utils.translation import ugettext as _
-from edxval.api import create_external_video, create_or_update_video_transcript
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import UsageKey
 from six import text_type
-
-from cms.djangoapps.contentstore.views.videos import TranscriptProvider
+from edxval.api import create_or_update_video_transcript, create_external_video
 from student.auth import has_course_author_access
 from util.json_request import JsonResponse
 from xmodule.contentstore.content import StaticContent
@@ -33,18 +29,20 @@ from xmodule.exceptions import NotFoundError
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
 from xmodule.video_module.transcripts_utils import (
-    GetTranscriptsFromYouTubeException,
-    Transcript,
-    TranscriptsGenerationException,
-    TranscriptsRequestValidationException,
     clean_video_id,
     download_youtube_subs,
-    get_transcript,
+    GetTranscriptsFromYouTubeException,
     get_transcript_for_video,
-    get_transcript_from_val,
     get_transcripts_from_youtube,
-    youtube_video_transcript_name
+    Transcript,
+    TranscriptsRequestValidationException,
+    TranscriptsGenerationException,
+    youtube_video_transcript_name,
+    get_transcript,
+    get_transcript_from_val,
 )
+
+from cms.djangoapps.contentstore.views.videos import TranscriptProvider
 
 __all__ = [
     'upload_transcripts',
@@ -219,7 +217,7 @@ def upload_transcripts(request):
             # Convert 'srt' transcript into the 'sjson' and upload it to
             # configured transcript storage. For example, S3.
             sjson_subs = Transcript.convert(
-                content=transcript_file.read().decode('utf-8'),
+                content=transcript_file.read(),
                 input_format=Transcript.SRT,
                 output_format=Transcript.SJSON
             )
@@ -264,7 +262,7 @@ def download_transcripts(request):
 
     # Construct an HTTP response
     response = HttpResponse(content, content_type=mimetype)
-    response['Content-Disposition'] = u'attachment; filename="{filename}"'.format(filename=filename.encode('utf-8'))
+    response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename.encode('utf-8'))
     return response
 
 
@@ -322,7 +320,7 @@ def check_transcripts(request):
         filename = 'subs_{0}.srt.sjson'.format(item.sub)
         content_location = StaticContent.compute_location(item.location.course_key, filename)
         try:
-            local_transcripts = contentstore().find(content_location).data.decode('utf-8')
+            local_transcripts = contentstore().find(content_location).data
             transcripts_presence['current_item_subs'] = item.sub
         except NotFoundError:
             pass
@@ -336,10 +334,10 @@ def check_transcripts(request):
             filename = 'subs_{0}.srt.sjson'.format(youtube_id)
             content_location = StaticContent.compute_location(item.location.course_key, filename)
             try:
-                local_transcripts = contentstore().find(content_location).data.decode('utf-8')
+                local_transcripts = contentstore().find(content_location).data
                 transcripts_presence['youtube_local'] = True
             except NotFoundError:
-                log.debug(u"Can't find transcripts in storage for youtube id: %s", youtube_id)
+                log.debug("Can't find transcripts in storage for youtube id: %s", youtube_id)
 
             # youtube server
             youtube_text_api = copy.deepcopy(settings.YOUTUBE['TEXT_API'])
@@ -373,11 +371,9 @@ def check_transcripts(request):
                 html5_subs.append(contentstore().find(content_location).data)
                 transcripts_presence['html5_local'].append(html5_id)
             except NotFoundError:
-                log.debug(u"Can't find transcripts in storage for non-youtube video_id: %s", html5_id)
+                log.debug("Can't find transcripts in storage for non-youtube video_id: %s", html5_id)
             if len(html5_subs) == 2:  # check html5 transcripts for equality
-                transcripts_presence['html5_equal'] = (
-                    json.loads(html5_subs[0].decode('utf-8')) == json.loads(html5_subs[1].decode('utf-8'))
-                )
+                transcripts_presence['html5_equal'] = json.loads(html5_subs[0]) == json.loads(html5_subs[1])
 
         command, __ = _transcripts_logic(transcripts_presence, videos)
 
@@ -430,12 +426,12 @@ def _transcripts_logic(transcripts_presence, videos):
         else:  # html5 source have no subtitles
             # check if item sub has subtitles
             if transcripts_presence['current_item_subs'] and not transcripts_presence['is_youtube_mode']:
-                log.debug(u"Command is use existing %s subs", transcripts_presence['current_item_subs'])
+                log.debug("Command is use existing %s subs", transcripts_presence['current_item_subs'])
                 command = 'use_existing'
             else:
                 command = 'not_found'
     log.debug(
-        u"Resulted command: %s, current transcripts: %s, youtube mode: %s",
+        "Resulted command: %s, current transcripts: %s, youtube mode: %s",
         command,
         transcripts_presence['current_item_subs'],
         transcripts_presence['is_youtube_mode']

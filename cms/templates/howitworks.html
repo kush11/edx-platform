@@ -3,7 +3,7 @@
 <%def name="online_help_token()"><% return "welcome" %></%def>
 <%namespace name='static' file='static_content.html'/>
 <%!
-  from django.conf import settings
+  from django.urls import reverse
   from django.utils.translation import ugettext as _
   from openedx.core.djangolib.markup import HTML, Text
 %>
@@ -13,145 +13,230 @@
 
 <%block name="content">
 
-<div class="wrapper-content-header wrapper">
-  <section class="content content-header">
-    <header>
-      <h1><span class="wrapper-text-welcome">${_("Welcome to {studio_name}").format(
-          studio_name=settings.STUDIO_NAME
-      )}</span></h1>
-      <p class="tagline">${_("{studio_name} helps manage your online courses, so you can focus on teaching them").format(
-        studio_name=settings.STUDIO_SHORT_NAME
-      )}</p>
-    </header>
-  </section>
-</div>
 
-<div class="wrapper-content-features wrapper">
-  <section class="content content-features">
-    <header>
-      <h2 class="sr">${_("{studio_name}'s Many Features").format(studio_name=settings.STUDIO_SHORT_NAME)}</h2>
-    </header>
+<html lang="en">
 
-    <ol class="list-features">
-      <li class="feature">
-        <figure class="img zoom">
-          <a rel="modal" href="#hiw-feature1">
-            <img src="${static.url("images/thumb-hiw-feature1.png")}" alt="${_('{studio_name} Helps You Keep Your Courses Organized').format(studio_name=settings.STUDIO_SHORT_NAME)}" />
-            <figcaption class="sr">${_("{studio_name} Helps You Keep Your Courses Organized").format(studio_name=settings.STUDIO_NAME)}</figcaption>
-            <span class="action-zoom">
-              <span class="icon fa fa-search-plus" aria-hidden="true"></span><span class="sr">${_("Enlarge image")}</span>
-            </span>
-          </a>
-        </figure>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Exo" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <title>Document</title>
+    <style>
+        #banner {
+            background: url(https://res.cloudinary.com/kush636/image/upload/v1573812448/bg-banner.jpg) no-repeat fixed;
+            min-height: 450px;
+            background-size: cover;
+            position: relative;
+        }
+        
+        #layeredbackground {
+            background-color: RGBA(13, 70, 83, 0.75);
+            min-height: 450px;
+            border-radius: 6px;
+            padding-bottom: 8rem;
+            padding-top: 8rem;
+        }
+        
+        #layeredbackground header {
+            border: none;
+            padding-bottom: 3rem;
+            padding-top: 3rem;
+            text-align: center;
+            margin-top: 8em;
+        }
+        
+        #title-header {
+            font-family: 'exo';
+            color: white;
+            font-weight: bold;
+            font-size: 5rem;
+        }
+        
+        #title-header-subtitle {
+            font-family: 'exo';
+            color: white;
+            font-size: 2rem;
+        }
+        
+        .serviceBox {
+            color: #fff;
+            font-family: 'Source Sans Pro', sans-serif;
+            text-align: center;
+            padding: 0 15px 50px;
+            margin-top: 15px;
+            border: 1px solid transparent;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .serviceBox:before {
+            content: "";
+            background: linear-gradient(to bottom, #08949e, #00D9E8);
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            -webkit-clip-path: polygon(100% 0, 100% 80%, 50% 100%, 0% 80%, 0 0);
+            clip-path: polygon(100% 0, 100% 80%, 50% 100%, 0% 80%, 0 0);
+        }
+        
+        .serviceBox .service-icon {
+            background: #2a969e;
+            font-size: 60px;
+            line-height: 110px;
+            width: 100px;
+            height: 110px;
+            margin: -20px auto 20px;
+            border-radius: 0 0 50px 50px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .serviceBox:hover .service-icon {
+            text-shadow: 0 0 5px #000;
+            font-size: 65px;
+        }
+        
+        .serviceBox .service-icon:before,
+        .serviceBox .service-icon:after {
+            content: "";
+            background: linear-gradient(-45deg, #28595f 49%, transparent 50%);
+            height: 20px;
+            width: 20px;
+            position: absolute;
+            top: 0;
+            left: -20px;
+        }
+        
+        .serviceBox .service-icon:after {
+            transform: rotateY(180deg);
+            left: auto;
+            right: -20px;
+        }
+        
+        .serviceBox .title {
+            font-size: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin: 0 0 10px;
+        }
+        
+        .serviceBox .description {
+            font-size: 15px;
+        }
+        
+        .serviceBox.red:before {
+            background: linear-gradient(to bottom, #E53947, #f85c6c);
+        }
+        
+        .serviceBox.red .service-icon {
+            background: #e0535f;
+        }
+        
+        .serviceBox.red .service-icon:before,
+        .serviceBox.red .service-icon:after {
+            background: linear-gradient(-45deg, #752027 49%, transparent 50%);
+        }
+        
+        .serviceBox.blue:before {
+            background: linear-gradient(to bottom, #174B6D, #644B82);
+        }
+        
+        .serviceBox.blue .service-icon {
+            background: #156092;
+        }
+        
+        .serviceBox.blue .service-icon:before,
+        .serviceBox.blue .service-icon:after {
+            background: linear-gradient(-45deg, #15374d 49%, transparent 50%);
+        }
+        
+        .serviceBox.green:before {
+            background: linear-gradient(to bottom, #12AB8F, #68BA58);
+        }
+        
+        .serviceBox.green .service-icon {
+            background: #0a977d;
+        }
+        
+        .serviceBox.green .service-icon:before,
+        .serviceBox.green .service-icon:after {
+            background: linear-gradient(-45deg, #2b665b 49%, transparent 50%);
+        }
+        
+        @media only screen and (max-width:990px) {
+            .serviceBox {
+                margin: 15px 0 40px;
+            }
+        }
+    </style>
+</head>
 
-        <div class="copy">
-          <h3>${_("Keeping Your Course Organized")}</h3>
-          <p>${Text(_("The backbone of your course is how it is organized. {studio_name} offers an {strong_start}Outline{strong_end} editor, providing a simple hierarchy and easy drag and drop to help you and your students stay organized.")).format(
-                  studio_name=settings.STUDIO_SHORT_NAME,
-                  strong_start=HTML('<strong>'),
-                  strong_end=HTML('</strong>')
-              )}</p>
-
-          <ul class="list-proofpoints">
-            <li class="proofpoint">
-              <h4 class="title">${_("Simple Organization For Content")}</h4>
-              <p>${Text(_("{studio_name} uses a simple hierarchy of {strong_start}sections{strong_end} and {strong_start}subsections{strong_end} to organize your content.")).format(
-                    studio_name=settings.STUDIO_SHORT_NAME,
-                    strong_start=HTML('<strong>'),
-                    strong_end=HTML('</strong>')
-                  )}</p>
-            </li>
-
-            <li class="proofpoint">
-              <h4 class="title">${_("Change Your Mind Anytime")}</h4>
-              <p>${_("Draft your outline and build content anywhere. Simple drag and drop tools let you reorganize quickly.")}</p>
-            </li>
-
-            <li class="proofpoint">
-              <h4 class="title">${_("Go A Week Or A Semester At A Time")}</h4>
-              <p>${Text(_("Build and release {strong_start}sections{strong_end} to your students incrementally. You don't have to have it all done at once.")).format(
-                    strong_start=HTML('<strong>'),
-                    strong_end=HTML('</strong>')
-                  )}</p>
-            </li>
-          </ul>
+<body>
+    <div class="container-fluid">
+        <section id="banner">
+            <div id="layeredbackground">
+                <header>
+                    <h1 id="title-header">
+                        WELCOME TO SKILLASSURE - CMS
+                    </h1>
+                    <p id="title-header-subtitle">
+                        CMS helps manage your online courses, so you can focus on teaching them
+                    </p>
+                </header>
+            </div>
+        </section>
+    </div>
+    <div class="container mt-5 mb-5">
+        <div class="row">
+            <div class="col-md-4 col-sm-8 col-sm-offset-2 col-xs-8 col-xs-offset-2">
+                <div class="serviceBox">
+                    <div class="service-icon">
+                        <i class="fa fa-globe"></i>
+                    </div>
+                    <h3 class="title">Discoveri</h3>
+                    <p class="description">
+                        An AI based Talent Acquisition Model, Personalized for the ‘company’ and the ‘individual’.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-8 col-sm-offset-2 col-xs-8 col-xs-offset-2">
+                <div class="serviceBox blue">
+                    <div class="service-icon">
+                        <i class="fa fa-lightbulb-o"></i>
+                    </div>
+                    <h3 class="title">Talent Incubation</h3>
+                    <p class="description">
+                        Talent Incubation for rapid acquisition of high end technology skills and competencies.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4 col-sm-8 col-sm-offset-2 col-xs-8 col-xs-offset-2">
+                <div class="serviceBox green">
+                    <div class="service-icon">
+                        <i class="fa fa-rocket"></i>
+                    </div>
+                    <h3 class="title">Startup Accelerator</h3>
+                    <p class="description">
+                            Startup Accelerators for entrepreneurs seeking resources critical for success.
+                    </p>
+                </div>
+            </div>
         </div>
-      </li>
+    </div>
+</body>
 
-      <li class="feature">
-        <figure class="img zoom">
-        <a rel="modal" href="#hiw-feature2">
-          <img src="${static.url("images/thumb-hiw-feature2.png")}" alt="${_('Learning is More than Just Lectures')}" />
-          <figcaption class="sr">${_("Learning is More than Just Lectures")}</figcaption>
-          <span class="action-zoom">
-            <span class="icon fa fa-search-plus" aria-hidden="true"></span><span class="sr">${_("Enlarge image")}</span>
-          </span>
-        </a>
-        </figure>
+</html>
 
-        <div class="copy">
-          <h3>${_("Learning is More than Just Lectures")}</h3>
-          <p>${_("{studio_name} lets you weave your content together in a way that reinforces learning. Insert videos, discussions, and a wide variety of exercises with just a few clicks.").format(studio_name=settings.STUDIO_SHORT_NAME)} </p>
 
-          <ul class="list-proofpoints">
-            <li class="proofpoint">
-              <h4 class="title">${_("Create Learning Pathways")}</h4>
-              <p>${_("Help your students understand one concept at a time with multimedia, HTML, and exercises.")}</p>
-            </li>
-
-            <li class="proofpoint">
-              <h4 class="title">${_("Work Visually, Organize Quickly")}</h4>
-              <p>${_("Work visually and see exactly what your students will see. Reorganize all your content with drag and drop.")}</p>
-            </li>
-
-            <li class="proofpoint">
-              <h4 class="title">${_("A Broad Library of Problem Types")}</h4>
-              <p>${_("It's more than just multiple choice. {studio_name} supports more than a dozen types of problems to challenge your learners.").format(studio_name=settings.STUDIO_SHORT_NAME)}</p>
-            </li>
-          </ul>
-        </div>
-      </li>
-
-      <li class="feature">
-        <figure class="img zoom">
-          <a rel="modal" href="#hiw-feature3">
-            <img src="${static.url("images/thumb-hiw-feature3.png")}" alt="${_('{studio_name} Gives You Simple, Fast, and Incremental Publishing. With Friends.').format(studio_name=settings.STUDIO_SHORT_NAME)}" />
-            <figcaption class="sr">${_("{studio_name} Gives You Simple, Fast, and Incremental Publishing. With Friends.").format(studio_name=settings.STUDIO_SHORT_NAME)}</figcaption>
-            <span class="action-zoom">
-              <span class="icon fa fa-search-plus" aria-hidden="true"></span><span class="sr">${_("Enlarge image")}</span>
-            </span>
-          </a>
-        </figure>
-
-        <div class="copy">
-          <h3>${_("Simple, Fast, and Incremental Publishing. With Friends.")}</h3>
-          <p>${_("{studio_name} works like web applications you already know, yet understands how you build curriculum. Instant publishing to the web when you want it, incremental release when it makes sense. And with co-authors, you can have a whole team building a course, together.").format(studio_name=settings.STUDIO_SHORT_NAME)}</p>
-
-          <ul class="list-proofpoints">
-            <li class="proofpoint">
-              <h4 class="title">${_("Instant Changes")}</h4>
-              <p>${_("Caught a bug? No problem. When you want, your changes go live when you click Save.")}</p>
-            </li>
-
-            <li class="proofpoint">
-              <h4 class="title">${_("Release-On Date Publishing")}</h4>
-              <p>${Text(_("When you've finished a {strong_start}section{strong_end}, pick when you want it to go live and {studio_name} takes care of the rest. Build your course incrementally.")).format(
-                      studio_name=settings.STUDIO_SHORT_NAME,
-                      strong_start=HTML('<strong>'),
-                      strong_end=HTML('</strong>')
-                  )}</p>
-            </li>
-
-            <li class="proofpoint">
-              <h4 class="title">${_("Work in Teams")}</h4>
-              <p>${_("Co-authors have full access to all the same authoring tools. Make your course better through a team effort.")}</p>
-            </li>
-          </ul>
-        </div>
-      </li>
-    </ol>
-  </section>
-</div>
 
 <div class="wrapper-content-cta wrapper">
   <section class="content content-cta">
@@ -161,10 +246,10 @@
 
     <ul class="list-actions">
       <li class="action-item">
-        <a href="${settings.FRONTEND_REGISTER_URL}?next=${current_url}" class="action action-primary">${_("Sign Up & Start Making Your {platform_name} Course").format(platform_name=settings.PLATFORM_NAME)}</a>
+        <a href="${reverse('signup')}" class="action action-primary">${_("Sign Up & Start Making Your {platform_name} Course").format(platform_name=settings.PLATFORM_NAME)}</a>
       </li>
       <li class="action-item">
-        <a href="${settings.LOGIN_URL}?next=${current_url}" class="action action-secondary">${_("Already have a {studio_name} Account? Sign In").format(studio_name=settings.STUDIO_SHORT_NAME)}</a>
+        <a href="${reverse('login')}" class="action action-secondary">${_("Already have a SkillAssure Account? Sign In").format(studio_name=settings.STUDIO_SHORT_NAME)}</a>
       </li>
     </ul>
   </section>
@@ -173,7 +258,7 @@
 <div class="content-modal" id="hiw-feature1">
   <h3 class="title">${_("Outlining Your Course")}</h3>
   <figure>
-    <img src="${static.url("images/hiw-feature1.png")}" alt="" />
+    <img src="${static.url("/home/kush/Desktop/Cmstheme/hiw-feature1.png")}" alt="" />
     <figcaption class="description">${_("Simple two-level outline to organize your course. Drag and drop, and see your course at a glance.")}</figcaption>
   </figure>
 
@@ -209,3 +294,4 @@
   </a>
 </div>
 </%block>
+

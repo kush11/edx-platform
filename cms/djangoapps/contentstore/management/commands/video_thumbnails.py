@@ -1,19 +1,17 @@
 """
 Command to scrape thumbnails and add them to the course-videos.
 """
-
-
 import logging
+from six import text_type
 
 import edxval.api as edxval_api
 from django.core.management import BaseCommand
 from django.core.management.base import CommandError
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
-from six import text_type
 
-from cms.djangoapps.contentstore.tasks import enqueue_update_thumbnail_tasks
 from openedx.core.djangoapps.video_config.models import VideoThumbnailSetting
+from cms.djangoapps.contentstore.tasks import enqueue_update_thumbnail_tasks
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ class Command(BaseCommand):
                 offset=command_settings.offset, limit=command_settings.batch_size
             )
             log.info(
-                u'[Video Thumbnails] Videos(updated): %s, Videos(update-in-process): %s',
+                '[Video Thumbnails] Videos(updated): %s, Videos(update-in-process): %s',
                 command_settings.offset, len(course_videos),
             )
         else:
@@ -54,7 +52,7 @@ class Command(BaseCommand):
                 CourseKey.from_string(course_id)
             return course_ids
         except InvalidKeyError as error:
-            raise CommandError(u'Invalid key specified: {}'.format(text_type(error)))
+            raise CommandError('Invalid key specified: {}'.format(text_type(error)))
 
     def _latest_settings(self):
         """
@@ -81,6 +79,6 @@ class Command(BaseCommand):
             if video_thumbnail_settings.all_course_videos:
                 video_thumbnail_settings.update_offset()
         else:
-            log.info(u'[video thumbnails] selected course videos: {course_videos} '.format(
+            log.info('[video thumbnails] selected course videos: {course_videos} '.format(
                 course_videos=text_type(course_videos)
             ))

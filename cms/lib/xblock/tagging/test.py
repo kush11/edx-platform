@@ -2,13 +2,11 @@
 Tests for the Studio Tagging XBlockAside
 """
 
-
 import json
 from datetime import datetime
-from six import StringIO
+from StringIO import StringIO
 
 import ddt
-import six
 from django.test.client import RequestFactory
 from lxml import etree
 from opaque_keys.edx.asides import AsideUsageKeyV1, AsideUsageKeyV2
@@ -128,7 +126,7 @@ class StructuredTagsAsideTestCase(ModuleStoreTestCase):
         runtime = TestRuntime(services={'field-data': field_data})
         xblock_aside = StructuredTagsAside(scope_ids=sids, runtime=runtime)
         available_tags = xblock_aside.get_available_tags()
-        self.assertEqual(len(available_tags), 2, "StructuredTagsAside should contains two tag categories")
+        self.assertEquals(len(available_tags), 2, "StructuredTagsAside should contains two tag categories")
 
     def test_preview_html(self):
         """
@@ -149,36 +147,36 @@ class StructuredTagsAsideTestCase(ModuleStoreTestCase):
         tree = etree.parse(StringIO(problem_html), parser)
 
         main_div_nodes = tree.xpath('/html/body/div/section/div')
-        self.assertEqual(len(main_div_nodes), 1)
+        self.assertEquals(len(main_div_nodes), 1)
 
         div_node = main_div_nodes[0]
-        self.assertEqual(div_node.get('data-init'), 'StructuredTagsInit')
-        self.assertEqual(div_node.get('data-runtime-class'), 'PreviewRuntime')
-        self.assertEqual(div_node.get('data-block-type'), 'tagging_aside')
-        self.assertEqual(div_node.get('data-runtime-version'), '1')
+        self.assertEquals(div_node.get('data-init'), 'StructuredTagsInit')
+        self.assertEquals(div_node.get('data-runtime-class'), 'PreviewRuntime')
+        self.assertEquals(div_node.get('data-block-type'), 'tagging_aside')
+        self.assertEquals(div_node.get('data-runtime-version'), '1')
         self.assertIn('xblock_asides-v1', div_node.get('class'))
 
         select_nodes = div_node.xpath("div//select[@multiple='multiple']")
-        self.assertEqual(len(select_nodes), 2)
+        self.assertEquals(len(select_nodes), 2)
 
         select_node1 = select_nodes[0]
-        self.assertEqual(select_node1.get('name'), self.aside_tag_dif)
+        self.assertEquals(select_node1.get('name'), self.aside_tag_dif)
 
         option_nodes1 = select_node1.xpath('option')
-        self.assertEqual(len(option_nodes1), 3)
+        self.assertEquals(len(option_nodes1), 3)
 
         option_values1 = [opt_elem.text for opt_elem in option_nodes1]
-        self.assertEqual(option_values1, ['Easy', 'Hard', 'Medium'])
+        self.assertEquals(option_values1, ['Easy', 'Hard', 'Medium'])
 
         select_node2 = select_nodes[1]
-        self.assertEqual(select_node2.get('name'), self.aside_tag_lo)
-        self.assertEqual(select_node2.get('multiple'), 'multiple')
+        self.assertEquals(select_node2.get('name'), self.aside_tag_lo)
+        self.assertEquals(select_node2.get('multiple'), 'multiple')
 
         option_nodes2 = select_node2.xpath('option')
-        self.assertEqual(len(option_nodes2), 3)
+        self.assertEquals(len(option_nodes2), 3)
 
         option_values2 = [opt_elem.text for opt_elem in option_nodes2 if opt_elem.text]
-        self.assertEqual(option_values2, ['Learned a few things', 'Learned everything', 'Learned nothing'])
+        self.assertEquals(option_values2, ['Learned a few things', 'Learned everything', 'Learned nothing'])
 
         # Now ensure the acid_aside is not in the result
         self.assertNotRegexpMatches(problem_html, r"data-block-type=[\"\']acid_aside[\"\']")
@@ -194,7 +192,7 @@ class StructuredTagsAsideTestCase(ModuleStoreTestCase):
         """
         handler_url = reverse_usage_url(
             'component_handler',
-            six.text_type(aside_key_class(self.problem.location, self.aside_name)),
+            unicode(aside_key_class(self.problem.location, self.aside_name)),
             kwargs={'handler': 'save_tags'}
         )
 

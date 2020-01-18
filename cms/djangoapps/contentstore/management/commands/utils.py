@@ -1,8 +1,6 @@
 """
 Common methods for cms commands to use
 """
-
-
 from django.contrib.auth.models import User
 from opaque_keys.edx.keys import CourseKey
 

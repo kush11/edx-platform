@@ -18,7 +18,7 @@ from openedx.core.djangolib.markup import HTML, Text
         <p>&copy; ${datetime.now(pytz.timezone(settings.TIME_ZONE)).year} <a data-rel="edx.org" href="${marketing_link('ROOT')}" rel="external">${settings.PLATFORM_NAME}</a>.</p>
       </div>
 
-        <nav class="nav-peripheral" aria-label="${_("Policies")}">
+        <!-- <nav class="nav-peripheral" aria-label="${_("Policies")}">
           <ol>
             % if is_marketing_link_set('TOS'):
               <li class="nav-item nav-peripheral-tos">
@@ -39,7 +39,7 @@ from openedx.core.djangolib.markup import HTML, Text
               <a data-rel="edx.org" id="lms-link" href="${settings.LMS_ROOT_URL}">${_("LMS")}</a>
             </li>
           </ol>
-        </nav>
+        </nav> -->
     </div>
 
     <div class="footer-content-secondary" aria-label="${_("Legal")}">
@@ -47,19 +47,20 @@ from openedx.core.djangolib.markup import HTML, Text
         ## Site operators: Please do not remove this paragraph! This attributes back to edX and makes your acknowledgement of edX's trademarks clear.
         <p>
           ## Translators: 'edX' and 'Open edX' are trademarks of 'edX Inc.'. Please do not translate any of these trademarks and company names.
-          ${Text(_("edX, Open edX, and the edX and Open edX logos are registered trademarks of {link_start}edX Inc.{link_end}")).format(
-            link_start=HTML(u"<a data-rel='edx.org' href='https://www.edx.org/'>"),
+          ${Text(_("SkillAssure, are registered trademarks of {link_start}SkillAssure Inc.{link_end}")).format(
+            link_start=HTML(u"<a data-rel='edx.org' href='/'>"),
             link_end=HTML(u"</a>")
           )}
         </p>
       </div>
 
-      <div class="footer-about-openedx">
-        <a href="http://open.edx.org" title="${_("Powered by Open edX")}">
-          <img alt="${_("Powered by Open edX")}" src="https://files.edx.org/openedx-logos/edx-openedx-logo-tag.png">
+      <!-- <div class="footer-about-openedx">
+        <a href="/" title="${_("Powered by Open edX")}">
+          <img alt="${_("Powered by Open edX")}" src="https://www.pratian.com/images/portfolio/skillAssure.png">
         </a>
-      </div>
+      </div> -->
     </div>
   </footer>
 </div>
+
 

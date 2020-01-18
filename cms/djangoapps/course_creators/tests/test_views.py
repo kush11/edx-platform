@@ -2,12 +2,11 @@
 Tests course_creators.views.py.
 """
 
-
 import mock
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
-from django.test import TestCase
 from django.urls import reverse
+from django.test import TestCase
 
 from course_creators.views import (
     add_user_with_status_granted,

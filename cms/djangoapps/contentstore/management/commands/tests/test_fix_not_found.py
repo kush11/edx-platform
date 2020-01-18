@@ -2,10 +2,7 @@
 Tests for the fix_not_found management command
 """
 
-
-import six
 from django.core.management import CommandError, call_command
-
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
@@ -19,12 +16,7 @@ class TestFixNotFound(ModuleStoreTestCase):
         """
         Test fix_not_found command with no arguments
         """
-        if six.PY2:
-            msg = "Error: too few arguments"
-        else:
-            msg = "Error: the following arguments are required: course_id"
-
-        with self.assertRaisesRegex(CommandError, msg):
+        with self.assertRaisesRegexp(CommandError, "Error: too few arguments"):
             call_command('fix_not_found')
 
     def test_fix_not_found_non_split(self):
@@ -32,8 +24,8 @@ class TestFixNotFound(ModuleStoreTestCase):
         The management command doesn't work on non split courses
         """
         course = CourseFactory.create(default_store=ModuleStoreEnum.Type.mongo)
-        with self.assertRaisesRegex(CommandError, "The owning modulestore does not support this command."):
-            call_command("fix_not_found", six.text_type(course.id))
+        with self.assertRaisesRegexp(CommandError, "The owning modulestore does not support this command."):
+            call_command("fix_not_found", unicode(course.id))
 
     def test_fix_not_found(self):
         course = CourseFactory.create(default_store=ModuleStoreEnum.Type.split)
@@ -53,7 +45,7 @@ class TestFixNotFound(ModuleStoreTestCase):
         self.assertEqual(len(course.children), 2)
         self.assertIn(dangling_pointer, course.children)
 
-        call_command("fix_not_found", six.text_type(course.id))
+        call_command("fix_not_found", unicode(course.id))
 
         # make sure the dangling pointer was removed from
         # the course block's children

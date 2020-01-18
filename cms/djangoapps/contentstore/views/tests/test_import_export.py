@@ -1,22 +1,17 @@
 """
 Unit tests for course import and export
 """
-
-
 import copy
 import json
 import logging
 import os
-import re
 import shutil
-from six import StringIO
 import tarfile
 import tempfile
 from uuid import uuid4
 
 import ddt
 import lxml
-import six
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.test.utils import override_settings
@@ -24,7 +19,6 @@ from milestones.tests.utils import MilestonesTestCaseMixin
 from mock import Mock, patch
 from opaque_keys.edx.locator import LibraryLocator
 from path import Path as path
-from six.moves import zip
 from storages.backends.s3boto import S3BotoStorage
 from user_tasks.models import UserTaskStatus
 
@@ -92,22 +86,22 @@ class ImportEntranceExamTestCase(CourseTestCase, MilestonesTestCaseMixin):
         """
         course = self.store.get_course(self.course.id)
         self.assertIsNotNone(course)
-        self.assertEqual(course.entrance_exam_enabled, False)
+        self.assertEquals(course.entrance_exam_enabled, False)
 
-        with open(self.entrance_exam_tar, 'rb') as gtar:  # pylint: disable=open-builtin
+        with open(self.entrance_exam_tar) as gtar:
             args = {"name": self.entrance_exam_tar, "course-data": [gtar]}
             resp = self.client.post(self.url, args)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         course = self.store.get_course(self.course.id)
         self.assertIsNotNone(course)
-        self.assertEqual(course.entrance_exam_enabled, True)
-        self.assertEqual(course.entrance_exam_minimum_score_pct, 0.7)
+        self.assertEquals(course.entrance_exam_enabled, True)
+        self.assertEquals(course.entrance_exam_minimum_score_pct, 0.7)
 
     def test_import_delete_pre_exiting_entrance_exam(self):
         """
         Check that pre existed entrance exam content should be overwrite with the imported course.
         """
-        exam_url = '/course/{}/entrance_exam/'.format(six.text_type(self.course.id))
+        exam_url = '/course/{}/entrance_exam/'.format(unicode(self.course.id))
         resp = self.client.post(exam_url, {'entrance_exam_minimum_score_pct': 0.5}, http_accept='application/json')
         self.assertEqual(resp.status_code, 201)
 
@@ -117,23 +111,23 @@ class ImportEntranceExamTestCase(CourseTestCase, MilestonesTestCaseMixin):
         self.assertTrue(metadata['entrance_exam_enabled'])
         self.assertIsNotNone(metadata['entrance_exam_minimum_score_pct'])
         self.assertEqual(metadata['entrance_exam_minimum_score_pct']['value'], 0.5)
-        self.assertTrue(len(milestones_helpers.get_course_milestones(six.text_type(self.course.id))))
+        self.assertTrue(len(milestones_helpers.get_course_milestones(unicode(self.course.id))))
         content_milestones = milestones_helpers.get_course_content_milestones(
-            six.text_type(self.course.id),
+            unicode(self.course.id),
             metadata['entrance_exam_id']['value'],
             milestones_helpers.get_milestone_relationship_types()['FULFILLS']
         )
         self.assertTrue(len(content_milestones))
 
         # Now import entrance exam course
-        with open(self.entrance_exam_tar, 'rb') as gtar:  # pylint: disable=open-builtin
+        with open(self.entrance_exam_tar) as gtar:
             args = {"name": self.entrance_exam_tar, "course-data": [gtar]}
             resp = self.client.post(self.url, args)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         course = self.store.get_course(self.course.id)
         self.assertIsNotNone(course)
-        self.assertEqual(course.entrance_exam_enabled, True)
-        self.assertEqual(course.entrance_exam_minimum_score_pct, 0.7)
+        self.assertEquals(course.entrance_exam_enabled, True)
+        self.assertEquals(course.entrance_exam_minimum_score_pct, 0.7)
 
 
 @ddt.ddt
@@ -153,7 +147,7 @@ class ImportTestCase(CourseTestCase):
 
         def touch(name):
             """ Equivalent to shell's 'touch'"""
-            with open(name, 'a'):  # pylint: disable=W6005
+            with file(name, 'a'):
                 os.utime(name, None)
 
         # Create tar test files -----------------------------------------------
@@ -186,14 +180,14 @@ class ImportTestCase(CourseTestCase):
         Check that the response for a tar.gz import without a course.xml is
         correct.
         """
-        with open(self.bad_tar, 'rb') as btar:  # pylint: disable=open-builtin
+        with open(self.bad_tar) as btar:
             resp = self.client.post(
                 self.url,
                 {
                     "name": self.bad_tar,
                     "course-data": [btar]
                 })
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         # Check that `import_status` returns the appropriate stage (i.e., the
         # stage at which import failed).
         resp_status = self.client.get(
@@ -204,18 +198,18 @@ class ImportTestCase(CourseTestCase):
             )
         )
 
-        self.assertEqual(json.loads(resp_status.content.decode('utf-8'))["ImportStatus"], -2)
+        self.assertEquals(json.loads(resp_status.content)["ImportStatus"], -2)
 
     def test_with_coursexml(self):
         """
         Check that the response for a tar.gz import with a course.xml is
         correct.
         """
-        with open(self.good_tar, 'rb') as gtar:  # pylint: disable=open-builtin
+        with open(self.good_tar) as gtar:
             args = {"name": self.good_tar, "course-data": [gtar]}
             resp = self.client.post(self.url, args)
 
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
 
     def test_import_in_existing_course(self):
         """
@@ -230,10 +224,10 @@ class ImportTestCase(CourseTestCase):
         display_name_before_import = course.display_name
 
         # Check that global staff user can import course
-        with open(self.good_tar, 'rb') as gtar:  # pylint: disable=open-builtin
+        with open(self.good_tar) as gtar:
             args = {"name": self.good_tar, "course-data": [gtar]}
             resp = self.client.post(self.url, args)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
 
         course = self.store.get_course(self.course.id)
         self.assertIsNotNone(course)
@@ -248,10 +242,10 @@ class ImportTestCase(CourseTestCase):
 
         # Now course staff user can also successfully import course
         self.client.login(username=nonstaff_user.username, password='foo')
-        with open(self.good_tar, 'rb') as gtar:  # pylint: disable=open-builtin
+        with open(self.good_tar) as gtar:
             args = {"name": self.good_tar, "course-data": [gtar]}
             resp = self.client.post(self.url, args)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
 
         # Now check that non_staff user has his same role
         self.assertFalse(CourseInstructorRole(self.course.id).has_user(nonstaff_user))
@@ -342,10 +336,10 @@ class ImportTestCase(CourseTestCase):
 
         def try_tar(tarpath):
             """ Attempt to tar an unacceptable file """
-            with open(tarpath, 'rb') as tar:  # pylint: disable=open-builtin
+            with open(tarpath) as tar:
                 args = {"name": tarpath, "course-data": [tar]}
                 resp = self.client.post(self.url, args)
-            self.assertEqual(resp.status_code, 200)
+            self.assertEquals(resp.status_code, 200)
             resp = self.client.get(
                 reverse_course_url(
                     'import_status_handler',
@@ -353,7 +347,7 @@ class ImportTestCase(CourseTestCase):
                     kwargs={'filename': os.path.split(tarpath)[1]}
                 )
             )
-            status = json.loads(resp.content.decode('utf-8'))["ImportStatus"]
+            status = json.loads(resp.content)["ImportStatus"]
             self.assertEqual(status, -1)
 
         try_tar(self._fifo_tar())
@@ -376,7 +370,7 @@ class ImportTestCase(CourseTestCase):
                 kwargs={'filename': os.path.split(self.good_tar)[1]}
             )
         )
-        import_status = json.loads(resp_status.content.decode('utf-8'))["ImportStatus"]
+        import_status = json.loads(resp_status.content)["ImportStatus"]
         self.assertIn(import_status, (0, 3))
 
     def test_library_import(self):
@@ -547,7 +541,7 @@ class ExportTestCase(CourseTestCase):
         Get the HTML for the page.
         """
         resp = self.client.get_html(self.url)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         self.assertContains(resp, "Export My Course Content")
 
     def test_export_json_unsupported(self):
@@ -555,128 +549,55 @@ class ExportTestCase(CourseTestCase):
         JSON is unsupported.
         """
         resp = self.client.get(self.url, HTTP_ACCEPT='application/json')
-        self.assertEqual(resp.status_code, 406)
+        self.assertEquals(resp.status_code, 406)
 
     def test_export_async(self):
         """
         Get tar.gz file, using asynchronous background task
-
-        Return a TarFile of the successful export.
         """
         resp = self.client.post(self.url)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         resp = self.client.get(self.status_url)
-        result = json.loads(resp.content.decode('utf-8'))
+        result = json.loads(resp.content)
         status = result['ExportStatus']
-        self.assertEqual(status, 3)
+        self.assertEquals(status, 3)
         self.assertIn('ExportOutput', result)
         output_url = result['ExportOutput']
         resp = self.client.get(output_url)
         self._verify_export_succeeded(resp)
-        resp_content = b''
-        for item in resp.streaming_content:
-            resp_content += item
-
-        buff = six.BytesIO(resp_content)
-        return tarfile.open(fileobj=buff)
 
     def _verify_export_succeeded(self, resp):
         """ Export success helper method. """
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         self.assertTrue(resp.get('Content-Disposition').startswith('attachment'))
 
-    def test_unknown_xblock_top_level(self):
+    def test_export_failure_top_level(self):
         """
-        Export unknown XBlock type (i.e. we uninstalled the XBlock), top level.
+        Export failure.
         """
-        fake_xblock = ItemFactory.create(
-            parent_location=self.course.location,
-            category='not_a_real_block_type'
-        )
+        fake_xblock = ItemFactory.create(parent_location=self.course.location, category='aawefawef')
         self.store.publish(fake_xblock.location, self.user.id)
+        self._verify_export_failure(u'/container/{}'.format(self.course.location))
 
-        # Now check the resulting export
-        tar_ball = self.test_export_async()
-        course_file_path = next(
-            path for path in tar_ball.getnames()
-            if re.match(r'\w+/course/\w+.xml', path)
-        )
-        course_file = tar_ball.extractfile(course_file_path)
-        course_xml = lxml.etree.parse(course_file)
-        course_elem = course_xml.getroot()
-
-        # The course run file still has a child pointer to the unknown type and
-        # creates the <not_a_real_block_type url="..."> pointer tag...
-        self.assertEqual(course_elem.tag, 'course')
-        unknown_elem = course_elem[0]
-        self.assertEqual(unknown_elem.tag, 'not_a_real_block_type')
-        # Non empty url_name attribute (the generated ID)
-        self.assertTrue(unknown_elem.attrib['url_name'])
-
-        # But there should be no file exported for our fake block type. Without
-        # the XBlock installed, we don't know how to serialize it properly.
-        assert not any(
-            '/not_a_real_block_type/' in path
-            for path in tar_ball.getnames()
-        )
-
-    def test_unknown_xblock_subsection_level(self):
+    def test_export_failure_subsection_level(self):
         """
-        Export unknown XBlock type deeper in the course.
+        Slightly different export failure.
         """
-        vertical = ItemFactory.create(
-            parent_location=self.course.location,
-            category='vertical',
-            display_name='sample_vertical',
-        )
-        fake_xblock = ItemFactory.create(
+        vertical = ItemFactory.create(parent_location=self.course.location, category='vertical', display_name='foo')
+        ItemFactory.create(
             parent_location=vertical.location,
-            category='not_a_real_block_type',
+            category='aawefawef'
         )
-        self.store.publish(fake_xblock.location, self.user.id)
 
-        # Now check the resulting export
-        tar_ball = self.test_export_async()
-        course_file_path = next(
-            path for path in tar_ball.getnames()
-            if re.match(r'\w+/course/\w+.xml', path)
-        )
-        course_file = tar_ball.extractfile(course_file_path)
-        course_xml = lxml.etree.parse(course_file)
-        course_elem = course_xml.getroot()
-
-        # The course run file should have a vertical that points to the
-        # non-existant block.
-        self.assertEqual(course_elem.tag, 'course')
-        self.assertEqual(course_elem[0].tag, 'vertical')  # This is just a reference
-
-        vert_file_path = next(
-            path for path in tar_ball.getnames()
-            if re.match(r'\w+/vertical/\w+.xml', path)
-        )
-        vert_file = tar_ball.extractfile(vert_file_path)
-        vert_xml = lxml.etree.parse(vert_file)
-        vert_elem = vert_xml.getroot()
-        self.assertEqual(vert_elem.tag, 'vertical')
-        self.assertEqual(len(vert_elem), 1)
-        unknown_elem = vert_elem[0]
-        self.assertEqual(unknown_elem.tag, 'not_a_real_block_type')
-        # Non empty url_name attribute (the generated ID)
-        self.assertTrue(unknown_elem.attrib['url_name'])
-
-        # There should be no file exported for our fake block type
-        assert not any(
-            '/not_a_real_block_type/' in path
-            for path in tar_ball.getnames()
-        )
+        self._verify_export_failure(u'/container/{}'.format(vertical.location))
 
     def _verify_export_failure(self, expected_text):
         """ Export failure helper method. """
         resp = self.client.post(self.url)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEquals(resp.status_code, 200)
         resp = self.client.get(self.status_url)
-        self.assertEqual(resp.status_code, 200)
-        result = json.loads(resp.content.decode('utf-8'))
+        self.assertEquals(resp.status_code, 200)
+        result = json.loads(resp.content)
         self.assertNotIn('ExportOutput', result)
         self.assertIn('ExportError', result)
         error = result['ExportError']
@@ -739,7 +660,7 @@ class ExportTestCase(CourseTestCase):
         Export failure if course does not exist
         """
         resp = self.client.get_html(url)
-        self.assertEqual(resp.status_code, 404)
+        self.assertEquals(resp.status_code, 404)
 
     def test_non_course_author(self):
         """
@@ -764,7 +685,7 @@ class ExportTestCase(CourseTestCase):
         """
         resp = self.client.get(self.status_url)
         self.assertEqual(resp.status_code, 200)
-        result = json.loads(resp.content.decode('utf-8'))
+        result = json.loads(resp.content)
         self.assertEqual(result['ExportStatus'], 0)
 
     def test_output_non_course_author(self):
@@ -803,7 +724,7 @@ class ExportTestCase(CourseTestCase):
             file_url='/path/to/testfile.tar.gz',
         )
         resp = self.client.get(self.status_url)
-        result = json.loads(resp.content.decode('utf-8'))
+        result = json.loads(resp.content)
         self.assertEqual(result['ExportOutput'], '/path/to/testfile.tar.gz')
 
     @patch('contentstore.views.import_export._latest_task_status')
@@ -823,7 +744,7 @@ class ExportTestCase(CourseTestCase):
             file_url='/s3/file/path/testfile.tar.gz',
         )
         resp = self.client.get(self.status_url)
-        result = json.loads(resp.content.decode('utf-8'))
+        result = json.loads(resp.content)
         self.assertEqual(result['ExportOutput'], '/s3/file/path/testfile.tar.gz')
 
     @patch('contentstore.views.import_export._latest_task_status')
@@ -840,7 +761,7 @@ class ExportTestCase(CourseTestCase):
         mock_latest_task_status.return_value = Mock(state=UserTaskStatus.SUCCEEDED)
         mock_get_user_task_artifact.return_value = self._mock_artifact(spec=FileSystemStorage)
         resp = self.client.get(self.status_url)
-        result = json.loads(resp.content.decode('utf-8'))
+        result = json.loads(resp.content)
         file_export_output_url = reverse_course_url('export_output_handler', self.course.id)
         self.assertEqual(result['ExportOutput'], file_export_output_url)
 
@@ -963,7 +884,7 @@ class TestCourseExportImport(LibraryTestCase):
         source_course_lib_children = self.get_lib_content_block_children(source_course_location)
         dest_course_lib_children = self.get_lib_content_block_children(dest_course_location)
 
-        self.assertEqual(len(source_course_lib_children), len(dest_course_lib_children))
+        self.assertEquals(len(source_course_lib_children), len(dest_course_lib_children))
 
         for source_child_location, dest_child_location in zip(source_course_lib_children, dest_course_lib_children):
             # Assert problem names on draft branch.
@@ -981,7 +902,7 @@ class TestCourseExportImport(LibraryTestCase):
         """
         source_child = self.store.get_item(source_child_location)
         dest_child = self.store.get_item(dest_child_location)
-        self.assertEqual(source_child.display_name, dest_child.display_name)
+        self.assertEquals(source_child.display_name, dest_child.display_name)
 
     @ddt.data(True, False)
     def test_library_content_on_course_export_import(self, publish_item):
@@ -1021,93 +942,3 @@ class TestCourseExportImport(LibraryTestCase):
             dest_course.location,
             publish_item
         )
-
-
-@override_settings(CONTENTSTORE=TEST_DATA_CONTENTSTORE)
-class TestCourseExportImportProblem(CourseTestCase):
-    """
-    Tests for importing after exporting the course containing problem with pre tags from XML.
-    """
-    def setUp(self):
-        super(TestCourseExportImportProblem, self).setUp()
-        self.export_dir = tempfile.mkdtemp()
-        self.source_course = CourseFactory.create(default_store=ModuleStoreEnum.Type.split)
-        self.addCleanup(shutil.rmtree, self.export_dir, ignore_errors=True)
-
-    def _setup_source_course_with_problem_content(self, publish_item=False):
-        """
-        Sets up course with problem content.
-        """
-        chapter = ItemFactory.create(
-            parent_location=self.source_course.location,
-            category='chapter',
-            display_name='Test Section'
-        )
-        sequential = ItemFactory.create(
-            parent_location=chapter.location,
-            category='sequential',
-            display_name='Test Sequential'
-        )
-        vertical = ItemFactory.create(
-            category='vertical',
-            parent_location=sequential.location,
-            display_name='Test Unit'
-        )
-
-        ItemFactory.create(
-            parent=vertical,
-            category='problem',
-            display_name='Test Problem',
-            publish_item=publish_item,
-            data='<problem><pre><code>x=10</code></pre><multiplechoiceresponse></multiplechoiceresponse></problem>',
-        )
-
-    def get_problem_content(self, block_location):
-        """
-        Get problem content of course.
-        """
-        if block_location.block_type == 'problem':
-            return self.store.get_item(block_location).data
-
-        return self.get_problem_content(self.store.get_item(block_location).children[0])
-
-    def assert_problem_definition(self, course_location):
-        """
-        Asserts that problems' data is as expected with pre-tag content maintained.
-        """
-        expected_problem_content = '<problem>\n  <pre><code>x=10</code></pre>\n' \
-                                   '  <multiplechoiceresponse/>\n</problem>\n'
-        problem_content = self.get_problem_content(course_location)
-
-        self.assertEqual(expected_problem_content, problem_content)
-
-    def test_problem_content_on_course_export_import(self):
-        """
-        Verify that problem content in destination matches expected problem content,
-        specifically concerned with pre tag data with problem.
-        """
-        self._setup_source_course_with_problem_content()
-
-        dest_course = CourseFactory.create(default_store=ModuleStoreEnum.Type.split)
-
-        export_course_to_xml(
-            self.store,
-            contentstore(),
-            self.source_course.location.course_key,
-            self.export_dir,
-            'exported_source_course',
-        )
-
-        import_course_from_xml(
-            self.store,
-            self.user.id,
-            self.export_dir,
-            ['exported_source_course'],
-            static_content_store=contentstore(),
-            target_id=dest_course.location.course_key,
-            load_error_modules=False,
-            raise_on_failure=True,
-            create_if_not_present=True,
-        )
-
-        self.assert_problem_definition(dest_course.location)

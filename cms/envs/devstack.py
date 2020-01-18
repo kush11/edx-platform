@@ -2,8 +2,6 @@
 Specific overrides to the base prod settings to make development easier.
 """
 
-
-import logging
 from os.path import abspath, dirname, join
 
 from .production import *  # pylint: disable=wildcard-import, unused-wildcard-import
@@ -21,6 +19,7 @@ HTTPS = 'off'
 
 ################################ LOGGERS ######################################
 
+import logging
 
 # Disable noisy loggers
 for pkg_name in ['track.contexts', 'track.middleware']:
@@ -41,7 +40,7 @@ FEATURES['PREVIEW_LMS_BASE'] = "preview." + LMS_BASE
 ########################### PIPELINE #################################
 
 # Skip packaging and optimization in development
-PIPELINE['PIPELINE_ENABLED'] = False
+PIPELINE_ENABLED = False
 STATICFILES_STORAGE = 'openedx.core.storage.DevelopmentStorage'
 
 # Revert to the default set of finders as we don't want the production pipeline
@@ -70,7 +69,7 @@ CELERY_ALWAYS_EAGER = True
 
 ################################ DEBUG TOOLBAR ################################
 
-INSTALLED_APPS += ['debug_toolbar']
+INSTALLED_APPS += ['debug_toolbar', 'debug_toolbar_mongo']
 
 MIDDLEWARE_CLASSES.append('debug_toolbar.middleware.DebugToolbarMiddleware')
 INTERNAL_IPS = ('127.0.0.1',)
@@ -104,6 +103,11 @@ def should_show_debug_toolbar(request):
     return True
 
 
+# To see stacktraces for MongoDB queries, set this to True.
+# Stacktraces slow down page loads drastically (for pages with lots of queries).
+DEBUG_TOOLBAR_MONGO_STACKTRACES = False
+
+
 ################################ MILESTONES ################################
 FEATURES['MILESTONES_APP'] = True
 
@@ -114,7 +118,7 @@ FEATURES['ENTRANCE_EXAMS'] = True
 ################################ COURSE LICENSES ################################
 FEATURES['LICENSING'] = True
 # Needed to enable licensing on video modules
-XBLOCK_SETTINGS.update({'VideoBlock': {'licensing_enabled': True}})
+XBLOCK_SETTINGS.update({'VideoDescriptor': {'licensing_enabled': True}})
 
 ################################ SEARCH INDEX ################################
 FEATURES['ENABLE_COURSEWARE_INDEX'] = True
@@ -127,9 +131,6 @@ FEATURES['CERTIFICATES_HTML_VIEW'] = True
 ########################## AUTHOR PERMISSION #######################
 FEATURES['ENABLE_CREATOR_GROUP'] = False
 
-################### FRONTEND APPLICATION PUBLISHER URL ###################
-FEATURES['FRONTEND_APP_PUBLISHER_URL'] = 'http://localhost:18400'
-
 ################################# DJANGO-REQUIRE ###############################
 
 # Whether to run django-require in debug mode.
@@ -137,8 +138,6 @@ REQUIRE_DEBUG = DEBUG
 
 ########################### OAUTH2 #################################
 OAUTH_OIDC_ISSUER = 'http://127.0.0.1:8000/oauth2'
-
-# pylint: disable=unicode-format-string
 
 JWT_AUTH.update({
     'JWT_SECRET_KEY': 'lms-secret',
@@ -167,25 +166,14 @@ JWT_AUTH.update({
     ),
 })
 
-# pylint: enable=unicode-format-string
-
 IDA_LOGOUT_URI_LIST = [
     'http://localhost:18130/logout/',  # ecommerce
     'http://localhost:18150/logout/',  # credentials
 ]
 
-############################### BLOCKSTORE #####################################
-BLOCKSTORE_API_URL = "http://edx.devstack.blockstore:18250/api/v1/"
-
 #####################################################################
-
-# pylint: disable=wrong-import-order, wrong-import-position
-from openedx.core.djangoapps.plugins import constants as plugin_constants, plugin_settings
-
+from openedx.core.djangoapps.plugins import plugin_settings, constants as plugin_constants
 plugin_settings.add_plugins(__name__, plugin_constants.ProjectType.CMS, plugin_constants.SettingsType.DEVSTACK)
-
-
-OPENAPI_CACHE_TIMEOUT = 0
 
 ###############################################################################
 # See if the developer has any local overrides.

@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
-
-
+import ddt
 import json
 from io import BytesIO
+from mock import Mock, patch, ANY
 
-import ddt
-import six
 from django.test.testcases import TestCase
 from django.urls import reverse
 from edxval import api
-from mock import ANY, Mock, patch
 
 from contentstore.tests.utils import CourseTestCase
 from contentstore.utils import reverse_course_url
@@ -106,7 +103,7 @@ class TranscriptCredentialsTest(CourseTestCase):
             content_type='application/json'
         )
         self.assertEqual(response.status_code, expected_status_code)
-        self.assertEqual(response.content.decode('utf-8'), expected_response)
+        self.assertEqual(response.content, expected_response)
 
 
 @ddt.ddt
@@ -243,8 +240,8 @@ class TranscriptDownloadTest(CourseTestCase):
 
         # Assert the actual response
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content.decode('utf-8'), expected_content)
-        for attribute, value in six.iteritems(expected_headers):
+        self.assertEqual(response.content, expected_content)
+        for attribute, value in expected_headers.iteritems():
             self.assertEqual(response.get(attribute), value)
 
     @ddt.data(
@@ -270,7 +267,7 @@ class TranscriptDownloadTest(CourseTestCase):
         response = self.client.get(self.view_url, data=request_payload)
         # Assert the response
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(json.loads(response.content.decode('utf-8'))['error'], expected_error_message)
+        self.assertEqual(json.loads(response.content)['error'], expected_error_message)
 
 
 @ddt.ddt
@@ -307,7 +304,7 @@ class TranscriptUploadTest(CourseTestCase):
         """
         Tests that transcript upload handler works as expected.
         """
-        transcript_file_stream = six.StringIO('0\n00:00:00,010 --> 00:00:00,100\nПривіт, edX вітає вас.\n\n')
+        transcript_file_stream = BytesIO('0\n00:00:00,010 --> 00:00:00,100\nПривіт, edX вітає вас.\n\n')
         # Make request to transcript upload handler
         response = self.client.post(
             self.view_url,
@@ -372,7 +369,7 @@ class TranscriptUploadTest(CourseTestCase):
         # Make request to transcript upload handler
         response = self.client.post(self.view_url, request_payload, format='multipart')
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(json.loads(response.content.decode('utf-8'))['error'], expected_error_message)
+        self.assertEqual(json.loads(response.content)['error'], expected_error_message)
 
     @patch('contentstore.views.transcript_settings.get_available_transcript_languages', Mock(return_value=['en', 'es']))
     def test_transcript_upload_handler_existing_transcript(self):
@@ -389,7 +386,7 @@ class TranscriptUploadTest(CourseTestCase):
         response = self.client.post(self.view_url, request_payload, format='multipart')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            json.loads(response.content.decode('utf-8'))['error'],
+            json.loads(response.content)['error'],
             u'A transcript with the "es" language code already exists.'
         )
 
@@ -413,7 +410,7 @@ class TranscriptUploadTest(CourseTestCase):
 
             self.assertEqual(response.status_code, 400)
             self.assertEqual(
-                json.loads(response.content.decode('utf-8'))['error'],
+                json.loads(response.content)['error'],
                 u'There is a problem with this transcript file. Try to upload a different file.'
             )
 
@@ -422,7 +419,7 @@ class TranscriptUploadTest(CourseTestCase):
         """
         Tests the transcript upload handler with an invalid transcript file.
         """
-        transcript_file_stream = six.StringIO('An invalid transcript SubRip file content')
+        transcript_file_stream = BytesIO('An invalid transcript SubRip file content')
         # Make request to transcript upload handler
         response = self.client.post(
             self.view_url,
@@ -437,7 +434,7 @@ class TranscriptUploadTest(CourseTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            json.loads(response.content.decode('utf-8'))['error'],
+            json.loads(response.content)['error'],
             u'There is a problem with this transcript file. Try to upload a different file.'
         )
 

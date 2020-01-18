@@ -1,20 +1,16 @@
-"""Tests for course run serializers"""
-
-
 import datetime
 
 import ddt
 import pytz
 from django.test import RequestFactory
+from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
+from xmodule.modulestore.tests.factories import CourseFactory
 
 from openedx.core.lib.courses import course_image_url
 from student.roles import CourseInstructorRole, CourseStaffRole
 from student.tests.factories import UserFactory
-from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
-from xmodule.modulestore.tests.factories import CourseFactory
-
-from ...serializers.course_runs import CourseRunSerializer
 from ..utils import serialize_datetime
+from ...serializers.course_runs import CourseRunSerializer
 
 
 @ddt.ddt

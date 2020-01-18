@@ -2,8 +2,6 @@
 Script for removing all redundant Mac OS metadata files (with filename ".DS_Store"
 or with filename which starts with "._") for all courses
 """
-
-
 import logging
 
 from django.core.management.base import BaseCommand
@@ -39,4 +37,4 @@ class Command(BaseCommand):
 
         if success:
             log.info("=" * 80)
-            log.info(u"Total number of assets deleted: {0}".format(assets_deleted))
+            log.info("Total number of assets deleted: {0}".format(assets_deleted))

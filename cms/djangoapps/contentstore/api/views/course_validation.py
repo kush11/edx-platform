@@ -1,13 +1,10 @@
 # pylint: disable=missing-docstring
-
-
 import logging
-
-import dateutil
-import six
-from pytz import UTC
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
+
+import dateutil
+from pytz import UTC
 
 from contentstore.course_info_model import get_course_updates
 from contentstore.views.certificates import CertificateManager
@@ -15,7 +12,8 @@ from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, view_auth_c
 from xmodule.course_metadata_utils import DEFAULT_GRADING_POLICY
 from xmodule.modulestore.django import modulestore
 
-from .utils import course_author_access_required, get_bool_param
+from .utils import get_bool_param, course_author_access_required
+
 
 log = logging.getLogger(__name__)
 
@@ -120,7 +118,7 @@ class CourseValidationView(DeveloperErrorViewMixin, GenericAPIView):
         ]
         assignments_with_dates_before_start = (
             [
-                {'id': six.text_type(a.location), 'display_name': a.display_name}
+                {'id': unicode(a.location), 'display_name': a.display_name}
                 for a in assignments_with_dates
                 if a.due < course.start
             ]
@@ -130,7 +128,7 @@ class CourseValidationView(DeveloperErrorViewMixin, GenericAPIView):
 
         assignments_with_dates_after_end = (
             [
-                {'id': six.text_type(a.location), 'display_name': a.display_name}
+                {'id': unicode(a.location), 'display_name': a.display_name}
                 for a in assignments_with_dates
                 if a.due > course.end
             ]
@@ -146,7 +144,7 @@ class CourseValidationView(DeveloperErrorViewMixin, GenericAPIView):
             ]
             assignments_with_dates_before_start = (
                 [
-                    {'id': six.text_type(a.location), 'display_name': a.display_name}
+                    {'id': unicode(a.location), 'display_name': a.display_name}
                     for a in assignments_with_dates
                     if a.due < course.start
                 ]
@@ -156,7 +154,7 @@ class CourseValidationView(DeveloperErrorViewMixin, GenericAPIView):
 
             assignments_with_dates_after_end = (
                 [
-                    {'id': six.text_type(a.location), 'display_name': a.display_name}
+                    {'id': unicode(a.location), 'display_name': a.display_name}
                     for a in assignments_with_dates
                     if a.due > course.end
                 ]
@@ -177,14 +175,14 @@ class CourseValidationView(DeveloperErrorViewMixin, GenericAPIView):
                     parent_unit = modulestore().get_item(ora.parent)
                     parent_assignment = modulestore().get_item(parent_unit.parent)
                     assignments_with_ora_dates_before_start.append({
-                        'id': six.text_type(parent_assignment.location),
+                        'id': unicode(parent_assignment.location),
                         'display_name': parent_assignment.display_name
                     })
                 if course.end and self._has_date_after_end(ora, course.end):
                     parent_unit = modulestore().get_item(ora.parent)
                     parent_assignment = modulestore().get_item(parent_unit.parent)
                     assignments_with_ora_dates_after_end.append({
-                        'id': six.text_type(parent_assignment.location),
+                        'id': unicode(parent_assignment.location),
                         'display_name': parent_assignment.display_name
                     })
 

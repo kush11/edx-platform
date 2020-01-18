@@ -2,25 +2,23 @@
 Unittests for exporting to git via management command.
 """
 
-
 import copy
 import os
 import shutil
-from six import StringIO
+import StringIO
 import subprocess
 import unittest
 from uuid import uuid4
 
-import six
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test.utils import override_settings
-from opaque_keys.edx.locator import CourseLocator
 
+from contentstore.tests.utils import CourseTestCase
 import contentstore.git_export_utils as git_export_utils
 from contentstore.git_export_utils import GitExportError
-from contentstore.tests.utils import CourseTestCase
+from opaque_keys.edx.locator import CourseLocator
 
 FEATURES_WITH_EXPORT_GIT = settings.FEATURES.copy()
 FEATURES_WITH_EXPORT_GIT['ENABLE_EXPORT_GIT'] = True
@@ -58,37 +56,30 @@ class TestGitExport(CourseTestCase):
         Test that the command interface works. Ignore stderr for clean
         test output.
         """
-        with self.assertRaisesRegex(CommandError, 'Error: unrecognized arguments:*'):
-            call_command('git_export', 'blah', 'blah', 'blah', stderr=StringIO())
+        with self.assertRaisesRegexp(CommandError, 'Error: unrecognized arguments:*'):
+            call_command('git_export', 'blah', 'blah', 'blah', stderr=StringIO.StringIO())
 
-        if six.PY2:
-            with self.assertRaisesMessage(CommandError, 'Error: too few arguments'):
-                call_command('git_export', stderr=StringIO())
-        else:
-            with self.assertRaisesMessage(
-                CommandError,
-                'Error: the following arguments are required: course_loc, git_url'
-            ):
-                call_command('git_export', stderr=StringIO())
+        with self.assertRaisesMessage(CommandError, 'Error: too few arguments'):
+            call_command('git_export', stderr=StringIO.StringIO())
 
         # Send bad url to get course not exported
-        with self.assertRaisesRegex(CommandError, six.text_type(GitExportError.URL_BAD)):
-            call_command('git_export', 'foo/bar/baz', 'silly', stderr=StringIO())
+        with self.assertRaisesRegexp(CommandError, unicode(GitExportError.URL_BAD)):
+            call_command('git_export', 'foo/bar/baz', 'silly', stderr=StringIO.StringIO())
 
         # Send bad course_id to get course not exported
-        with self.assertRaisesRegex(CommandError, six.text_type(GitExportError.BAD_COURSE)):
-            call_command('git_export', 'foo/bar:baz', 'silly', stderr=StringIO())
+        with self.assertRaisesRegexp(CommandError, unicode(GitExportError.BAD_COURSE)):
+            call_command('git_export', 'foo/bar:baz', 'silly', stderr=StringIO.StringIO())
 
     def test_error_output(self):
         """
         Verify that error output is actually resolved as the correct string
         """
-        with self.assertRaisesRegex(CommandError, six.text_type(GitExportError.BAD_COURSE)):
+        with self.assertRaisesRegexp(CommandError, unicode(GitExportError.BAD_COURSE)):
             call_command(
                 'git_export', 'foo/bar:baz', 'silly'
             )
 
-        with self.assertRaisesRegex(CommandError, six.text_type(GitExportError.URL_BAD)):
+        with self.assertRaisesRegexp(CommandError, unicode(GitExportError.URL_BAD)):
             call_command(
                 'git_export', 'foo/bar/baz', 'silly'
             )
@@ -98,13 +89,14 @@ class TestGitExport(CourseTestCase):
         Test several bad URLs for validation
         """
         course_key = CourseLocator('org', 'course', 'run')
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.URL_BAD)):
+        with self.assertRaisesRegexp(GitExportError, unicode(GitExportError.URL_BAD)):
             git_export_utils.export_to_git(course_key, 'Sillyness')
 
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.URL_BAD)):
+        with self.assertRaisesRegexp(GitExportError, unicode(GitExportError.URL_BAD)):
             git_export_utils.export_to_git(course_key, 'example.com:edx/notreal')
 
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.URL_NO_AUTH)):
+        with self.assertRaisesRegexp(GitExportError,
+                                     unicode(GitExportError.URL_NO_AUTH)):
             git_export_utils.export_to_git(course_key, 'http://blah')
 
     def test_bad_git_repos(self):
@@ -115,20 +107,23 @@ class TestGitExport(CourseTestCase):
         self.assertFalse(os.path.isdir(test_repo_path))
         course_key = CourseLocator('foo', 'blah', '100-')
         # Test bad clones
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.CANNOT_PULL)):
+        with self.assertRaisesRegexp(GitExportError,
+                                     unicode(GitExportError.CANNOT_PULL)):
             git_export_utils.export_to_git(
                 course_key,
                 'https://user:blah@example.com/test_repo.git')
         self.assertFalse(os.path.isdir(test_repo_path))
 
         # Setup good repo with bad course to test xml export
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.XML_EXPORT_FAIL)):
+        with self.assertRaisesRegexp(GitExportError,
+                                     unicode(GitExportError.XML_EXPORT_FAIL)):
             git_export_utils.export_to_git(
                 course_key,
                 'file://{0}'.format(self.bare_repo_dir))
 
         # Test bad git remote after successful clone
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.CANNOT_PULL)):
+        with self.assertRaisesRegexp(GitExportError,
+                                     unicode(GitExportError.CANNOT_PULL)):
             git_export_utils.export_to_git(
                 course_key,
                 'https://user:blah@example.com/r.git')
@@ -157,7 +152,7 @@ class TestGitExport(CourseTestCase):
         )
         cwd = os.path.abspath(git_export_utils.GIT_REPO_EXPORT_DIR / 'test_bare')
         git_log = subprocess.check_output(['git', 'log', '-1',
-                                           '--format=%an|%ae'], cwd=cwd).decode('utf-8')
+                                           '--format=%an|%ae'], cwd=cwd)
         self.assertEqual(expect_string, git_log)
 
         # Make changes to course so there is something to commit
@@ -172,7 +167,7 @@ class TestGitExport(CourseTestCase):
             self.user.email,
         )
         git_log = subprocess.check_output(
-            ['git', 'log', '-1', '--format=%an|%ae'], cwd=cwd).decode('utf-8')
+            ['git', 'log', '-1', '--format=%an|%ae'], cwd=cwd)
         self.assertEqual(expect_string, git_log)
 
     def test_no_change(self):
@@ -184,6 +179,7 @@ class TestGitExport(CourseTestCase):
             'file://{0}'.format(self.bare_repo_dir)
         )
 
-        with self.assertRaisesRegex(GitExportError, six.text_type(GitExportError.CANNOT_COMMIT)):
+        with self.assertRaisesRegexp(GitExportError,
+                                     unicode(GitExportError.CANNOT_COMMIT)):
             git_export_utils.export_to_git(
                 self.course.id, 'file://{0}'.format(self.bare_repo_dir))

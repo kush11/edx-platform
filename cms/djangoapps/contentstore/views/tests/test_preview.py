@@ -1,13 +1,10 @@
 """
 Tests for contentstore.views.preview.py
 """
-
-
 import re
 
 import ddt
 import mock
-import six
 from django.test.client import Client, RequestFactory
 from xblock.core import XBlock, XBlockAside
 
@@ -59,16 +56,14 @@ class GetPreviewHtmlTestCase(ModuleStoreTestCase):
         html = get_preview_fragment(request, html, context).content
 
         # Verify student view html is returned, and the usage ID is as expected.
-        html_pattern = re.escape(
-            six.text_type(course.id.make_usage_key('html', 'replaceme'))
-        ).replace('replaceme', r'html_[0-9]*')
-        self.assertRegex(
+        html_pattern = re.escape(unicode(course.id.make_usage_key('html', 'replaceme'))).replace('replaceme', r'html_[0-9]*')
+        self.assertRegexpMatches(
             html,
             'data-usage-id="{}"'.format(html_pattern)
         )
-        self.assertRegex(html, '<html>foobar</html>')
-        self.assertRegex(html, r"data-block-type=[\"\']test_aside[\"\']")
-        self.assertRegex(html, "Aside rendered")
+        self.assertRegexpMatches(html, '<html>foobar</html>')
+        self.assertRegexpMatches(html, r"data-block-type=[\"\']test_aside[\"\']")
+        self.assertRegexpMatches(html, "Aside rendered")
         # Now ensure the acid_aside is not in the result
         self.assertNotRegexpMatches(html, r"data-block-type=[\"\']acid_aside[\"\']")
 

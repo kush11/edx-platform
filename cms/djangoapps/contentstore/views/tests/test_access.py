@@ -1,8 +1,6 @@
 """
 Tests access.py
 """
-
-
 from django.contrib.auth.models import User
 from django.test import TestCase
 from opaque_keys.edx.locator import CourseLocator

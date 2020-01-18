@@ -3,15 +3,12 @@ Unit tests for contentstore.views.library
 
 More important high-level tests are in contentstore/tests/test_libraries.py
 """
-
-
 import ddt
 import mock
 from django.conf import settings
 from mock import patch
 from opaque_keys.edx.locator import CourseKey, LibraryLocator
 from six import binary_type, text_type
-from six.moves import range
 
 from contentstore.tests.utils import AjaxEnabledTestClient, CourseTestCase, parse_json
 from contentstore.utils import reverse_course_url, reverse_library_url
@@ -257,8 +254,8 @@ class UnitTestLibraries(CourseTestCase):
 
         response = self.client.get(make_url_for_lib(lib.location.library_key))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "<html")
-        self.assertContains(response, lib.display_name)
+        self.assertIn("<html", response.content)
+        self.assertIn(lib.display_name.encode('utf-8'), response.content)
 
     @ddt.data('library-v1:Nonexistent+library', 'course-v1:Org+Course', 'course-v1:Org+Course+Run', 'invalid')
     def test_invalid_keys(self, key_str):
@@ -328,7 +325,7 @@ class UnitTestLibraries(CourseTestCase):
         response = self.client.get(manage_users_url)
         self.assertEqual(response.status_code, 200)
         # extra_user has not been assigned to the library so should not show up in the list:
-        self.assertNotContains(response, extra_user.username)
+        self.assertNotIn(binary_type(extra_user.username), response.content)
 
         # Now add extra_user to the library:
         user_details_url = reverse_course_url(
@@ -341,4 +338,4 @@ class UnitTestLibraries(CourseTestCase):
         # Now extra_user should apear in the list:
         response = self.client.get(manage_users_url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, extra_user.username)
+        self.assertIn(binary_type(extra_user.username), response.content)

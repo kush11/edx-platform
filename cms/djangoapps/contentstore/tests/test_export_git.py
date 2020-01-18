@@ -2,7 +2,6 @@
 Test the ability to export courses to xml from studio
 """
 
-
 import copy
 import os
 import shutil
@@ -64,17 +63,19 @@ class TestExportGit(CourseTestCase):
         if course hasn't set giturl.
         """
         response = self.client.get(self.test_url)
-        self.assertContains(
-            response,
+        self.assertEqual(200, response.status_code)
+        self.assertIn(
             ('giturl must be defined in your '
              'course settings before you can export to git.'),
+            response.content
         )
 
         response = self.client.get('{}?action=push'.format(self.test_url))
-        self.assertContains(
-            response,
+        self.assertEqual(200, response.status_code)
+        self.assertIn(
             ('giturl must be defined in your '
              'course settings before you can export to git.'),
+            response.content
         )
 
     def test_course_export_failures(self):
@@ -85,7 +86,7 @@ class TestExportGit(CourseTestCase):
         modulestore().update_item(self.course_module, self.user.id)
 
         response = self.client.get('{}?action=push'.format(self.test_url))
-        self.assertContains(response, 'Export Failed:')
+        self.assertIn('Export Failed:', response.content)
 
     def test_exception_translation(self):
         """
@@ -95,7 +96,7 @@ class TestExportGit(CourseTestCase):
         modulestore().update_item(self.course_module, self.user.id)
 
         response = self.client.get('{}?action=push'.format(self.test_url))
-        self.assertNotContains(response, 'django.utils.functional.__proxy__')
+        self.assertNotIn('django.utils.functional.__proxy__', response.content)
 
     def test_course_export_success(self):
         """
@@ -104,7 +105,7 @@ class TestExportGit(CourseTestCase):
 
         self.make_bare_repo_with_course('test_repo')
         response = self.client.get('{}?action=push'.format(self.test_url))
-        self.assertContains(response, 'Export Succeeded')
+        self.assertIn('Export Succeeded', response.content)
 
     def test_repo_with_dots(self):
         """
@@ -112,7 +113,7 @@ class TestExportGit(CourseTestCase):
         """
         self.make_bare_repo_with_course('test.repo')
         response = self.client.get('{}?action=push'.format(self.test_url))
-        self.assertContains(response, 'Export Succeeded')
+        self.assertIn('Export Succeeded', response.content)
 
     def test_dirty_repo(self):
         """

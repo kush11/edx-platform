@@ -23,7 +23,7 @@ from openedx.core.djangolib.js_utils import (
 <%block name="content">
 <div class="wrapper-mast wrapper">
   <header class="mast has-actions">
-    <h1 class="page-header">${_("{studio_name} Home").format(studio_name=settings.STUDIO_SHORT_NAME)}</h1>
+    <h1 class="page-header">SkillAssure CMS</h1>
 
     % if user.is_active:
     <nav class="nav-actions" aria-label="${_('Page Actions')}">
@@ -50,7 +50,7 @@ from openedx.core.djangolib.js_utils import (
 <div class="wrapper-content wrapper">
   % if user.is_active:
   <section class="content">
-    <article class="content-primary" role="main">
+    <article class="content-primary" role="main" style="margin-left:20%; width:60%;">
 
       % if course_creator_status=='granted':
       <div class="wrapper-create-element wrapper-create-course">
@@ -323,6 +323,17 @@ from openedx.core.djangolib.js_utils import (
       </ul>
       % endif
 
+      <style>
+        .list-courses{
+          border: 0!important;
+        }
+        
+        .list-courses>li{
+          /* border: 1px solid #888888!important; */
+          margin-top: 5px ;
+          box-shadow: 0px 1px 4px 0px #91959e;
+        }
+      </style>
       %if len(courses) > 0 or optimization_enabled:
       <div class="courses courses-tab react-course-listing active">
         ${static.renderReact(
@@ -511,7 +522,7 @@ from openedx.core.djangolib.js_utils import (
       %endif
 
     </article>
-    <aside class="content-supplementary" role="complementary">
+    <!-- <aside class="content-supplementary" role="complementary">
       <div class="bit">
         <h3 class="title title-3">${_('New to {studio_name}?').format(studio_name=settings.STUDIO_NAME)}</h3>
         <p>${_('Click Help in the upper-right corner to get more information about the {studio_name} page you are viewing. You can also use the links at the bottom of the page to access our continually updated documentation and other {studio_name} resources.').format(studio_name=settings.STUDIO_SHORT_NAME)}</p>
@@ -519,7 +530,7 @@ from openedx.core.djangolib.js_utils import (
         <ol class="list-actions">
           <li class="action-item">
 
-            <a href="${get_online_help_info(online_help_token())['doc_url']}" rel="noopener" target="_blank">${_("Getting Started with {studio_name}").format(studio_name=settings.STUDIO_NAME)}</a>
+            <a href="${get_online_help_info(online_help_token())['doc_url']}" target="_blank">${_("Getting Started with {studio_name}").format(studio_name=settings.STUDIO_NAME)}</a>
           </li>
         </ol>
       </div>
@@ -554,7 +565,7 @@ from openedx.core.djangolib.js_utils import (
       </div>
 
       % endif
-    </aside>
+    </aside> -->
   </section>
 
 

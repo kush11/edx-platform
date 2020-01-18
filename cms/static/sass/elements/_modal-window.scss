@@ -219,11 +219,6 @@
           color: $blue-d4;
         }
       }
-      .clipboard-button {
-        position: absolute;
-        right: 30px;
-        bottom: 30px;
-      }
     }
   }
 
@@ -253,7 +248,7 @@
   // large modals - component editors and interactives
   // ------------------------
   .modal-lg {
-    width: 95%;
+    width: 70%;
     min-width: ($baseline*27.5);
     height: auto;
 
@@ -271,7 +266,7 @@
         }
 
         .editor-modes {
-          width: 49%;
+          width: 48%;
           display: inline-block;
 
           @include text-align(right);
@@ -383,6 +378,7 @@
     }
   }
 
+
   // MODAL TYPE: component - video modal (includes special overrides for xblock-related editing view)
   .modal-lg.modal-type-video {
     .modal-content {
@@ -428,7 +424,7 @@
       }
     }
 
-    .xmodule_edit.xmodule_VideoBlock .editor-with-tabs {
+    .xmodule_edit.xmodule_VideoDescriptor .editor-with-tabs {
       .edit-header {
         border: 0;
         background-color: $gray-l4;

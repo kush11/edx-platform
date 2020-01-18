@@ -1,20 +1,16 @@
 """
 Tests for exporting courseware to the desired path
 """
-
-
-import shutil
 import unittest
+import shutil
+import ddt
+from django.core.management import CommandError, call_command
 from tempfile import mkdtemp
 
-import ddt
-import six
-from django.core.management import CommandError, call_command
-
-from xmodule.modulestore import ModuleStoreEnum
-from xmodule.modulestore.django import modulestore
-from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
+from xmodule.modulestore import ModuleStoreEnum
+from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
+from xmodule.modulestore.django import modulestore
 
 
 class TestArgParsingCourseExport(unittest.TestCase):
@@ -25,11 +21,8 @@ class TestArgParsingCourseExport(unittest.TestCase):
         """
         Test export command with no arguments
         """
-        if six.PY2:
-            errstring = "Error: too few arguments"
-        else:
-            errstring = "Error: the following arguments are required: course_id, output_path"
-        with self.assertRaisesRegex(CommandError, errstring):
+        errstring = "Error: too few arguments"
+        with self.assertRaisesRegexp(CommandError, errstring):
             call_command('export')
 
 
@@ -55,14 +48,14 @@ class TestCourseExport(ModuleStoreTestCase):
         Create a new course try exporting in a path specified
         """
         course = CourseFactory.create(default_store=store)
-        course_id = six.text_type(course.id)
+        course_id = unicode(course.id)
         self.assertTrue(
             modulestore().has_course(course.id),
-            u"Could not find course in {}".format(store)
+            "Could not find course in {}".format(store)
         )
         # Test `export` management command with invalid course_id
         errstring = "Invalid course_key: 'InvalidCourseID'."
-        with self.assertRaisesRegex(CommandError, errstring):
+        with self.assertRaisesRegexp(CommandError, errstring):
             call_command('export', "InvalidCourseID", self.temp_dir_1)
 
         # Test `export` management command with correct course_id
@@ -74,5 +67,5 @@ class TestCourseExport(ModuleStoreTestCase):
         Test export command with a valid course key that doesn't exist
         """
         errstring = "Course with x/y/z key not found."
-        with self.assertRaisesRegex(CommandError, errstring):
+        with self.assertRaisesRegexp(CommandError, errstring):
             call_command('export', "x/y/z", self.temp_dir_1)

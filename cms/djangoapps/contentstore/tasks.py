@@ -1,7 +1,7 @@
 """
 This file contains celery tasks for contentstore views
 """
-
+from __future__ import absolute_import
 
 import base64
 import json
@@ -32,8 +32,7 @@ from opaque_keys.edx.locator import LibraryLocator, BlockUsageLocator
 from organizations.models import OrganizationCourse
 from path import Path as path
 from pytz import UTC
-from six import iteritems, text_type, binary_type
-from six.moves import range
+from six import iteritems, text_type
 from user_tasks.models import UserTaskArtifact, UserTaskStatus
 from user_tasks.tasks import UserTask
 
@@ -46,7 +45,6 @@ from models.settings.course_metadata import CourseMetadata
 from openedx.core.djangoapps.embargo.models import CountryAccessRule, RestrictedCourse
 from openedx.core.lib.extract_tar import safetar_extractall
 from student.auth import has_course_author_access
-from util.organizations_helpers import add_organization_course, get_organization_by_short_name
 from xmodule.contentstore.django import contentstore
 from xmodule.course_module import CourseFields
 from xmodule.exceptions import SerializationError
@@ -103,7 +101,7 @@ def enqueue_update_thumbnail_tasks(course_videos, videos_per_task, run):
     start = 0
     end = videos_per_task
     chunks_count = int(ceil(batch_size / float(videos_per_task)))
-    for __ in range(0, chunks_count):  # pylint: disable=C7620
+    for __ in xrange(0, chunks_count):
         course_videos_chunk = course_videos[start:end]
         tasks.append(task_scrape_youtube_thumbnail.s(
             course_videos_chunk, run
@@ -128,8 +126,8 @@ def task_scrape_youtube_thumbnail_callback(self, results, run,  # pylint: disabl
     """
     yt_thumbnails_scraping_tasks_count = len(list(results()))
     LOGGER.info(
-        (u"[video thumbnails] [run=%s] [video-thumbnails-scraping-complete-for-a-batch] [tasks_count=%s] "
-         u"[batch_size=%s] [videos_per_task=%s]"),
+        ("[video thumbnails] [run=%s] [video-thumbnails-scraping-complete-for-a-batch] [tasks_count=%s] "
+         "[batch_size=%s] [videos_per_task=%s]"),
         run, yt_thumbnails_scraping_tasks_count, batch_size, videos_per_task
     )
 
@@ -155,8 +153,8 @@ def task_scrape_youtube_thumbnail(self, course_videos, run):   # pylint: disable
             scrape_youtube_thumbnail(course_id, edx_video_id, youtube_id)
         except Exception:  # pylint: disable=broad-except
             LOGGER.exception(
-                (u"[video thumbnails] [run=%s] [video-thumbnails-scraping-failed-with-unknown-exc] "
-                 u"[edx_video_id=%s] [youtube_id=%s] [course=%s]"),
+                ("[video thumbnails] [run=%s] [video-thumbnails-scraping-failed-with-unknown-exc] "
+                 "[edx_video_id=%s] [youtube_id=%s] [course=%s]"),
                 run,
                 edx_video_id,
                 youtube_id,
@@ -174,8 +172,8 @@ def task_status_callback(self, results, revision,  # pylint: disable=unused-argu
     transcript_tasks_count = len(list(results()))
 
     LOGGER.info(
-        (u"[%s] [run=%s] [video-transcripts-migration-complete-for-a-video] [tasks_count=%s] [course_id=%s] "
-         u"[revision=%s] [video=%s]"),
+        ("[%s] [run=%s] [video-transcripts-migration-complete-for-a-video] [tasks_count=%s] [course_id=%s] "
+         "[revision=%s] [video=%s]"),
         MIGRATION_LOGS_PREFIX, command_run, transcript_tasks_count, course_id, revision, video_location
     )
 
@@ -199,7 +197,7 @@ def enqueue_async_migrate_transcripts_tasks(course_keys,
         'command_run': command_run
     }
     group([
-        async_migrate_transcript.s(text_type(course_key), **kwargs)
+        async_migrate_transcript.s(unicode(course_key), **kwargs)
         for course_key in course_keys
     ])()
 
@@ -250,7 +248,7 @@ def async_migrate_transcript(self, course_key, **kwargs):   # pylint: disable=un
     course_videos = get_course_videos(CourseKey.from_string(course_key))
 
     LOGGER.info(
-        u"[%s] [run=%s] [video-transcripts-migration-process-started-for-course] [course=%s]",
+        "[%s] [run=%s] [video-transcripts-migration-process-started-for-course] [course=%s]",
         MIGRATION_LOGS_PREFIX, command_run, course_key
     )
 
@@ -266,7 +264,7 @@ def async_migrate_transcript(self, course_key, **kwargs):   # pylint: disable=un
                 all_transcripts.update({'en': video.sub})
 
             sub_tasks = []
-            video_location = text_type(video.location)
+            video_location = unicode(video.location)
             for lang in all_transcripts:
                 sub_tasks.append(async_migrate_transcript_subtask.s(
                     video_location, revision, lang, force_update, **kwargs
@@ -282,13 +280,13 @@ def async_migrate_transcript(self, course_key, **kwargs):   # pylint: disable=un
                 chord(sub_tasks)(callback)
 
                 LOGGER.info(
-                    (u"[%s] [run=%s] [transcripts-migration-tasks-submitted] "
-                     u"[transcripts_count=%s] [course=%s] [revision=%s] [video=%s]"),
+                    ("[%s] [run=%s] [transcripts-migration-tasks-submitted] "
+                     "[transcripts_count=%s] [course=%s] [revision=%s] [video=%s]"),
                     MIGRATION_LOGS_PREFIX, command_run, len(sub_tasks), course_key, revision, video_location
                 )
             else:
                 LOGGER.info(
-                    u"[%s] [run=%s] [no-video-transcripts] [course=%s] [revision=%s] [video=%s]",
+                    "[%s] [run=%s] [no-video-transcripts] [course=%s] [revision=%s] [video=%s]",
                     MIGRATION_LOGS_PREFIX, command_run, course_key, revision, video_location
                 )
 
@@ -323,7 +321,7 @@ def save_transcript_to_storage(command_run, edx_video_id, language_code, transcr
         )
     else:
         LOGGER.info(
-            u"[%s] [run=%s] [do-not-override-existing-transcript] [edx_video_id=%s] [language_code=%s]",
+            "[%s] [run=%s] [do-not-override-existing-transcript] [edx_video_id=%s] [language_code=%s]",
             MIGRATION_LOGS_PREFIX, command_run, edx_video_id, language_code
         )
 
@@ -349,15 +347,15 @@ def async_migrate_transcript_subtask(self, *args, **kwargs):  # pylint: disable=
 
     if not kwargs['commit']:
         LOGGER.info(
-            (u'[%s] [run=%s] [video-transcript-will-be-migrated] '
-             u'[revision=%s] [video=%s] [edx_video_id=%s] [language_code=%s]'),
+            ('[%s] [run=%s] [video-transcript-will-be-migrated] '
+             '[revision=%s] [video=%s] [edx_video_id=%s] [language_code=%s]'),
             MIGRATION_LOGS_PREFIX, command_run, revision, video_location, edx_video_id, language_code
         )
         return success
 
     LOGGER.info(
-        (u'[%s] [run=%s] [transcripts-migration-process-started-for-video-transcript] [revision=%s] '
-         u'[video=%s] [edx_video_id=%s] [language_code=%s]'),
+        ('[%s] [run=%s] [transcripts-migration-process-started-for-video-transcript] [revision=%s] '
+         '[video=%s] [edx_video_id=%s] [language_code=%s]'),
         MIGRATION_LOGS_PREFIX, command_run, revision, video_location, edx_video_id, language_code
     )
 
@@ -385,7 +383,7 @@ def async_migrate_transcript_subtask(self, *args, **kwargs):  # pylint: disable=
                 store.update_item(video, ModuleStoreEnum.UserID.mgmt_command)
 
             LOGGER.info(
-                u'[%s] [run=%s] [generated-edx-video-id] [revision=%s] [video=%s] [edx_video_id=%s] [language_code=%s]',
+                '[%s] [run=%s] [generated-edx-video-id] [revision=%s] [video=%s] [edx_video_id=%s] [language_code=%s]',
                 MIGRATION_LOGS_PREFIX, command_run, revision, video_location, edx_video_id, language_code
             )
 
@@ -399,22 +397,22 @@ def async_migrate_transcript_subtask(self, *args, **kwargs):  # pylint: disable=
         )
     except (NotFoundError, TranscriptsGenerationException, ValCannotCreateError):
         LOGGER.exception(
-            (u'[%s] [run=%s] [video-transcript-migration-failed-with-known-exc] [revision=%s] [video=%s] '
-             u'[edx_video_id=%s] [language_code=%s]'),
+            ('[%s] [run=%s] [video-transcript-migration-failed-with-known-exc] [revision=%s] [video=%s] '
+             '[edx_video_id=%s] [language_code=%s]'),
             MIGRATION_LOGS_PREFIX, command_run, revision, video_location, edx_video_id, language_code
         )
         return failure
     except Exception:
         LOGGER.exception(
-            (u'[%s] [run=%s] [video-transcript-migration-failed-with-unknown-exc] [revision=%s] '
-             u'[video=%s] [edx_video_id=%s] [language_code=%s]'),
+            ('[%s] [run=%s] [video-transcript-migration-failed-with-unknown-exc] [revision=%s] '
+             '[video=%s] [edx_video_id=%s] [language_code=%s]'),
             MIGRATION_LOGS_PREFIX, command_run, revision, video_location, edx_video_id, language_code
         )
         raise
 
     LOGGER.info(
-        (u'[%s] [run=%s] [video-transcript-migration-succeeded-for-a-video] [revision=%s] '
-         u'[video=%s] [edx_video_id=%s] [language_code=%s]'),
+        ('[%s] [run=%s] [video-transcript-migration-succeeded-for-a-video] [revision=%s] '
+         '[video=%s] [edx_video_id=%s] [language_code=%s]'),
         MIGRATION_LOGS_PREFIX, command_run, revision, video_location, edx_video_id, language_code
     )
     return success
@@ -486,8 +484,6 @@ def rerun_course(source_course_key_string, destination_course_key_string, user_i
             for country_access_rule in country_access_rules:
                 clone_instance(country_access_rule, {'restricted_course': new_restricted_course})
 
-        org_data = get_organization_by_short_name(source_course_key.org)
-        add_organization_course(org_data, destination_course_key)
         return "succeeded"
 
     except DuplicateCourseError:
@@ -552,6 +548,16 @@ def update_library_index(library_id, triggered_time_isoformat):
         LOGGER.error(u'Search indexing error for library %s - %s', library_id, text_type(exc))
     else:
         LOGGER.debug(u'Search indexing successful for library %s', library_id)
+
+
+@task()
+def push_course_update_task(course_key_string, course_subscription_id, course_display_name):
+    """
+    Sends a push notification for a course update.
+    """
+    # TODO Use edx-notifications library instead (MA-638).
+    from .push_notification import send_push_course_update
+    send_push_course_update(course_key_string, course_subscription_id, course_display_name)
 
 
 class CourseExportTask(UserTask):  # pylint: disable=abstract-method
@@ -669,7 +675,7 @@ def create_export_tarball(course_module, course_key, context, status=None):
                                     'edit_unit_url': context['edit_unit_url']}))
         raise
     except Exception as exc:
-        LOGGER.exception(u'There was an error exporting %s', course_key, exc_info=True)
+        LOGGER.exception('There was an error exporting %s', course_key, exc_info=True)
         context.update({
             'in_err': True,
             'edit_unit_url': None,
@@ -749,7 +755,7 @@ def import_olx(self, user_id, course_key_string, archive_path, archive_name, lan
     # Locate the uploaded OLX archive (and download it from S3 if necessary)
     # Do everything in a try-except block to make sure everything is properly cleaned up.
     data_root = path(settings.GITHUB_REPO_ROOT)
-    subdir = base64.urlsafe_b64encode(repr(courselike_key).encode('utf-8')).decode('utf-8')
+    subdir = base64.urlsafe_b64encode(repr(courselike_key))
     course_dir = data_root / subdir
     try:
         self.status.set_state(u'Unpacking')
@@ -811,7 +817,7 @@ def import_olx(self, user_id, course_key_string, archive_path, archive_name, lan
     try:
         tar_file = tarfile.open(temp_filepath)
         try:
-            safetar_extractall(tar_file, (course_dir + u'/'))
+            safetar_extractall(tar_file, (course_dir + u'/').encode(u'utf-8'))
         except SuspiciousOperation as exc:
             LOGGER.info(u'Course import %s: Unsafe tar file - %s', courselike_key, exc.args[0])
             with respect_language(language):

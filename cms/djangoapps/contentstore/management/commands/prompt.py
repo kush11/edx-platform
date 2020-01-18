@@ -1,11 +1,4 @@
-"""
-Takes user input.
-"""
-
-
 import sys
-
-from six.moves import input
 
 
 def query_yes_no(question, default="yes"):
@@ -32,11 +25,11 @@ def query_yes_no(question, default="yes"):
     elif default == "no":
         prompt = " [y/N] "
     else:
-        raise ValueError(u"invalid default answer: '%s'" % default)
+        raise ValueError("invalid default answer: '%s'" % default)
 
     while True:
         sys.stdout.write(question + prompt)
-        choice = input().lower()
+        choice = raw_input().lower()
         if default is not None and choice == '':
             return valid[default]
         elif choice in valid:
